@@ -1,18 +1,20 @@
 """
 知识建模模块
 
-使用 Claude API 从清洗后的文本中提取结构化知识，
-并综合所有视频生成UP主的知识画像。
+使用 LLM（Claude / OpenAI / Qwen / DeepSeek）从清洗后的文本中提取
+结构化知识，并综合所有视频生成UP主的知识画像。
 """
 
 import json
 import re
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
-import anthropic
 from rich.console import Console
+
+if TYPE_CHECKING:
+    from src.clean.text_processor import LLMClient
 
 console = Console()
 
@@ -47,21 +49,19 @@ class KnowledgeExtractor:
     """
     知识提取器。
 
-    使用 Claude API 从清洗后的视频文本中提取结构化知识，
+    使用统一的 LLMClient 接口从清洗后的视频文本中提取结构化知识，
     并综合多个视频生成UP主的完整知识画像。
+    支持 Claude / OpenAI / Qwen / DeepSeek 等后端。
     """
 
-    def __init__(self, client: anthropic.Anthropic,
-                 model: str = "claude-sonnet-4-20250514"):
+    def __init__(self, llm_client: "LLMClient"):
         """
         初始化知识提取器。
 
         Args:
-            client: Anthropic客户端
-            model: 使用的模型名称
+            llm_client: 统一的 LLM 客户端（由 create_llm_client 创建）
         """
-        self.client = client
-        self.model = model
+        self.llm_client = llm_client
 
     def extract_from_video(self, cleaned_doc: dict) -> VideoKnowledge:
         """
@@ -88,12 +88,7 @@ class KnowledgeExtractor:
         )
 
         try:
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=4096,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            content = response.content[0].text
+            content = self.llm_client.chat(prompt, max_tokens=4096)
             json_match = re.search(r"\{.*\}", content, re.DOTALL)
             if json_match:
                 data = json.loads(json_match.group())
@@ -145,12 +140,7 @@ class KnowledgeExtractor:
         )
 
         try:
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=8192,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            content = response.content[0].text
+            content = self.llm_client.chat(prompt, max_tokens=8192)
             json_match = re.search(r"\{.*\}", content, re.DOTALL)
             if json_match:
                 data = json.loads(json_match.group())

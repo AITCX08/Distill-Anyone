@@ -82,33 +82,49 @@ def create_llm_client(provider: str, config) -> Optional[LLMClient]:
     """
     根据配置创建对应的 LLM 客户端。
 
+    支持的提供商:
+      - claude: Anthropic Claude API
+      - openai: OpenAI API（或兼容接口）
+      - qwen:   通义千问 Qwen（阿里云 DashScope，OpenAI兼容接口）
+      - deepseek: DeepSeek API（OpenAI兼容接口）
+
     Args:
-        provider: LLM提供商 ("claude" 或 "openai")
+        provider: LLM提供商名称
         config: AppConfig 配置对象
 
     Returns:
         LLM客户端实例，初始化失败返回 None
     """
+    # 提供商 → (api_key, base_url, model) 的映射
+    # qwen 和 deepseek 均使用 OpenAI 兼容接口
+    provider_map = {
+        "openai": (config.openai.api_key, config.openai.base_url,
+                   config.openai.model, "OPENAI_API_KEY"),
+        "qwen": (config.qwen.api_key, config.qwen.base_url,
+                 config.qwen.model, "QWEN_API_KEY"),
+        "deepseek": (config.deepseek.api_key, config.deepseek.base_url,
+                     config.deepseek.model, "DEEPSEEK_API_KEY"),
+    }
+
     try:
-        if provider == "openai":
-            if not config.openai.api_key:
-                console.print("[yellow]未配置 OPENAI_API_KEY，将使用规则清洗")
+        if provider in provider_map:
+            api_key, base_url, model, env_name = provider_map[provider]
+            if not api_key:
+                console.print(f"[yellow]未配置 {env_name}，将使用规则处理")
                 return None
             return OpenAILLMClient(
-                api_key=config.openai.api_key,
-                model=config.openai.model,
-                base_url=config.openai.base_url,
+                api_key=api_key, model=model, base_url=base_url,
             )
         else:  # 默认 claude
             if not config.anthropic.api_key:
-                console.print("[yellow]未配置 ANTHROPIC_API_KEY，将使用规则清洗")
+                console.print("[yellow]未配置 ANTHROPIC_API_KEY，将使用规则处理")
                 return None
             return ClaudeLLMClient(
                 api_key=config.anthropic.api_key,
                 model=config.anthropic.model,
             )
     except Exception as e:
-        console.print(f"[yellow]LLM 客户端初始化失败，将使用规则清洗: {e}")
+        console.print(f"[yellow]LLM 客户端初始化失败，将使用规则处理: {e}")
         return None
 
 

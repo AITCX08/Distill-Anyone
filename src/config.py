@@ -17,6 +17,9 @@ PROJECT_ROOT = Path(__file__).parent.parent
 # 加载 .env 文件
 load_dotenv(PROJECT_ROOT / ".env")
 
+# 支持的 LLM 提供商列表
+LLM_PROVIDERS = ("claude", "openai", "qwen", "deepseek")
+
 
 class BilibiliConfig(BaseModel):
     """B站相关配置"""
@@ -34,8 +37,28 @@ class AnthropicConfig(BaseModel):
 class OpenAIConfig(BaseModel):
     """OpenAI API 配置"""
     api_key: str = Field(default="", description="OpenAI API Key")
-    base_url: str = Field(default="https://api.openai.com/v1", description="API Base URL（支持兼容接口）")
+    base_url: str = Field(default="https://api.openai.com/v1", description="API Base URL")
     model: str = Field(default="gpt-4o", description="使用的模型名称")
+
+
+class QwenConfig(BaseModel):
+    """通义千问 Qwen API 配置（阿里云 DashScope，OpenAI 兼容接口）"""
+    api_key: str = Field(default="", description="DashScope API Key")
+    base_url: str = Field(
+        default="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        description="DashScope OpenAI 兼容接口地址",
+    )
+    model: str = Field(default="qwen3-235b-a22b", description="Qwen 模型名称")
+
+
+class DeepSeekConfig(BaseModel):
+    """DeepSeek API 配置（OpenAI 兼容接口）"""
+    api_key: str = Field(default="", description="DeepSeek API Key")
+    base_url: str = Field(
+        default="https://api.deepseek.com",
+        description="DeepSeek API 地址",
+    )
+    model: str = Field(default="deepseek-reasoner", description="DeepSeek 模型名称")
 
 
 class FunASRConfig(BaseModel):
@@ -48,12 +71,14 @@ class FunASRConfig(BaseModel):
 class AppConfig(BaseModel):
     """应用全局配置"""
     up_uid: int = Field(default=0, description="UP主UID")
-    llm_provider: str = Field(default="claude", description="LLM提供商 (claude/openai)")
+    llm_provider: str = Field(default="claude", description="LLM提供商")
     data_dir: Path = Field(default=PROJECT_ROOT / "data", description="数据存储目录")
     output_dir: Path = Field(default=PROJECT_ROOT / "output", description="输出目录")
     bilibili: BilibiliConfig = Field(default_factory=BilibiliConfig)
     anthropic: AnthropicConfig = Field(default_factory=AnthropicConfig)
     openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
+    qwen: QwenConfig = Field(default_factory=QwenConfig)
+    deepseek: DeepSeekConfig = Field(default_factory=DeepSeekConfig)
     funasr: FunASRConfig = Field(default_factory=FunASRConfig)
 
     @property
@@ -103,6 +128,17 @@ def load_config() -> AppConfig:
             api_key=os.getenv("OPENAI_API_KEY", ""),
             base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
             model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+        ),
+        qwen=QwenConfig(
+            api_key=os.getenv("QWEN_API_KEY", ""),
+            base_url=os.getenv("QWEN_BASE_URL",
+                               "https://dashscope.aliyuncs.com/compatible-mode/v1"),
+            model=os.getenv("QWEN_MODEL", "qwen3-235b-a22b"),
+        ),
+        deepseek=DeepSeekConfig(
+            api_key=os.getenv("DEEPSEEK_API_KEY", ""),
+            base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+            model=os.getenv("DEEPSEEK_MODEL", "deepseek-reasoner"),
         ),
         funasr=FunASRConfig(
             model=os.getenv("FUNASR_MODEL", "paraformer-zh"),
