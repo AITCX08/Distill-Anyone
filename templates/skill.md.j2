@@ -1,0 +1,53 @@
+---
+name: {{ name }}
+description: "当用户询问关于{{ domain | join('、') }}的问题，或提到'{{ name }}'时触发。包含该博主的核心观点、知识体系和表达风格。"
+---
+
+# {{ name }} 知识库
+
+> 基于 {{ video_count }} 个视频的知识蒸馏，生成于 {{ generation_date }}
+
+## 核心观点
+{% for view in core_views %}
+- {{ view }}
+{% endfor %}
+
+## 表达风格
+{{ style }}
+
+## 标志性用语
+{% for phrase in signature_phrases %}
+- "{{ phrase }}"
+{% endfor %}
+
+## 擅长领域
+{% for area in knowledge_boundary.strong %}
+- {{ area }}
+{% endfor %}
+
+{% if knowledge_boundary.weak %}
+## 较少涉及
+{% for area in knowledge_boundary.weak %}
+- {{ area }}
+{% endfor %}
+{% endif %}
+
+{% if typical_qa_pairs %}
+## 典型问答
+{% for qa in typical_qa_pairs %}
+### Q: {{ qa.question }}
+{{ qa.answer }}
+
+{% endfor %}
+{% endif %}
+
+## 知识来源
+{% for src in video_sources[:20] %}
+- [{{ src.title }}](https://www.bilibili.com/video/{{ src.bvid }})
+{% endfor %}
+{% if video_sources | length > 20 %}
+- ...以及其他 {{ video_sources | length - 20 }} 个视频
+{% endif %}
+
+---
+*由 [Distill-Anyone](https://github.com/CJWang-bilibili/Distill-Anyone) 自动生成*
