@@ -142,16 +142,23 @@ def asr():
 
 
 @cli.command()
-def clean():
+@click.option("--llm", "llm_provider", type=click.Choice(["claude", "openai"]),
+              default=None, help="LLM提供商（覆盖.env中的 LLM_PROVIDER 配置）")
+def clean(llm_provider):
     """阶段3: 文本清洗与结构化"""
-    import anthropic
     from src.config import load_config
-    from src.clean.text_processor import TextProcessor, save_cleaned, load_cleaned
+    from src.clean.text_processor import (
+        TextProcessor, save_cleaned, create_llm_client,
+    )
     from src.asr.funasr_engine import load_transcript
 
     config = load_config()
+    provider = llm_provider or config.llm_provider
 
-    console.print(Panel("[bold]阶段3: 文本清洗[/bold]", title="Distill-Anyone"))
+    console.print(Panel(
+        f"[bold]阶段3: 文本清洗[/bold]\nLLM: {provider}",
+        title="Distill-Anyone",
+    ))
 
     # 查找所有转写结果
     transcript_files = list(config.transcripts_dir.glob("*.json"))
@@ -171,15 +178,9 @@ def clean():
 
     console.print(f"[blue]待清洗: {len(pending_files)} 个文件")
 
-    # 初始化文本处理器（尝试使用Claude API）
-    client = None
-    if config.anthropic.api_key:
-        try:
-            client = anthropic.Anthropic(api_key=config.anthropic.api_key)
-        except Exception as e:
-            console.print(f"[yellow]Claude API 初始化失败，使用规则清洗: {e}")
-
-    processor = TextProcessor(anthropic_client=client, model=config.anthropic.model)
+    # 根据配置创建 LLM 客户端（支持 Claude 和 OpenAI）
+    llm_client = create_llm_client(provider, config)
+    processor = TextProcessor(llm_client=llm_client)
 
     # 批量清洗
     for f in pending_files:
@@ -267,12 +268,15 @@ def generate():
 @cli.command()
 @click.option("--uid", type=int, default=None, help="UP主UID")
 @click.option("--max-videos", type=int, default=0, help="最大获取视频数量")
-def run(uid, max_videos):
+@click.option("--llm", "llm_provider", type=click.Choice(["claude", "openai"]),
+              default=None, help="LLM提供商（覆盖.env中的 LLM_PROVIDER 配置）")
+def run(uid, max_videos, llm_provider):
     """一键运行完整流水线（阶段1-5）"""
     from src.config import load_config
 
     config = load_config()
     target_uid = uid or config.up_uid
+    provider = llm_provider or config.llm_provider
 
     if not target_uid:
         console.print("[red]错误: 请指定UP主UID")
@@ -281,8 +285,9 @@ def run(uid, max_videos):
     console.print(Panel(
         f"[bold]Distill-Anyone 全流程运行[/bold]\n"
         f"UP主UID: {target_uid}\n"
-        f"最大视频数: {'不限' if max_videos == 0 else max_videos}",
-        title="🚀 Distill-Anyone",
+        f"最大视频数: {'不限' if max_videos == 0 else max_videos}\n"
+        f"LLM: {provider}",
+        title="Distill-Anyone",
     ))
 
     # 依次执行各阶段
@@ -295,7 +300,7 @@ def run(uid, max_videos):
     ctx.invoke(asr)
 
     console.print("\n[bold]═══ 阶段 3/5: 文本清洗 ═══[/bold]")
-    ctx.invoke(clean)
+    ctx.invoke(clean, llm_provider=provider)
 
     console.print("\n[bold]═══ 阶段 4/5: 知识建模 ═══[/bold]")
     ctx.invoke(model_cmd)

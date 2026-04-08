@@ -74,11 +74,22 @@ cp config.example.env .env
    - `bili_jct` → 填入 `BILIBILI_BILI_JCT`
    - `buvid3` → 填入 `BILIBILI_BUVID3`
 
-#### Claude API Key获取
+#### LLM API 配置（Claude 或 OpenAI 二选一）
+
+**方式一：Claude API（默认）**
 
 1. 访问 [console.anthropic.com](https://console.anthropic.com/)
 2. 注册/登录后创建 API Key
 3. 将 Key 填入 `ANTHROPIC_API_KEY`
+4. 设置 `LLM_PROVIDER=claude`
+
+**方式二：OpenAI API**
+
+1. 访问 [platform.openai.com](https://platform.openai.com/)
+2. 注册/登录后创建 API Key
+3. 将 Key 填入 `OPENAI_API_KEY`
+4. 设置 `LLM_PROVIDER=openai`
+5. 如果使用兼容接口（如第三方代理），修改 `OPENAI_BASE_URL`
 
 #### UP主UID获取
 
@@ -89,13 +100,17 @@ cp config.example.env .env
 ### 4. 运行
 
 ```bash
-# 一键运行完整流水线
+# 一键运行完整流水线（使用.env中配置的LLM）
 python main.py run --uid 12345678
+
+# 指定使用 OpenAI 运行
+python main.py run --uid 12345678 --llm openai
 
 # 或分步运行
 python main.py crawl --uid 12345678    # 爬取+下载
 python main.py asr                      # 语音识别
-python main.py clean                    # 文本清洗
+python main.py clean                    # 文本清洗（默认用.env配置的LLM）
+python main.py clean --llm openai       # 文本清洗（指定用OpenAI）
 python main.py model                    # 知识建模
 python main.py generate                 # 生成SKILL.md
 ```
@@ -225,8 +240,12 @@ Distill-Anyone/
 | `BILIBILI_BILI_JCT` | B站Cookie bili_jct | 是（爬取阶段） |
 | `BILIBILI_BUVID3` | B站Cookie buvid3 | 是（爬取阶段） |
 | `UP_UID` | 目标UP主的UID | 是 |
-| `ANTHROPIC_API_KEY` | Claude API Key | 是（清洗/建模阶段） |
+| `LLM_PROVIDER` | LLM提供商 (claude/openai) | 否（默认claude） |
+| `ANTHROPIC_API_KEY` | Claude API Key | 当 LLM_PROVIDER=claude 时必填 |
 | `ANTHROPIC_MODEL` | Claude模型名称 | 否（默认claude-sonnet-4-20250514） |
+| `OPENAI_API_KEY` | OpenAI API Key | 当 LLM_PROVIDER=openai 时必填 |
+| `OPENAI_BASE_URL` | OpenAI API Base URL | 否（默认官方地址，支持兼容接口） |
+| `OPENAI_MODEL` | OpenAI模型名称 | 否（默认gpt-4o） |
 | `FUNASR_MODEL` | FunASR模型 | 否（默认paraformer-zh） |
 | `FUNASR_VAD_MODEL` | VAD模型 | 否（默认fsmn-vad） |
 | `FUNASR_PUNC_MODEL` | 标点恢复模型 | 否（默认ct-punc） |

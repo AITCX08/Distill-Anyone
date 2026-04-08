@@ -31,6 +31,13 @@ class AnthropicConfig(BaseModel):
     model: str = Field(default="claude-sonnet-4-20250514", description="使用的模型名称")
 
 
+class OpenAIConfig(BaseModel):
+    """OpenAI API 配置"""
+    api_key: str = Field(default="", description="OpenAI API Key")
+    base_url: str = Field(default="https://api.openai.com/v1", description="API Base URL（支持兼容接口）")
+    model: str = Field(default="gpt-4o", description="使用的模型名称")
+
+
 class FunASRConfig(BaseModel):
     """FunASR 语音识别配置"""
     model: str = Field(default="paraformer-zh", description="ASR模型名称")
@@ -41,10 +48,12 @@ class FunASRConfig(BaseModel):
 class AppConfig(BaseModel):
     """应用全局配置"""
     up_uid: int = Field(default=0, description="UP主UID")
+    llm_provider: str = Field(default="claude", description="LLM提供商 (claude/openai)")
     data_dir: Path = Field(default=PROJECT_ROOT / "data", description="数据存储目录")
     output_dir: Path = Field(default=PROJECT_ROOT / "output", description="输出目录")
     bilibili: BilibiliConfig = Field(default_factory=BilibiliConfig)
     anthropic: AnthropicConfig = Field(default_factory=AnthropicConfig)
+    openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
     funasr: FunASRConfig = Field(default_factory=FunASRConfig)
 
     @property
@@ -78,6 +87,7 @@ def load_config() -> AppConfig:
     """从环境变量加载配置"""
     config = AppConfig(
         up_uid=int(os.getenv("UP_UID", "0")),
+        llm_provider=os.getenv("LLM_PROVIDER", "claude"),
         data_dir=Path(os.getenv("DATA_DIR", str(PROJECT_ROOT / "data"))),
         output_dir=Path(os.getenv("OUTPUT_DIR", str(PROJECT_ROOT / "output"))),
         bilibili=BilibiliConfig(
@@ -88,6 +98,11 @@ def load_config() -> AppConfig:
         anthropic=AnthropicConfig(
             api_key=os.getenv("ANTHROPIC_API_KEY", ""),
             model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
+        ),
+        openai=OpenAIConfig(
+            api_key=os.getenv("OPENAI_API_KEY", ""),
+            base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
         ),
         funasr=FunASRConfig(
             model=os.getenv("FUNASR_MODEL", "paraformer-zh"),
