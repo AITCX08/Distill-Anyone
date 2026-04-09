@@ -4,16 +4,15 @@
 对ASR转写结果进行清洗处理：
 - 去除语气词和填充词
 - 合并过短片段
-- 使用Claude API进行主题切分
+- 使用 LLM（Claude API 或 OpenAI API）进行主题切分
 - 输出RAG兼容的结构化JSON
 """
 
 import json
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Protocol
 
-import anthropic
 from rich.console import Console
 
 console = Console()
@@ -32,20 +31,117 @@ FILLER_WORDS_PATTERN = re.compile(
 REPEATED_PUNCT_PATTERN = re.compile(r"([，。！？、])\1+")
 
 
+# ===== LLM 客户端抽象 =====
+
+class LLMClient(Protocol):
+    """LLM客户端协议，定义统一的调用接口。"""
+
+    def chat(self, prompt: str, max_tokens: int = 4096) -> str:
+        """发送消息并获取响应文本。"""
+        ...
+
+
+class ClaudeLLMClient:
+    """基于 Anthropic Claude API 的 LLM 客户端。"""
+
+    def __init__(self, api_key: str, model: str = "claude-sonnet-4-20250514"):
+        import anthropic
+        self.client = anthropic.Anthropic(api_key=api_key)
+        self.model = model
+        console.print(f"[green]已初始化 Claude LLM 客户端 (模型: {model})")
+
+    def chat(self, prompt: str, max_tokens: int = 4096) -> str:
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.content[0].text
+
+
+class OpenAILLMClient:
+    """基于 OpenAI API（兼容接口）的 LLM 客户端。"""
+
+    def __init__(self, api_key: str, model: str = "gpt-4o",
+                 base_url: str = "https://api.openai.com/v1"):
+        from openai import OpenAI
+        self.client = OpenAI(api_key=api_key, base_url=base_url)
+        self.model = model
+        console.print(f"[green]已初始化 OpenAI LLM 客户端 (模型: {model}, base_url: {base_url})")
+
+    def chat(self, prompt: str, max_tokens: int = 4096) -> str:
+        response = self.client.chat.completions.create(
+            model=self.model,
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.choices[0].message.content or ""
+
+
+def create_llm_client(provider: str, config) -> Optional[LLMClient]:
+    """
+    根据配置创建对应的 LLM 客户端。
+
+    支持的提供商:
+      - claude: Anthropic Claude API
+      - openai: OpenAI API（或兼容接口）
+      - qwen:   通义千问 Qwen（阿里云 DashScope，OpenAI兼容接口）
+      - deepseek: DeepSeek API（OpenAI兼容接口）
+
+    Args:
+        provider: LLM提供商名称
+        config: AppConfig 配置对象
+
+    Returns:
+        LLM客户端实例，初始化失败返回 None
+    """
+    # 提供商 → (api_key, base_url, model) 的映射
+    # qwen 和 deepseek 均使用 OpenAI 兼容接口
+    provider_map = {
+        "openai": (config.openai.api_key, config.openai.base_url,
+                   config.openai.model, "OPENAI_API_KEY"),
+        "qwen": (config.qwen.api_key, config.qwen.base_url,
+                 config.qwen.model, "QWEN_API_KEY"),
+        "deepseek": (config.deepseek.api_key, config.deepseek.base_url,
+                     config.deepseek.model, "DEEPSEEK_API_KEY"),
+    }
+
+    try:
+        if provider in provider_map:
+            api_key, base_url, model, env_name = provider_map[provider]
+            if not api_key:
+                console.print(f"[yellow]未配置 {env_name}，将使用规则处理")
+                return None
+            return OpenAILLMClient(
+                api_key=api_key, model=model, base_url=base_url,
+            )
+        else:  # 默认 claude
+            if not config.anthropic.api_key:
+                console.print("[yellow]未配置 ANTHROPIC_API_KEY，将使用规则处理")
+                return None
+            return ClaudeLLMClient(
+                api_key=config.anthropic.api_key,
+                model=config.anthropic.model,
+            )
+    except Exception as e:
+        console.print(f"[yellow]LLM 客户端初始化失败，将使用规则处理: {e}")
+        return None
+
+
+# ===== 文本处理器 =====
+
 class TextProcessor:
     """文本清洗与结构化处理器。"""
 
-    def __init__(self, anthropic_client: Optional[anthropic.Anthropic] = None,
-                 model: str = "claude-sonnet-4-20250514"):
+    def __init__(self, llm_client: Optional[LLMClient] = None):
         """
         初始化文本处理器。
 
         Args:
-            anthropic_client: Anthropic客户端（用于LLM辅助清洗）
-            model: 使用的Claude模型名称
+            llm_client: LLM客户端（Claude 或 OpenAI），用于LLM辅助清洗。
+                        传入 None 时仅使用规则清洗。
         """
-        self.client = anthropic_client
-        self.model = model
+        self.llm_client = llm_client
 
     def remove_filler_words(self, text: str) -> str:
         """
@@ -95,7 +191,7 @@ class TextProcessor:
 
     def segment_by_topic(self, full_text: str, video_title: str) -> list[dict]:
         """
-        使用Claude API进行主题切分。
+        使用 LLM 进行主题切分。
 
         Args:
             full_text: 完整清洗后的文本
@@ -104,7 +200,7 @@ class TextProcessor:
         Returns:
             主题分段列表 [{"title": str, "content": str, "tags": [str]}]
         """
-        if not self.client:
+        if not self.llm_client:
             # 无LLM客户端时，按段落简单分段
             paragraphs = [p.strip() for p in full_text.split("\n") if p.strip()]
             return [{"title": f"段落{i+1}", "content": p, "tags": []}
@@ -116,13 +212,7 @@ class TextProcessor:
         )
 
         try:
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=4096,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            # 解析JSON响应
-            content = response.content[0].text
+            content = self.llm_client.chat(prompt, max_tokens=4096)
             # 尝试提取JSON部分
             json_match = re.search(r"\[.*\]", content, re.DOTALL)
             if json_match:

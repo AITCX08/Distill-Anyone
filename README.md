@@ -74,11 +74,24 @@ cp config.example.env .env
    - `bili_jct` → 填入 `BILIBILI_BILI_JCT`
    - `buvid3` → 填入 `BILIBILI_BUVID3`
 
-#### Claude API Key获取
+#### LLM API 配置（四选一）
 
-1. 访问 [console.anthropic.com](https://console.anthropic.com/)
-2. 注册/登录后创建 API Key
-3. 将 Key 填入 `ANTHROPIC_API_KEY`
+项目支持 4 种 LLM 后端，只需配置其中一个即可：
+
+| 提供商 | `LLM_PROVIDER` | API Key 环境变量 | 默认模型 |
+|--------|----------------|-------------------|----------|
+| Claude | `claude` | `ANTHROPIC_API_KEY` | claude-sonnet-4-20250514 |
+| OpenAI | `openai` | `OPENAI_API_KEY` | gpt-4o |
+| 通义千问 Qwen | `qwen` | `QWEN_API_KEY` | qwen3-235b-a22b |
+| DeepSeek | `deepseek` | `DEEPSEEK_API_KEY` | deepseek-reasoner (R1) |
+
+**Claude API**: 从 [console.anthropic.com](https://console.anthropic.com/) 获取 Key
+
+**OpenAI API**: 从 [platform.openai.com](https://platform.openai.com/) 获取 Key，支持自定义 `OPENAI_BASE_URL` 接入兼容接口
+
+**通义千问 Qwen**: 从 [阿里云 DashScope](https://dashscope.console.aliyun.com/) 获取 Key，支持 Qwen3-235B / 72B 等模型
+
+**DeepSeek**: 从 [platform.deepseek.com](https://platform.deepseek.com/) 获取 Key，支持 DeepSeek-R1（推理）/ V3（对话）
 
 #### UP主UID获取
 
@@ -92,12 +105,27 @@ cp config.example.env .env
 # 一键运行完整流水线
 python main.py run --uid 12345678
 
-# 或分步运行
-python main.py crawl --uid 12345678    # 爬取+下载
-python main.py asr                      # 语音识别
-python main.py clean                    # 文本清洗
-python main.py model                    # 知识建模
-python main.py generate                 # 生成SKILL.md
+# 指定使用 Qwen3 运行
+python main.py run --uid 12345678 --llm qwen
+
+# 指定使用 DeepSeek-R1 运行
+python main.py run --uid 12345678 --llm deepseek
+
+# 只运行部分阶段（如只跑阶段3-5）
+python main.py run --stages 3-5 --llm qwen
+
+# 只跑单个阶段
+python main.py run --stages 3
+
+# 跑阶段1和阶段3-5
+python main.py run --uid 12345678 --stages 1,3-5
+
+# 分步运行（单独子命令）
+python main.py crawl --uid 12345678      # 阶段1: 爬取+下载
+python main.py asr                        # 阶段2: 语音识别
+python main.py clean --llm deepseek       # 阶段3: 文本清洗
+python main.py model --llm qwen           # 阶段4: 知识建模
+python main.py generate                   # 阶段5: 生成SKILL.md
 ```
 
 ## 项目架构
@@ -225,8 +253,18 @@ Distill-Anyone/
 | `BILIBILI_BILI_JCT` | B站Cookie bili_jct | 是（爬取阶段） |
 | `BILIBILI_BUVID3` | B站Cookie buvid3 | 是（爬取阶段） |
 | `UP_UID` | 目标UP主的UID | 是 |
-| `ANTHROPIC_API_KEY` | Claude API Key | 是（清洗/建模阶段） |
-| `ANTHROPIC_MODEL` | Claude模型名称 | 否（默认claude-sonnet-4-20250514） |
+| `LLM_PROVIDER` | LLM提供商 (claude/openai/qwen/deepseek) | 否（默认claude） |
+| `ANTHROPIC_API_KEY` | Claude API Key | 当 LLM_PROVIDER=claude 时 |
+| `ANTHROPIC_MODEL` | Claude模型 | 否（默认claude-sonnet-4-20250514） |
+| `OPENAI_API_KEY` | OpenAI API Key | 当 LLM_PROVIDER=openai 时 |
+| `OPENAI_BASE_URL` | OpenAI API Base URL | 否（默认官方地址，支持兼容接口） |
+| `OPENAI_MODEL` | OpenAI模型 | 否（默认gpt-4o） |
+| `QWEN_API_KEY` | 阿里云 DashScope API Key | 当 LLM_PROVIDER=qwen 时 |
+| `QWEN_BASE_URL` | DashScope API地址 | 否（默认阿里云官方地址） |
+| `QWEN_MODEL` | Qwen模型 | 否（默认qwen3-235b-a22b） |
+| `DEEPSEEK_API_KEY` | DeepSeek API Key | 当 LLM_PROVIDER=deepseek 时 |
+| `DEEPSEEK_BASE_URL` | DeepSeek API地址 | 否（默认官方地址） |
+| `DEEPSEEK_MODEL` | DeepSeek模型 | 否（默认deepseek-reasoner） |
 | `FUNASR_MODEL` | FunASR模型 | 否（默认paraformer-zh） |
 | `FUNASR_VAD_MODEL` | VAD模型 | 否（默认fsmn-vad） |
 | `FUNASR_PUNC_MODEL` | 标点恢复模型 | 否（默认ct-punc） |
