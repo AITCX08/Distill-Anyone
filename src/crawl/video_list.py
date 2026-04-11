@@ -7,6 +7,7 @@
 
 import asyncio
 import json
+import random
 import time
 from pathlib import Path
 from typing import Optional
@@ -21,21 +22,25 @@ console = Console()
 async def fetch_user_videos(
     uid: int,
     credential: Credential,
-    max_videos: int = 0,
+    existing_bvids: Optional[set] = None,
 ) -> list[dict]:
     """
-    获取指定UP主的所有视频列表。
+    获取指定UP主的全部新增视频列表（不做数量限制）。
+
+    数量限制由调用方（下载循环）控制，以便下载失败的视频不计入配额。
 
     Args:
         uid: UP主的UID
         credential: B站认证凭据
-        max_videos: 最大获取数量，0表示获取全部
+        existing_bvids: 本地已存在的bvid集合，这些视频将被跳过
 
     Returns:
-        视频信息列表，每个元素包含 bvid, title, duration, pubdate 等字段
+        新增视频信息列表（全部候选，未限制数量）
     """
+    existing_bvids = existing_bvids or set()
     u = user.User(uid=uid, credential=credential)
-    all_videos = []
+    new_videos = []
+    skipped_count = 0
     page = 1
     page_size = 30
 
@@ -47,19 +52,39 @@ async def fetch_user_videos(
         task = progress.add_task("获取中", total=None)
 
         while True:
-            try:
-                resp = await u.get_videos(pn=page, ps=page_size)
-            except Exception as e:
-                console.print(f"[red]获取第 {page} 页视频列表失败: {e}")
+            # 带重试的请求：412风控时等待后重试
+            resp = None
+            for attempt in range(3):
+                try:
+                    resp = await u.get_videos(pn=page, ps=page_size)
+                    break
+                except Exception as e:
+                    err_str = str(e)
+                    if "412" in err_str and attempt < 2:
+                        wait = 10 + attempt * 10  # 10s, 20s
+                        console.print(f"[yellow]触发B站风控(412)，等待 {wait}s 后重试...")
+                        await asyncio.sleep(wait)
+                    else:
+                        console.print(f"[red]获取第 {page} 页视频列表失败: {e}")
+                        break
+            if resp is None:
                 break
 
             vlist = resp.get("list", {}).get("vlist", [])
             if not vlist:
                 break
 
+            total_count = resp.get("page", {}).get("count", 0)
+
             for v in vlist:
-                video_info = {
-                    "bvid": v.get("bvid", ""),
+                bvid = v.get("bvid", "")
+                if bvid in existing_bvids:
+                    skipped_count += 1
+                    console.print(f"[dim]跳过已存在: {bvid} 《{v.get('title', '')}》")
+                    continue
+
+                new_videos.append({
+                    "bvid": bvid,
                     "title": v.get("title", ""),
                     "duration": v.get("length", ""),
                     "pubdate": v.get("created", 0),
@@ -67,30 +92,24 @@ async def fetch_user_videos(
                     "view_count": v.get("play", 0),
                     "comment_count": v.get("comment", 0),
                     "aid": v.get("aid", 0),
-                }
-                all_videos.append(video_info)
+                })
 
-            total_count = resp.get("page", {}).get("count", 0)
             progress.update(
                 task,
-                description=f"[bold blue]已获取 {len(all_videos)}/{total_count} 个视频",
+                description=f"[bold blue]候选 {len(new_videos)} 个 | 跳过已有 {skipped_count} 个 | 共 {total_count} 个",
             )
 
-            # 检查是否已获取足够数量
-            if 0 < max_videos <= len(all_videos):
-                all_videos = all_videos[:max_videos]
-                break
-
-            # 检查是否已获取所有视频
             if page * page_size >= total_count:
                 break
 
             page += 1
-            # 防止触发B站风控，间隔1秒
-            await asyncio.sleep(1)
+            # 随机延迟 3-6 秒，避免固定间隔被识别
+            await asyncio.sleep(3 + random.uniform(0, 3))
 
-    console.print(f"[green]共获取 {len(all_videos)} 个视频信息")
-    return all_videos
+    if skipped_count:
+        console.print(f"[yellow]跳过本地已有视频: {skipped_count} 个")
+    console.print(f"[green]新增视频: {len(new_videos)} 个")
+    return new_videos
 
 
 def save_video_list(videos: list[dict], output_path: Path) -> None:
@@ -112,20 +131,40 @@ def create_credential(sessdata: str, bili_jct: str, buvid3: str) -> Credential:
     return Credential(sessdata=sessdata, bili_jct=bili_jct, buvid3=buvid3)
 
 
-def run_crawl(uid: int, credential: Credential, output_path: Path,
-              max_videos: int = 0) -> list[dict]:
+def run_crawl(
+    uid: int,
+    credential: Credential,
+    output_path: Path,
+    max_videos: int = 0,
+    existing_bvids: Optional[set] = None,
+    existing_videos: Optional[list] = None,
+) -> list[dict]:
     """
-    同步入口：获取视频列表并保存。
+    同步入口：获取新增视频列表并与本地已有列表合并保存。
 
     Args:
         uid: UP主UID
         credential: B站认证凭据
         output_path: 视频列表保存路径
-        max_videos: 最大获取数量
+        max_videos: 最大成功下载视频数量（下载失败不计），0表示全部
+        existing_bvids: 本地已有bvid集合，用于跳过
+        existing_videos: 本地已有视频列表，用于合并
 
     Returns:
-        视频信息列表
+        全部候选新增视频列表（数量限制由下载循环控制）
     """
-    videos = asyncio.run(fetch_user_videos(uid, credential, max_videos))
-    save_video_list(videos, output_path)
-    return videos
+    new_videos = asyncio.run(
+        fetch_user_videos(uid, credential, existing_bvids)
+    )
+
+    # 合并新旧视频列表后保存（保留历史记录）
+    if existing_videos:
+        existing_map = {v["bvid"]: v for v in existing_videos}
+        for v in new_videos:
+            existing_map[v["bvid"]] = v
+        merged = list(existing_map.values())
+    else:
+        merged = new_videos
+
+    save_video_list(merged, output_path)
+    return new_videos

@@ -6,6 +6,7 @@ FunASR 语音识别引擎模块
 """
 
 import json
+import os
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Optional
@@ -50,7 +51,8 @@ class FunASREngine:
         model_name: str = "paraformer-zh",
         vad_model: str = "fsmn-vad",
         punc_model: str = "ct-punc",
-        device: str = "cpu",
+        device: Optional[str] = None,
+        model_dir: Optional[Path] = None,
     ):
         """
         初始化 FunASR 引擎。
@@ -59,10 +61,36 @@ class FunASREngine:
             model_name: ASR模型名称
             vad_model: VAD模型名称
             punc_model: 标点恢复模型名称
-            device: 计算设备 ("cpu" 或 "cuda:0")
+            device: 计算设备 ("cpu" 或 "cuda:0")，None 时自动检测
+            model_dir: 模型缓存目录，None 时使用系统默认路径
         """
         self.model_name = model_name
+
+        import torch
+        if device is None:
+            if torch.cuda.is_available():
+                device = "cuda:0"
+                gpu_name = torch.cuda.get_device_name(0)
+                total_mem = torch.cuda.get_device_properties(0).total_memory / 1024**3
+                console.print(f"[green]检测到 GPU: {gpu_name} ({total_mem:.1f}GB)，使用 CUDA 加速")
+            else:
+                device = "cpu"
+                console.print("[yellow]未检测到可用 GPU，使用 CPU 运行")
+        else:
+            console.print(f"[blue]使用指定设备: {device}")
+
         self.device = device
+        self._use_cuda = device.startswith("cuda")
+
+        # 减少 CUDA 显存碎片
+        if self._use_cuda:
+            os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
+        if model_dir is not None:
+            model_dir.mkdir(parents=True, exist_ok=True)
+            os.environ["MODELSCOPE_CACHE"] = str(model_dir)
+            os.environ["MS_CACHE_HOME"] = str(model_dir)
+            console.print(f"[dim]模型缓存目录: {model_dir}")
 
         console.print(f"[blue]正在加载 FunASR 模型: {model_name}...")
 
@@ -91,42 +119,42 @@ class FunASREngine:
         """
         console.print(f"[blue]正在转写: {audio_path.name}")
 
-        result = self.model.generate(
-            input=str(audio_path),
-            batch_size_s=300,  # 动态批处理300秒
-        )
+        result = self._generate_with_oom_retry(audio_path)
 
         # 解析 FunASR 输出
         segments = []
         full_text = ""
 
         if result and len(result) > 0:
-            for idx, item in enumerate(result):
+            for item in result:
                 text = item.get("text", "")
                 full_text += text
 
-                # 解析时间戳
-                timestamp = item.get("timestamp", [])
-                if timestamp and len(timestamp) >= 2:
-                    # timestamp 格式: [[start_ms, end_ms], ...]
-                    start_ms = timestamp[0][0] if timestamp[0] else 0
-                    end_ms = timestamp[-1][1] if timestamp[-1] else 0
+                # 优先使用 sentence_info 获取句子级时间戳
+                sentence_info = item.get("sentence_info", [])
+                if sentence_info:
+                    for sent in sentence_info:
+                        seg = TranscriptSegment(
+                            id=f"{bvid}_seg_{len(segments):04d}" if bvid else f"seg_{len(segments):04d}",
+                            text=sent.get("text", ""),
+                            start=sent.get("start", 0) / 1000.0,
+                            end=sent.get("end", 0) / 1000.0,
+                        )
+                        segments.append(seg)
+                else:
+                    # 降级：整块作为一个 segment
+                    timestamp = item.get("timestamp", [])
+                    start_ms = timestamp[0][0] if timestamp else 0
+                    end_ms = timestamp[-1][1] if timestamp else 0
                     seg = TranscriptSegment(
-                        id=f"{bvid}_seg_{idx:04d}" if bvid else f"seg_{idx:04d}",
+                        id=f"{bvid}_seg_{len(segments):04d}" if bvid else f"seg_{len(segments):04d}",
                         text=text,
                         start=start_ms / 1000.0,
                         end=end_ms / 1000.0,
                     )
-                else:
-                    seg = TranscriptSegment(
-                        id=f"{bvid}_seg_{idx:04d}" if bvid else f"seg_{idx:04d}",
-                        text=text,
-                        start=0.0,
-                        end=0.0,
-                    )
-                segments.append(seg)
+                    segments.append(seg)
 
-        return TranscriptResult(
+        result_obj = TranscriptResult(
             bvid=bvid,
             audio_path=str(audio_path),
             full_text=full_text,
@@ -134,6 +162,35 @@ class FunASREngine:
             model_name=self.model_name,
             source="funasr",
         )
+
+        self._free_cuda_cache()
+        return result_obj
+
+    def _generate_with_oom_retry(self, audio_path: Path) -> list:
+        """调用 FunASR 推理，CUDA OOM 时清理缓存后重试一次。"""
+        try:
+            return self.model.generate(
+                input=str(audio_path),
+                batch_size_s=300,
+                sentence_timestamp=True,
+            )
+        except RuntimeError as e:
+            if "out of memory" not in str(e).lower() or not self._use_cuda:
+                raise
+            console.print("[yellow]显存不足，清理缓存后重试...")
+            self._free_cuda_cache()
+            # 缩小 batch_size_s 重试
+            return self.model.generate(
+                input=str(audio_path),
+                batch_size_s=60,
+                sentence_timestamp=True,
+            )
+
+    def _free_cuda_cache(self) -> None:
+        """释放未使用的 CUDA 显存。"""
+        if self._use_cuda:
+            import torch
+            torch.cuda.empty_cache()
 
     def transcribe_batch(self, audio_paths: list[Path],
                          bvids: Optional[list[str]] = None) -> list[TranscriptResult]:
@@ -216,3 +273,57 @@ def load_transcript(input_path: Path) -> dict:
     """从JSON文件加载转写结果。"""
     with open(input_path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def check_transcript_integrity(
+    transcript_path: Path,
+    audio_path: Optional[Path] = None,
+    tolerance: float = 60.0,
+) -> tuple[bool, str]:
+    """
+    检查转写文件的完整性。
+
+    Args:
+        transcript_path: 转写JSON文件路径
+        audio_path: 对应的音频文件路径，若提供则对比音频时长判断是否需要重新转写
+        tolerance: 音频时长与转写时长允许误差（秒），默认60秒
+
+    Returns:
+        (is_valid, reason) — is_valid=False 时 reason 说明问题
+    """
+    if not transcript_path.exists():
+        return False, "文件不存在"
+
+    if transcript_path.stat().st_size == 0:
+        return False, "文件为空"
+
+    try:
+        with open(transcript_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        return False, f"JSON 解析失败: {e}"
+
+    if not data.get("full_text", "").strip():
+        return False, "full_text 为空"
+
+    segments = data.get("segments")
+    if not segments:
+        return False, "segments 为空"
+
+    # 若提供了音频路径，对比音频实际时长与转写覆盖时长
+    # 避免付费视频补全后转写内容仍是旧的短版本
+    if audio_path and audio_path.exists():
+        import wave
+        try:
+            with wave.open(str(audio_path), "rb") as wf:
+                audio_duration = wf.getnframes() / float(wf.getframerate())
+            transcript_end = max((s.get("end", 0) for s in segments), default=0)
+            if audio_duration - transcript_end > tolerance:
+                return False, (
+                    f"音频已更新（时长 {audio_duration:.0f}s），"
+                    f"转写仅覆盖至 {transcript_end:.0f}s，需重新转写"
+                )
+        except Exception:
+            pass  # 无法读取音频时长，跳过此项检查
+
+    return True, "ok"

@@ -6,6 +6,7 @@
 
 import subprocess
 import tempfile
+import wave
 from pathlib import Path
 from typing import Optional
 
@@ -45,11 +46,74 @@ def generate_cookies_file(sessdata: str, bili_jct: str, buvid3: str,
     return output_path
 
 
+def parse_duration_str(duration_str: str) -> float:
+    """将 'MM:SS' 或 'HH:MM:SS' 格式转换为秒数。"""
+    try:
+        parts = str(duration_str).strip().split(":")
+        if len(parts) == 2:
+            return int(parts[0]) * 60 + int(parts[1])
+        elif len(parts) == 3:
+            return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+    except (ValueError, AttributeError):
+        pass
+    return 0.0
+
+
+def get_audio_duration(audio_path: Path) -> float:
+    """获取 WAV 文件的实际时长（秒），失败返回 0。"""
+    try:
+        with wave.open(str(audio_path), "rb") as f:
+            return f.getnframes() / float(f.getframerate())
+    except Exception:
+        return 0.0
+
+
+def check_audio_completeness(audio_path: Path, expected_duration_str: str,
+                              tolerance: float = 30.0) -> tuple[bool, str]:
+    """
+    检查音频文件是否完整。
+
+    通过比较实际时长与视频列表中记录的预期时长判断。
+
+    Args:
+        audio_path: 音频文件路径
+        expected_duration_str: 视频元信息中的时长字符串（如 "10:30"）
+        tolerance: 允许误差秒数（默认30秒，容纳片头片尾差异）
+
+    Returns:
+        (is_complete, reason)
+    """
+    if not audio_path.exists():
+        return False, "文件不存在"
+
+    if audio_path.stat().st_size < 1024:  # 小于 1KB 明显不完整
+        return False, f"文件过小 ({audio_path.stat().st_size} bytes)"
+
+    expected_secs = parse_duration_str(expected_duration_str)
+    if expected_secs <= 0:
+        # 无法解析预期时长，只做基础大小检查
+        return True, "无法获取预期时长，跳过时长校验"
+
+    actual_secs = get_audio_duration(audio_path)
+    if actual_secs <= 0:
+        return False, "无法读取音频时长（可能文件损坏）"
+
+    diff = expected_secs - actual_secs
+    if diff > tolerance:
+        return False, (
+            f"时长不足: 实际 {actual_secs:.0f}s / 预期 {expected_secs:.0f}s"
+            f"（差 {diff:.0f}s，可能为付费视频未完整获取）"
+        )
+
+    return True, "ok"
+
+
 def download_audio(
     bvid: str,
     output_dir: Path,
     audio_format: str = "wav",
     cookies_file: Optional[Path] = None,
+    force: bool = False,
 ) -> Optional[Path]:
     """
     使用 yt-dlp 下载B站视频的音频。
@@ -59,6 +123,7 @@ def download_audio(
         output_dir: 输出目录
         audio_format: 音频格式 (wav/m4a/mp3)
         cookies_file: cookies文件路径
+        force: 强制重新下载（忽略已存在的文件）
 
     Returns:
         下载后的音频文件路径，失败返回 None
@@ -67,10 +132,15 @@ def download_audio(
     output_template = str(output_dir / f"{bvid}.%(ext)s")
     expected_output = output_dir / f"{bvid}.{audio_format}"
 
-    # 如果文件已存在，跳过下载（断点续传）
-    if expected_output.exists():
+    # 如果文件已存在且不强制重新下载，跳过
+    if expected_output.exists() and not force:
         console.print(f"[yellow]音频已存在，跳过: {bvid}")
         return expected_output
+
+    # 强制重新下载时先删除旧文件
+    if force and expected_output.exists():
+        expected_output.unlink()
+        console.print(f"[yellow]删除旧文件，重新下载: {bvid}")
 
     url = BILIBILI_VIDEO_URL.format(bvid=bvid)
     cmd = [

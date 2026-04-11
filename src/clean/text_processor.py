@@ -104,12 +104,15 @@ def create_llm_client(provider: str, config) -> Optional[LLMClient]:
                  config.qwen.model, "QWEN_API_KEY"),
         "deepseek": (config.deepseek.api_key, config.deepseek.base_url,
                      config.deepseek.model, "DEEPSEEK_API_KEY"),
+        "ollama": ("ollama", config.ollama.base_url,
+                   config.ollama.model, None),
     }
 
     try:
         if provider in provider_map:
             api_key, base_url, model, env_name = provider_map[provider]
-            if not api_key:
+            # ollama 无需 API Key
+            if env_name and not api_key:
                 console.print(f"[yellow]未配置 {env_name}，将使用规则处理")
                 return None
             return OpenAILLMClient(
@@ -291,6 +294,37 @@ def load_cleaned(input_path: Path) -> dict:
     """从JSON文件加载清洗结果。"""
     with open(input_path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def check_cleaned_integrity(cleaned_path: Path) -> tuple[bool, str]:
+    """
+    检查清洗文件的完整性。
+
+    Returns:
+        (is_valid, reason) — is_valid=False 时 reason 说明问题
+    """
+    if not cleaned_path.exists():
+        return False, "文件不存在"
+
+    if cleaned_path.stat().st_size == 0:
+        return False, "文件为空"
+
+    try:
+        with open(cleaned_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        return False, f"JSON 解析失败: {e}"
+
+    if not data.get("full_text", "").strip():
+        return False, "full_text 为空"
+
+    if not data.get("topics"):
+        return False, "topics 为空"
+
+    if not data.get("segments"):
+        return False, "segments 为空"
+
+    return True, "ok"
 
 
 # ===== Prompt 模板 =====

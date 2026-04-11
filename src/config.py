@@ -18,7 +18,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
 # 支持的 LLM 提供商列表
-LLM_PROVIDERS = ("claude", "openai", "qwen", "deepseek")
+LLM_PROVIDERS = ("claude", "openai", "qwen", "deepseek", "ollama")
 
 
 class BilibiliConfig(BaseModel):
@@ -61,6 +61,12 @@ class DeepSeekConfig(BaseModel):
     model: str = Field(default="deepseek-reasoner", description="DeepSeek 模型名称")
 
 
+class OllamaConfig(BaseModel):
+    """Ollama 本地模型配置"""
+    base_url: str = Field(default="http://localhost:11434/v1", description="Ollama API 地址")
+    model: str = Field(default="qwen2.5:3b", description="本地模型名称")
+
+
 class FunASRConfig(BaseModel):
     """FunASR 语音识别配置"""
     model: str = Field(default="paraformer-zh", description="ASR模型名称")
@@ -79,7 +85,13 @@ class AppConfig(BaseModel):
     openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
     qwen: QwenConfig = Field(default_factory=QwenConfig)
     deepseek: DeepSeekConfig = Field(default_factory=DeepSeekConfig)
+    ollama: OllamaConfig = Field(default_factory=OllamaConfig)
     funasr: FunASRConfig = Field(default_factory=FunASRConfig)
+
+    @property
+    def model_cache_dir(self) -> Path:
+        """FunASR/ModelScope 模型缓存目录"""
+        return self.data_dir / ".cache" / "modelscope"
 
     @property
     def audio_dir(self) -> Path:
@@ -104,7 +116,7 @@ class AppConfig(BaseModel):
     def ensure_dirs(self):
         """确保所有数据目录存在"""
         for d in [self.audio_dir, self.transcripts_dir, self.cleaned_dir,
-                  self.knowledge_dir, self.output_dir]:
+                  self.knowledge_dir, self.output_dir, self.model_cache_dir]:
             d.mkdir(parents=True, exist_ok=True)
 
 
@@ -139,6 +151,10 @@ def load_config() -> AppConfig:
             api_key=os.getenv("DEEPSEEK_API_KEY", ""),
             base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
             model=os.getenv("DEEPSEEK_MODEL", "deepseek-reasoner"),
+        ),
+        ollama=OllamaConfig(
+            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+            model=os.getenv("OLLAMA_MODEL", "qwen2.5:7b"),
         ),
         funasr=FunASRConfig(
             model=os.getenv("FUNASR_MODEL", "paraformer-zh"),

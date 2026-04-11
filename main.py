@@ -75,10 +75,12 @@ def cli():
 def crawl(uid, max_videos):
     """阶段1: 爬取视频列表并下载音频"""
     from src.config import load_config
-    from src.crawl.video_list import run_crawl, create_credential
+    from src.crawl.video_list import run_crawl, create_credential, load_video_list
     from src.crawl.audio_download import (
         batch_download,
         generate_cookies_file,
+        check_audio_completeness,
+        download_audio,
     )
 
     config = load_config()
@@ -88,8 +90,11 @@ def crawl(uid, max_videos):
         console.print("[red]错误: 请指定UP主UID（--uid 参数或 .env 中配置 UP_UID）")
         sys.exit(1)
 
-    console.print(Panel(f"[bold]阶段1: 数据采集[/bold]\nUP主UID: {target_uid}",
-                        title="Distill-Anyone"))
+    limit_desc = "全部" if max_videos == 0 else f"最多 {max_videos} 个新视频"
+    console.print(Panel(
+        f"[bold]阶段1: 数据采集[/bold]\nUP主UID: {target_uid}\n获取数量: {limit_desc}",
+        title="Distill-Anyone",
+    ))
 
     # 创建B站认证凭据
     credential = create_credential(
@@ -98,30 +103,106 @@ def crawl(uid, max_videos):
         buvid3=config.bilibili.buvid3,
     )
 
-    # 获取视频列表
+    # 加载本地已有视频列表（用于时长对比和合并）
     video_list_path = config.data_dir / "video_list.json"
-    videos = run_crawl(target_uid, credential, video_list_path, max_videos)
+    existing_videos = load_video_list(video_list_path) if video_list_path.exists() else []
+    existing_meta_map = {v["bvid"]: v for v in existing_videos}
 
-    if not videos:
-        console.print("[yellow]未获取到任何视频")
+    # 检查本地已有音频的完整性
+    existing_audio_files = list(config.audio_dir.glob("BV*.*"))
+    complete_bvids = set()
+    incomplete_videos = []   # 需要重新下载的视频（已有但不完整）
+
+    for audio_file in existing_audio_files:
+        bvid = audio_file.stem
+        meta = existing_meta_map.get(bvid, {})
+        duration_str = meta.get("duration", "")
+        ok, reason = check_audio_completeness(audio_file, duration_str)
+        if ok:
+            complete_bvids.add(bvid)
+        else:
+            console.print(f"[yellow]音频不完整，将重新下载: {bvid} ({reason})")
+            incomplete_videos.append(meta if meta else {"bvid": bvid})
+
+    if complete_bvids:
+        console.print(f"[dim]本地完整音频: {len(complete_bvids)} 个，跳过")
+    if incomplete_videos:
+        console.print(f"[yellow]检测到不完整音频: {len(incomplete_videos)} 个，将重新下载")
+
+    # 获取新增视频列表：完整和不完整的都排除（不完整的单独处理，避免重复计数）
+    all_existing_bvids = complete_bvids | {v["bvid"] for v in incomplete_videos if v.get("bvid")}
+    new_videos = run_crawl(
+        target_uid, credential, video_list_path, max_videos,
+        existing_bvids=all_existing_bvids,
+        existing_videos=existing_videos,
+    )
+
+    # 合并：新增视频 + 不完整需重下的视频
+    to_download = new_videos + [v for v in incomplete_videos if v.get("bvid")]
+
+    if not to_download:
+        console.print("[yellow]没有视频需要下载")
         return
 
-    # 生成cookies文件并下载音频
+    # 生成cookies文件
     cookies_file = generate_cookies_file(
         sessdata=config.bilibili.sessdata,
         bili_jct=config.bilibili.bili_jct,
         buvid3=config.bilibili.buvid3,
     )
-    batch_download(videos, config.audio_dir, cookies_file=cookies_file)
 
-    console.print("[bold green]阶段1完成!")
+    # 下载循环：失败的视频跳过且不计入配额
+    # max_videos=0 不限制；否则表示"本地最终总共有N个完整音频"
+    # 已有完整音频数已计在内，本次最多再下 (max_videos - len(complete_bvids)) 个
+    incomplete_bvids = {v["bvid"] for v in incomplete_videos}
+    from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn
+    success = 0
+    skipped_fail = 0
+    if max_videos > 0:
+        quota = max(0, max_videos - len(complete_bvids))
+        console.print(f"[dim]目标总量: {max_videos} 个，已有完整: {len(complete_bvids)} 个，本次最多新下: {quota} 个")
+    else:
+        quota = 0  # 不限制
+
+    with Progress(
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(),
+        TextColumn("{task.completed}/{task.total}"),
+        TimeRemainingColumn(),
+        console=console,
+    ) as progress:
+        total_display = quota if quota > 0 else len(to_download)
+        task = progress.add_task("下载音频", total=total_display)
+
+        for video in to_download:
+            if quota > 0 and success >= quota:
+                break
+
+            bvid = video["bvid"]
+            force = bvid in incomplete_bvids
+            progress.update(task, description=f"{'重下' if force else '下载'} {bvid}")
+            path = download_audio(bvid, config.audio_dir, cookies_file=cookies_file, force=force)
+
+            if path:
+                success += 1
+                progress.advance(task)
+            else:
+                skipped_fail += 1
+                console.print(f"[dim]跳过不可用视频: {bvid}，不计入配额")
+
+    summary = f"下载成功: {success}"
+    if quota > 0:
+        summary += f"/{quota}"
+    if skipped_fail:
+        summary += f"，跳过不可用: {skipped_fail} 个"
+    console.print(f"[bold green]阶段1完成! {summary}")
 
 
 @cli.command()
 def asr():
     """阶段2: FunASR语音转文字"""
     from src.config import load_config
-    from src.asr.funasr_engine import FunASREngine, save_transcript
+    from src.asr.funasr_engine import FunASREngine, save_transcript, check_transcript_integrity
     from src.crawl.video_list import load_video_list
 
     config = load_config()
@@ -143,15 +224,28 @@ def asr():
         console.print("[red]错误: 未找到音频文件，请先运行 crawl 阶段")
         sys.exit(1)
 
-    # 过滤已转写的文件
+    # 过滤待转写文件：未转写 + 转写不完整的
     pending_files = []
     pending_bvids = []
+    skipped = 0
+    incomplete = 0
     for audio_file in audio_files:
         bvid = audio_file.stem
         transcript_path = config.transcripts_dir / f"{bvid}.json"
-        if not transcript_path.exists():
+        valid, reason = check_transcript_integrity(transcript_path, audio_path=audio_file)
+        if valid:
+            skipped += 1
+        else:
+            if transcript_path.exists():
+                console.print(f"[yellow]转写不完整，重新转写: {bvid} ({reason})")
+                incomplete += 1
             pending_files.append(audio_file)
             pending_bvids.append(bvid)
+
+    if skipped:
+        console.print(f"[dim]已跳过完整转写: {skipped} 个")
+    if incomplete:
+        console.print(f"[yellow]检测到不完整转写: {incomplete} 个，将重新转写")
 
     if not pending_files:
         console.print("[yellow]所有音频文件已转写完毕")
@@ -164,17 +258,22 @@ def asr():
         model_name=config.funasr.model,
         vad_model=config.funasr.vad_model,
         punc_model=config.funasr.punc_model,
+        model_dir=config.model_cache_dir,
     )
 
-    # 批量转写
-    results = engine.transcribe_batch(pending_files, pending_bvids)
+    # 逐文件转写并立即保存（断点续传）
+    success = 0
+    for i, (audio_file, bvid) in enumerate(zip(pending_files, pending_bvids), 1):
+        console.print(f"[blue]转写 [{i}/{len(pending_files)}] {bvid}")
+        try:
+            result = engine.transcribe(audio_file, bvid)
+            meta = video_meta_map.get(bvid, {})
+            save_transcript(result, meta, config.transcripts_dir)
+            success += 1
+        except Exception as e:
+            console.print(f"[red]转写失败 {bvid}: {e}")
 
-    # 保存转写结果
-    for result in results:
-        meta = video_meta_map.get(result.bvid, {})
-        save_transcript(result, meta, config.transcripts_dir)
-
-    console.print("[bold green]阶段2完成!")
+    console.print(f"[bold green]阶段2完成! 成功: {success}/{len(pending_files)}")
 
 
 @cli.command()
@@ -184,7 +283,7 @@ def clean(llm_provider):
     """阶段3: 文本清洗与结构化"""
     from src.config import load_config
     from src.clean.text_processor import (
-        TextProcessor, save_cleaned, create_llm_client,
+        TextProcessor, save_cleaned, create_llm_client, check_cleaned_integrity,
     )
     from src.asr.funasr_engine import load_transcript
 
@@ -202,11 +301,43 @@ def clean(llm_provider):
         console.print("[red]错误: 未找到转写结果，请先运行 asr 阶段")
         sys.exit(1)
 
-    # 过滤已清洗的文件
-    pending_files = [
-        f for f in transcript_files
-        if not (config.cleaned_dir / f.name).exists()
-    ]
+    # 过滤待清洗文件：未清洗、不完整、或转写已更新
+    pending_files = []
+    skipped = 0
+    incomplete = 0
+    outdated = 0
+    for f in transcript_files:
+        cleaned_path = config.cleaned_dir / f.name
+        valid, reason = check_cleaned_integrity(cleaned_path)
+
+        if not valid:
+            if cleaned_path.exists():
+                console.print(f"[yellow]清洗不完整，重新清洗: {f.stem} ({reason})")
+                incomplete += 1
+            pending_files.append(f)
+            continue
+
+        # 完整性通过，再对比转写文本长度，判断转写是否已更新
+        try:
+            import json as _json
+            transcript_len = len(_json.loads(f.read_text(encoding="utf-8")).get("full_text", ""))
+            cleaned_len = len(_json.loads(cleaned_path.read_text(encoding="utf-8")).get("full_text", ""))
+            if transcript_len > cleaned_len * 1.1:
+                console.print(f"[yellow]转写已更新，重新清洗: {f.stem} (转写 {transcript_len} 字 > 已清洗 {cleaned_len} 字)")
+                pending_files.append(f)
+                outdated += 1
+                continue
+        except Exception:
+            pass
+
+        skipped += 1
+
+    if skipped:
+        console.print(f"[dim]已跳过完整清洗: {skipped} 个")
+    if incomplete:
+        console.print(f"[yellow]检测到不完整清洗: {incomplete} 个，将重新清洗")
+    if outdated:
+        console.print(f"[yellow]检测到转写已更新: {outdated} 个，将重新清洗")
 
     if not pending_files:
         console.print("[yellow]所有文本已清洗完毕")
@@ -218,13 +349,19 @@ def clean(llm_provider):
     llm_client = create_llm_client(provider, config)
     processor = TextProcessor(llm_client=llm_client)
 
-    # 批量清洗
-    for f in pending_files:
-        transcript_data = load_transcript(f)
-        cleaned_doc = processor.process_transcript(transcript_data)
-        save_cleaned(cleaned_doc, config.cleaned_dir)
+    # 逐文件清洗并立即保存
+    success = 0
+    for i, f in enumerate(pending_files, 1):
+        try:
+            transcript_data = load_transcript(f)
+            console.print(f"[blue]清洗 [{i}/{len(pending_files)}] {f.stem}")
+            cleaned_doc = processor.process_transcript(transcript_data)
+            save_cleaned(cleaned_doc, config.cleaned_dir)
+            success += 1
+        except Exception as e:
+            console.print(f"[red]清洗失败 {f.stem}: {e}")
 
-    console.print("[bold green]阶段3完成!")
+    console.print(f"[bold green]阶段3完成! 成功: {success}/{len(pending_files)}")
 
 
 @cli.command("model")
@@ -262,15 +399,46 @@ def model_cmd(llm_provider):
 
     extractor = KnowledgeExtractor(llm_client=llm_client)
 
-    # 逐个视频提取知识
+    # 过滤已提取知识的文件，加载已有结果
+    from src.model.knowledge_extractor import load_video_knowledge, check_knowledge_integrity
+    pending_files = []
     all_knowledge = []
+    skipped = 0
     for f in cleaned_files:
-        cleaned_doc = load_cleaned(f)
-        knowledge = extractor.extract_from_video(cleaned_doc)
-        save_video_knowledge(knowledge, config.knowledge_dir)
-        all_knowledge.append(knowledge)
+        knowledge_path = config.knowledge_dir / f.name
+        valid, reason = check_knowledge_integrity(knowledge_path)
+        if valid:
+            try:
+                all_knowledge.append(load_video_knowledge(knowledge_path))
+                skipped += 1
+            except Exception:
+                pending_files.append(f)
+        else:
+            if knowledge_path.exists():
+                console.print(f"[yellow]重新提取 {f.stem}: {reason}")
+            pending_files.append(f)
 
-    # 综合生成博主画像
+    if skipped:
+        console.print(f"[dim]已跳过 {skipped} 个（已完整提取）")
+
+    # 逐个视频提取知识
+    success = 0
+    for i, f in enumerate(pending_files, 1):
+        try:
+            cleaned_doc = load_cleaned(f)
+            console.print(f"[blue]知识提取 [{i}/{len(pending_files)}] {f.stem}")
+            knowledge = extractor.extract_from_video(cleaned_doc)
+            save_video_knowledge(knowledge, config.knowledge_dir)
+            all_knowledge.append(knowledge)
+            success += 1
+        except Exception as e:
+            console.print(f"[red]提取失败 {f.stem}: {e}")
+
+    if pending_files:
+        console.print(f"[dim]本次提取: {success}/{len(pending_files)}")
+
+    # 综合生成博主画像（每次都重新合成，因为可能有新增视频）
+    console.print("[blue]正在合成博主画像...")
     profile = extractor.merge_knowledge(all_knowledge, up_uid=config.up_uid)
     profile_path = config.knowledge_dir / "blogger_profile.json"
     save_blogger_profile(profile, profile_path)
