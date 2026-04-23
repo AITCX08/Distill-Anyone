@@ -49,23 +49,47 @@ class SkillGenerator:
         template = self.env.get_template("skill.md.j2")
 
         content = template.render(
+            # 基础身份
             name=profile.name,
             domain=profile.domain,
             self_intro=profile.self_intro,
-            core_views=profile.core_views,
-            style=profile.style,
-            signature_phrases=profile.signature_phrases,
+            signature_quote=profile.signature_quote,
+            core_philosophy=profile.core_philosophy,
+            # 身份卡
+            identity_who=profile.identity_who,
+            identity_origin=profile.identity_origin,
+            identity_now=profile.identity_now,
+            # 心智模型与判断
             mental_models=profile.mental_models,
             decision_heuristics=profile.decision_heuristics,
+            # 表达
+            style=profile.style,
+            signature_phrases=profile.signature_phrases,
             expression_dna=profile.expression_dna,
-            values=profile.values,
+            # 价值观三层
+            values_pursued=profile.values_pursued,
+            values_rejected=profile.values_rejected,
+            inner_tensions=profile.inner_tensions,
+            # 边界
             anti_patterns=profile.anti_patterns,
             honest_boundaries=profile.honest_boundaries,
             knowledge_boundary=profile.knowledge_boundary,
+            # 时间线与谱系
+            timeline=profile.timeline,
+            influenced_by=profile.influenced_by,
+            influenced_who=profile.influenced_who,
+            # 示例与溯源
             typical_qa_pairs=profile.typical_qa_pairs,
+            sources=profile.sources,
             video_sources=profile.video_sources,
+            key_quotes=profile.key_quotes,
+            research_date=profile.research_date,
+            # 旧字段
+            core_views=profile.core_views,
+            values=profile.values,
+            # 元信息
             generation_date=datetime.now().strftime("%Y-%m-%d"),
-            video_count=len(profile.video_sources),
+            video_count=len(profile.sources or profile.video_sources),
         )
 
         return content

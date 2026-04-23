@@ -19,16 +19,15 @@ console = Console()
 BILIBILI_VIDEO_URL = "https://www.bilibili.com/video/{bvid}"
 
 
-def generate_cookies_file(sessdata: str, bili_jct: str, buvid3: str,
+def generate_cookies_file(credential, buvid3: str = "",
                           output_path: Optional[Path] = None) -> Path:
     """
-    从B站Cookie参数生成 Netscape 格式的 cookies.txt 文件。
+    从B站凭据生成 Netscape 格式的 cookies.txt 文件。
     yt-dlp 使用此文件进行认证。
 
     Args:
-        sessdata: B站 SESSDATA Cookie
-        bili_jct: B站 bili_jct Cookie
-        buvid3: B站 buvid3 Cookie
+        credential: bilibili_api.Credential 对象
+        buvid3: B站 buvid3 Cookie（可选）
         output_path: cookies文件输出路径，默认使用临时文件
 
     Returns:
@@ -37,10 +36,14 @@ def generate_cookies_file(sessdata: str, bili_jct: str, buvid3: str,
     if output_path is None:
         output_path = Path(tempfile.mktemp(suffix=".txt", prefix="bilibili_cookies_"))
 
+    sessdata = credential.sessdata
+    bili_jct = credential.bili_jct
+
     cookies_content = "# Netscape HTTP Cookie File\n"
     cookies_content += f".bilibili.com\tTRUE\t/\tFALSE\t0\tSESSDATA\t{sessdata}\n"
     cookies_content += f".bilibili.com\tTRUE\t/\tFALSE\t0\tbili_jct\t{bili_jct}\n"
-    cookies_content += f".bilibili.com\tTRUE\t/\tFALSE\t0\tbuvid3\t{buvid3}\n"
+    if buvid3:
+        cookies_content += f".bilibili.com\tTRUE\t/\tFALSE\t0\tbuvid3\t{buvid3}\n"
 
     output_path.write_text(cookies_content, encoding="utf-8")
     return output_path

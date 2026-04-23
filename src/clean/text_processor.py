@@ -216,10 +216,25 @@ class TextProcessor:
 
         try:
             content = self.llm_client.chat(prompt, max_tokens=4096)
-            # 尝试提取JSON部分
-            json_match = re.search(r"\[.*\]", content, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
+            # 复用 knowledge_extractor 的 JSON 提取 + 5 轮修复，应对 R1/Reasoner 模型
+            # 输出带 <think> 标签、前后缀文字、内嵌示例 [...] 等情况。
+            from src.model.knowledge_extractor import (
+                _extract_json_payload,
+                _safe_json_loads,
+            )
+            json_str = _extract_json_payload(content, prefer_array=True)
+            if json_str:
+                result = _safe_json_loads(json_str)
+                if isinstance(result, list):
+                    return result
+                console.print(
+                    f"[yellow]主题切分返回非数组（{type(result).__name__}），使用简单分段"
+                )
+            else:
+                preview = content.strip().splitlines()[0][:80] if content.strip() else "(空)"
+                console.print(
+                    f"[yellow]主题切分未提取到 JSON 数组，使用简单分段。LLM 首行: {preview}"
+                )
         except Exception as e:
             console.print(f"[yellow]主题切分失败，使用简单分段: {e}")
 

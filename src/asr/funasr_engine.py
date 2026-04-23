@@ -61,7 +61,7 @@ class FunASREngine:
             model_name: ASR模型名称
             vad_model: VAD模型名称
             punc_model: 标点恢复模型名称
-            device: 计算设备 ("cpu" 或 "cuda:0")，None 时自动检测
+            device: 计算设备 ("cpu"、"cuda:0" 或 "mps")，None 时自动检测
             model_dir: 模型缓存目录，None 时使用系统默认路径
         """
         self.model_name = model_name
@@ -73,6 +73,9 @@ class FunASREngine:
                 gpu_name = torch.cuda.get_device_name(0)
                 total_mem = torch.cuda.get_device_properties(0).total_memory / 1024**3
                 console.print(f"[green]检测到 GPU: {gpu_name} ({total_mem:.1f}GB)，使用 CUDA 加速")
+            elif torch.backends.mps.is_available():
+                device = "mps"
+                console.print("[green]检测到 Apple Silicon，使用 MPS 加速")
             else:
                 device = "cpu"
                 console.print("[yellow]未检测到可用 GPU，使用 CPU 运行")
@@ -81,6 +84,7 @@ class FunASREngine:
 
         self.device = device
         self._use_cuda = device.startswith("cuda")
+        self._use_mps = device == "mps"
 
         # 减少 CUDA 显存碎片
         if self._use_cuda:
@@ -163,7 +167,7 @@ class FunASREngine:
             source="funasr",
         )
 
-        self._free_cuda_cache()
+        self._free_gpu_cache()
         return result_obj
 
     def _generate_with_oom_retry(self, audio_path: Path) -> list:
@@ -175,10 +179,10 @@ class FunASREngine:
                 sentence_timestamp=True,
             )
         except RuntimeError as e:
-            if "out of memory" not in str(e).lower() or not self._use_cuda:
+            if "out of memory" not in str(e).lower() or not (self._use_cuda or self._use_mps):
                 raise
             console.print("[yellow]显存不足，清理缓存后重试...")
-            self._free_cuda_cache()
+            self._free_gpu_cache()
             # 缩小 batch_size_s 重试
             return self.model.generate(
                 input=str(audio_path),
@@ -186,11 +190,13 @@ class FunASREngine:
                 sentence_timestamp=True,
             )
 
-    def _free_cuda_cache(self) -> None:
-        """释放未使用的 CUDA 显存。"""
+    def _free_gpu_cache(self) -> None:
+        """释放未使用的 GPU 显存（CUDA / MPS）。"""
+        import torch
         if self._use_cuda:
-            import torch
             torch.cuda.empty_cache()
+        elif self._use_mps:
+            torch.mps.empty_cache()
 
     def transcribe_batch(self, audio_paths: list[Path],
                          bvids: Optional[list[str]] = None) -> list[TranscriptResult]:

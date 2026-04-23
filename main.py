@@ -14,6 +14,7 @@ Distill-Anyone: B站UP主知识蒸馏工具
 """
 
 import sys
+import json
 from pathlib import Path
 
 import click
@@ -59,6 +60,35 @@ def parse_stages(stages_str: str) -> list[int]:
     return sorted(result)
 
 
+def save_rag_chunks(chunked_doc: dict, output_dir: Path) -> Path:
+    """保存 RAG chunks JSON。"""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"{chunked_doc['source_id']}.json"
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(chunked_doc, f, ensure_ascii=False, indent=2)
+    return output_path
+
+
+def collect_matching_files(base_dir: Path, patterns: tuple[str, ...]) -> list[Path]:
+    """根据多个 glob 模式收集文件。"""
+    matched = set()
+    for pattern in patterns:
+        matched.update(base_dir.glob(pattern))
+    return sorted(path for path in matched if path.is_file())
+
+
+def cleanup_book_artifacts(config, book_id: str):
+    """删除同一本书旧的章节级产物，避免 stale 文件污染。"""
+    patterns = (
+        (config.cleaned_dir, f"{book_id}_ch*.json"),
+        (config.knowledge_dir, f"{book_id}_ch*.json"),
+        (config.rag_chunks_dir, f"{book_id}_ch*.json"),
+    )
+    for base_dir, pattern in patterns:
+        for path in base_dir.glob(pattern):
+            path.unlink()
+
+
 @click.group()
 @click.version_option(version="0.2.0", prog_name="Distill-Anyone")
 def cli():
@@ -70,18 +100,36 @@ def cli():
 
 
 @cli.command()
+def login():
+    """登录B站账号（扫码）"""
+    from src.config import load_config
+    from src.crawl.auth import run_qrcode_login, save_credential
+
+    config = load_config()
+    console.print(Panel("[bold]B站扫码登录[/bold]", title="Distill-Anyone"))
+
+    try:
+        credential, buvid3 = run_qrcode_login()
+        save_credential(credential, buvid3, config.credentials_cache)
+    except Exception as e:
+        console.print(f"[red]登录失败: {e}")
+        sys.exit(1)
+
+
+@cli.command()
 @click.option("--uid", type=int, default=None, help="UP主UID（覆盖.env中的配置）")
 @click.option("--max-videos", type=int, default=0, help="最大获取视频数量，0为全部")
 def crawl(uid, max_videos):
     """阶段1: 爬取视频列表并下载音频"""
     from src.config import load_config
-    from src.crawl.video_list import run_crawl, create_credential, load_video_list
+    from src.crawl.video_list import run_crawl, load_video_list
     from src.crawl.audio_download import (
         batch_download,
         generate_cookies_file,
         check_audio_completeness,
         download_audio,
     )
+    from src.crawl.auth import get_credential
 
     config = load_config()
     target_uid = uid or config.up_uid
@@ -96,12 +144,8 @@ def crawl(uid, max_videos):
         title="Distill-Anyone",
     ))
 
-    # 创建B站认证凭据
-    credential = create_credential(
-        sessdata=config.bilibili.sessdata,
-        bili_jct=config.bilibili.bili_jct,
-        buvid3=config.bilibili.buvid3,
-    )
+    # 获取B站认证凭据（自动：.env > 缓存 > 扫码登录）
+    credential, buvid3 = get_credential(config)
 
     # 加载本地已有视频列表（用于时长对比和合并）
     video_list_path = config.data_dir / "video_list.json"
@@ -131,10 +175,14 @@ def crawl(uid, max_videos):
 
     # 获取新增视频列表：完整和不完整的都排除（不完整的单独处理，避免重复计数）
     all_existing_bvids = complete_bvids | {v["bvid"] for v in incomplete_videos if v.get("bvid")}
+    # 计算需要获取的候选数量：留一些余量应对下载失败（1.5 倍）
+    needed = max(0, max_videos - len(complete_bvids)) if max_videos > 0 else 0
+    fetch_limit = int(needed * 1.5) + len(incomplete_videos) if needed > 0 else 0
     new_videos = run_crawl(
         target_uid, credential, video_list_path, max_videos,
         existing_bvids=all_existing_bvids,
         existing_videos=existing_videos,
+        max_candidates=fetch_limit,
     )
 
     # 合并：新增视频 + 不完整需重下的视频
@@ -144,58 +192,58 @@ def crawl(uid, max_videos):
         console.print("[yellow]没有视频需要下载")
         return
 
-    # 生成cookies文件
-    cookies_file = generate_cookies_file(
-        sessdata=config.bilibili.sessdata,
-        bili_jct=config.bilibili.bili_jct,
-        buvid3=config.bilibili.buvid3,
-    )
+    # 生成cookies文件（用完后清理）
+    cookies_file = generate_cookies_file(credential, buvid3=buvid3)
 
-    # 下载循环：失败的视频跳过且不计入配额
-    # max_videos=0 不限制；否则表示"本地最终总共有N个完整音频"
-    # 已有完整音频数已计在内，本次最多再下 (max_videos - len(complete_bvids)) 个
-    incomplete_bvids = {v["bvid"] for v in incomplete_videos}
-    from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn
-    success = 0
-    skipped_fail = 0
-    if max_videos > 0:
-        quota = max(0, max_videos - len(complete_bvids))
-        console.print(f"[dim]目标总量: {max_videos} 个，已有完整: {len(complete_bvids)} 个，本次最多新下: {quota} 个")
-    else:
-        quota = 0  # 不限制
+    try:
+        # 下载循环：失败的视频跳过且不计入配额
+        # max_videos=0 不限制；否则表示"本地最终总共有N个完整音频"
+        # 已有完整音频数已计在内，本次最多再下 (max_videos - len(complete_bvids)) 个
+        incomplete_bvids = {v["bvid"] for v in incomplete_videos}
+        from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn
+        success = 0
+        skipped_fail = 0
+        if max_videos > 0:
+            quota = max(0, max_videos - len(complete_bvids))
+            console.print(f"[dim]目标总量: {max_videos} 个，已有完整: {len(complete_bvids)} 个，本次最多新下: {quota} 个")
+        else:
+            quota = 0  # 不限制
 
-    with Progress(
-        TextColumn("[bold blue]{task.description}"),
-        BarColumn(),
-        TextColumn("{task.completed}/{task.total}"),
-        TimeRemainingColumn(),
-        console=console,
-    ) as progress:
-        total_display = quota if quota > 0 else len(to_download)
-        task = progress.add_task("下载音频", total=total_display)
+        with Progress(
+            TextColumn("[bold blue]{task.description}"),
+            BarColumn(),
+            TextColumn("{task.completed}/{task.total}"),
+            TimeRemainingColumn(),
+            console=console,
+        ) as progress:
+            total_display = quota if quota > 0 else len(to_download)
+            task = progress.add_task("下载音频", total=total_display)
 
-        for video in to_download:
-            if quota > 0 and success >= quota:
-                break
+            for video in to_download:
+                if quota > 0 and success >= quota:
+                    break
 
-            bvid = video["bvid"]
-            force = bvid in incomplete_bvids
-            progress.update(task, description=f"{'重下' if force else '下载'} {bvid}")
-            path = download_audio(bvid, config.audio_dir, cookies_file=cookies_file, force=force)
+                bvid = video["bvid"]
+                force = bvid in incomplete_bvids
+                progress.update(task, description=f"{'重下' if force else '下载'} {bvid}")
+                path = download_audio(bvid, config.audio_dir, cookies_file=cookies_file, force=force)
 
-            if path:
-                success += 1
-                progress.advance(task)
-            else:
-                skipped_fail += 1
-                console.print(f"[dim]跳过不可用视频: {bvid}，不计入配额")
+                if path:
+                    success += 1
+                    progress.advance(task)
+                else:
+                    skipped_fail += 1
+                    console.print(f"[dim]跳过不可用视频: {bvid}，不计入配额")
 
-    summary = f"下载成功: {success}"
-    if quota > 0:
-        summary += f"/{quota}"
-    if skipped_fail:
-        summary += f"，跳过不可用: {skipped_fail} 个"
-    console.print(f"[bold green]阶段1完成! {summary}")
+        summary = f"下载成功: {success}"
+        if quota > 0:
+            summary += f"/{quota}"
+        if skipped_fail:
+            summary += f"，跳过不可用: {skipped_fail} 个"
+        console.print(f"[bold green]阶段1完成! {summary}")
+    finally:
+        if cookies_file.exists():
+            cookies_file.unlink()
 
 
 @cli.command()
@@ -472,6 +520,190 @@ def generate():
 
     console.print("[bold green]阶段5完成!")
     console.print(f"[green]输出文件: {output_path}")
+
+
+@cli.command()
+@click.option("--file", "file_path", type=click.Path(exists=True), required=True,
+              help="文档文件路径（支持 .txt .docx .pdf）")
+@click.option("--llm", "llm_provider", type=LLM_CHOICES,
+              default=None, help="LLM提供商")
+@click.option("--name", "author_name", type=str, default=None,
+              help="作者/人物名称（默认用文件名）")
+@click.option("--by-chapter/--no-by-chapter", default=True,
+              help="是否按章节独立处理文档（默认开启）")
+@click.option("--rag-chunks/--no-rag-chunks", default=True,
+              help="是否输出 RAG chunks JSON（默认开启）")
+def distill(file_path, llm_provider, author_name, by_chapter, rag_chunks):
+    """文档蒸馏: 从 txt/docx/pdf 文件生成 SKILL.md"""
+    from src.config import load_config
+    from src.reader.document_reader import (
+        document_to_cleaned,
+        book_to_chapter_cleaneds,
+        generate_book_id,
+    )
+    from src.clean.text_processor import create_llm_client, save_cleaned
+    from src.model.knowledge_extractor import (
+        KnowledgeExtractor, save_video_knowledge, save_blogger_profile,
+    )
+    from src.generate.skill_generator import SkillGenerator
+    from src.rag.chunker import build_chunks
+
+    config = load_config()
+    provider = llm_provider or config.llm_provider
+    fpath = Path(file_path)
+
+    console.print(Panel(
+        f"[bold]文档蒸馏[/bold]\n文件: {fpath.name}\nLLM: {provider}",
+        title="Distill-Anyone",
+    ))
+
+    llm_client = create_llm_client(provider, config)
+    if not llm_client:
+        console.print("[red]错误: 文档蒸馏需要可用的 LLM")
+        sys.exit(1)
+
+    extractor = KnowledgeExtractor(llm_client=llm_client)
+    all_knowledge = []
+
+    if by_chapter:
+        book_id = generate_book_id(fpath)
+        cleanup_book_artifacts(config, book_id)
+        cleaned_docs = book_to_chapter_cleaneds(
+            fpath,
+            llm_client=llm_client,
+            doc_title=author_name,
+        )
+        console.print(f"[blue]按章节处理: {len(cleaned_docs)} 个章节")
+
+        for i, cleaned_doc in enumerate(cleaned_docs, 1):
+            console.print(f"[blue]章节 [{i}/{len(cleaned_docs)}] {cleaned_doc['bvid']}")
+            save_cleaned(cleaned_doc, config.cleaned_dir)
+            knowledge = extractor.extract_from_video(cleaned_doc)
+            save_video_knowledge(knowledge, config.knowledge_dir)
+            all_knowledge.append(knowledge)
+            if rag_chunks:
+                save_rag_chunks(
+                    build_chunks(cleaned_doc, knowledge),
+                    config.rag_chunks_dir,
+                )
+    else:
+        cleaned_doc = document_to_cleaned(fpath, llm_client=llm_client, doc_title=author_name)
+        save_cleaned(cleaned_doc, config.cleaned_dir)
+        console.print(f"[green]文档清洗完成: {cleaned_doc['bvid']}")
+
+        knowledge = extractor.extract_from_video(cleaned_doc)
+        save_video_knowledge(knowledge, config.knowledge_dir)
+        all_knowledge.append(knowledge)
+        if rag_chunks:
+            save_rag_chunks(
+                build_chunks(cleaned_doc, knowledge),
+                config.rag_chunks_dir,
+            )
+
+    console.print("[blue]合成画像...")
+    profile = extractor.merge_knowledge(all_knowledge, up_name=author_name or fpath.stem, up_uid=0)
+    if author_name:
+        profile.name = author_name
+    profile_path = config.knowledge_dir / "blogger_profile.json"
+    save_blogger_profile(profile, profile_path)
+
+    generator = SkillGenerator(template_dir="templates")
+    output_name = author_name or fpath.stem
+    output_path = config.output_dir / f"{output_name}.skill.md"
+    generator.generate_and_save(profile, output_path)
+
+    console.print(f"\n[bold green]文档蒸馏完成!")
+    console.print(f"[green]输出文件: {output_path}")
+
+
+@cli.command()
+@click.option("--name", "author_name", type=str, required=True, help="画像名称 / 输出文件名")
+@click.option("--llm", "llm_provider", type=LLM_CHOICES,
+              default=None, help="LLM提供商")
+@click.option("--sources", "source_patterns", multiple=True, required=True,
+              help="cleaned 目录匹配模式，可传多次")
+def fuse(author_name, llm_provider, source_patterns):
+    """融合多个视频 / 章节 cleaned 为统一画像"""
+    from src.config import load_config
+    from src.clean.text_processor import create_llm_client, load_cleaned
+    from src.model.knowledge_extractor import (
+        KnowledgeExtractor,
+        load_video_knowledge,
+        check_knowledge_integrity,
+        save_video_knowledge,
+        save_blogger_profile,
+    )
+    from src.generate.skill_generator import SkillGenerator
+
+    config = load_config()
+    provider = llm_provider or config.llm_provider
+    cleaned_files = collect_matching_files(config.cleaned_dir, source_patterns)
+    if not cleaned_files:
+        console.print("[red]错误: 未找到匹配的 cleaned 文件")
+        sys.exit(1)
+
+    llm_client = create_llm_client(provider, config)
+    if not llm_client:
+        console.print("[red]错误: fuse 需要可用的 LLM")
+        sys.exit(1)
+
+    extractor = KnowledgeExtractor(llm_client=llm_client)
+    all_knowledge = []
+    for cleaned_file in cleaned_files:
+        knowledge_path = config.knowledge_dir / cleaned_file.name
+        valid, _ = check_knowledge_integrity(knowledge_path)
+        if valid:
+            all_knowledge.append(load_video_knowledge(knowledge_path))
+            continue
+
+        cleaned_doc = load_cleaned(cleaned_file)
+        console.print(f"[blue]补提知识: {cleaned_file.stem}")
+        knowledge = extractor.extract_from_video(cleaned_doc)
+        save_video_knowledge(knowledge, config.knowledge_dir)
+        all_knowledge.append(knowledge)
+
+    profile = extractor.merge_knowledge(all_knowledge, up_name=author_name, up_uid=0)
+    profile.name = author_name
+    save_blogger_profile(profile, config.knowledge_dir / "blogger_profile.json")
+
+    generator = SkillGenerator(template_dir="templates")
+    output_path = config.output_dir / f"{author_name}.skill.md"
+    generator.generate_and_save(profile, output_path)
+    console.print(f"[bold green]融合完成! 输出文件: {output_path}")
+
+
+@cli.command()
+@click.option("--source-id", "source_patterns", multiple=True, required=True,
+              help="source_id 匹配模式，可传多次")
+def chunks(source_patterns):
+    """从 cleaned / knowledge 重建 rag_chunks"""
+    from src.config import load_config
+    from src.clean.text_processor import load_cleaned
+    from src.model.knowledge_extractor import (
+        load_video_knowledge,
+        check_knowledge_integrity,
+    )
+    from src.rag.chunker import build_chunks
+
+    config = load_config()
+    cleaned_files = collect_matching_files(config.cleaned_dir, source_patterns)
+    if not cleaned_files:
+        console.print("[red]错误: 未找到匹配的 cleaned 文件")
+        sys.exit(1)
+
+    for cleaned_file in cleaned_files:
+        cleaned_doc = load_cleaned(cleaned_file)
+        knowledge_path = config.knowledge_dir / cleaned_file.name
+        knowledge = None
+        valid, _ = check_knowledge_integrity(knowledge_path)
+        if valid:
+            knowledge = load_video_knowledge(knowledge_path)
+
+        save_rag_chunks(
+            build_chunks(cleaned_doc, knowledge),
+            config.rag_chunks_dir,
+        )
+        console.print(f"[green]已生成 chunks: {cleaned_file.stem}")
 
 
 @cli.command()

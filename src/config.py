@@ -89,6 +89,11 @@ class AppConfig(BaseModel):
     funasr: FunASRConfig = Field(default_factory=FunASRConfig)
 
     @property
+    def credentials_cache(self) -> Path:
+        """B站凭证缓存文件"""
+        return self.data_dir / ".credentials.json"
+
+    @property
     def model_cache_dir(self) -> Path:
         """FunASR/ModelScope 模型缓存目录"""
         return self.data_dir / ".cache" / "modelscope"
@@ -113,10 +118,16 @@ class AppConfig(BaseModel):
         """知识模型目录"""
         return self.data_dir / "knowledge"
 
+    @property
+    def rag_chunks_dir(self) -> Path:
+        """RAG 知识块目录"""
+        return self.data_dir / "rag_chunks"
+
     def ensure_dirs(self):
         """确保所有数据目录存在"""
         for d in [self.audio_dir, self.transcripts_dir, self.cleaned_dir,
-                  self.knowledge_dir, self.output_dir, self.model_cache_dir]:
+                  self.knowledge_dir, self.rag_chunks_dir, self.output_dir,
+                  self.model_cache_dir]:
             d.mkdir(parents=True, exist_ok=True)
 
 
