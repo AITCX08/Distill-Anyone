@@ -143,6 +143,7 @@ def crawl(uid, max_videos):
         download_audio,
     )
     from src.crawl.auth import get_credential
+    from src.asr.funasr_engine import check_transcript_integrity
 
     config = load_config()
     target_uid = uid or config.up_uid
@@ -180,6 +181,21 @@ def crawl(uid, max_videos):
         else:
             console.print(f"[yellow]音频不完整，将重新下载: {bvid} ({reason})")
             incomplete_videos.append(meta if meta else {"bvid": bvid})
+
+    # 把已转写完整的 BV 也算"已处理"，避免被 ASR 删掉音频后又被 crawl 重复下载
+    # （ASR 完成后默认 unlink 音频以释放磁盘，transcripts/{bvid}.json 是天然的"已处理"记录）
+    asr_done_bvids = set()
+    if config.transcripts_dir.exists():
+        for tf in config.transcripts_dir.glob("BV*.json"):
+            valid, _ = check_transcript_integrity(tf)
+            if valid:
+                asr_done_bvids.add(tf.stem)
+    asr_done_no_audio = asr_done_bvids - complete_bvids
+    if asr_done_no_audio:
+        console.print(
+            f"[dim]已 ASR 完整: {len(asr_done_no_audio)} 个（音频已被 ASR 删除），跳过下载"
+        )
+    complete_bvids = complete_bvids | asr_done_bvids
 
     if complete_bvids:
         console.print(f"[dim]本地完整音频: {len(complete_bvids)} 个，跳过")
@@ -259,35 +275,15 @@ def crawl(uid, max_videos):
             cookies_file.unlink()
 
 
-@cli.command()
-def asr():
-    """阶段2: FunASR语音转文字"""
-    from src.config import load_config
-    from src.asr.funasr_engine import FunASREngine, save_transcript, check_transcript_integrity
-    from src.crawl.video_list import load_video_list
+def _scan_pending_audios(config):
+    """扫描 audio 目录，返回待转写的 (audio_file, bvid) 列表 + 统计。
 
-    config = load_config()
+    Why: 抽出来给 watch 模式循环复用。返回 (pending_pairs, skipped, incomplete)。
+    """
+    from src.asr.funasr_engine import check_transcript_integrity
 
-    console.print(Panel("[bold]阶段2: 语音识别[/bold]", title="Distill-Anyone"))
-
-    # 加载视频列表（用于元信息）
-    video_list_path = config.data_dir / "video_list.json"
-    if not video_list_path.exists():
-        console.print("[red]错误: 请先运行 crawl 阶段获取视频列表")
-        sys.exit(1)
-
-    videos = load_video_list(video_list_path)
-    video_meta_map = {v["bvid"]: v for v in videos}
-
-    # 查找所有已下载的音频文件
     audio_files = list(config.audio_dir.glob("BV*.*"))
-    if not audio_files:
-        console.print("[red]错误: 未找到音频文件，请先运行 crawl 阶段")
-        sys.exit(1)
-
-    # 过滤待转写文件：未转写 + 转写不完整的
-    pending_files = []
-    pending_bvids = []
+    pending = []
     skipped = 0
     incomplete = 0
     for audio_file in audio_files:
@@ -300,41 +296,142 @@ def asr():
             if transcript_path.exists():
                 console.print(f"[yellow]转写不完整，重新转写: {bvid} ({reason})")
                 incomplete += 1
-            pending_files.append(audio_file)
-            pending_bvids.append(bvid)
+            pending.append((audio_file, bvid))
+    return pending, skipped, incomplete
 
-    if skipped:
-        console.print(f"[dim]已跳过完整转写: {skipped} 个")
-    if incomplete:
-        console.print(f"[yellow]检测到不完整转写: {incomplete} 个，将重新转写")
 
-    if not pending_files:
-        console.print("[yellow]所有音频文件已转写完毕")
+def _process_pending_batch(pending, video_meta_map, engine, config, delete_audio: bool):
+    """转写一批 pending 音频。转写成功后按 delete_audio 决定是否 unlink。"""
+    from src.asr.funasr_engine import save_transcript, check_transcript_integrity
+
+    success = 0
+    deleted = 0
+    for i, (audio_file, bvid) in enumerate(pending, 1):
+        console.print(f"[blue]转写 [{i}/{len(pending)}] {bvid}")
+        try:
+            result = engine.transcribe(audio_file, bvid)
+            meta = video_meta_map.get(bvid, {})
+            save_transcript(result, meta, config.transcripts_dir)
+            success += 1
+
+            # 删除音频前再做一次完整性校验，避免误删导致永久丢失（双保险）
+            if delete_audio:
+                transcript_path = config.transcripts_dir / f"{bvid}.json"
+                valid, reason = check_transcript_integrity(transcript_path, audio_path=audio_file)
+                if valid:
+                    try:
+                        audio_file.unlink()
+                        deleted += 1
+                        console.print(f"[dim]已删除音频 {audio_file.name}（释放磁盘）")
+                    except OSError as e:
+                        console.print(f"[yellow]删除音频失败 {audio_file.name}: {e}")
+                else:
+                    console.print(f"[yellow]转写后完整性校验未通过，保留音频 {bvid}: {reason}")
+        except Exception as e:
+            console.print(f"[red]转写失败 {bvid}: {e}")
+
+    return success, deleted
+
+
+@cli.command()
+@click.option("--delete-audio/--keep-audio", default=True,
+              help="转写并校验通过后删除音频以节省磁盘（默认开启，--keep-audio 关闭）")
+@click.option("--watch", is_flag=True, default=False,
+              help="持续监听 audio 目录，新音频出现就转写（适合 crawl 边下边转写场景，Ctrl+C 退出）")
+@click.option("--watch-interval", type=int, default=60,
+              help="watch 模式下两次扫描之间的秒数（默认 60）")
+def asr(delete_audio, watch, watch_interval):
+    """阶段2: FunASR语音转文字（支持转写后自动删除音频 + watch 长跑模式）"""
+    import time
+    from src.config import load_config
+    from src.asr.funasr_engine import FunASREngine
+    from src.crawl.video_list import load_video_list
+
+    config = load_config()
+
+    panel_title = "阶段2: 语音识别"
+    if watch:
+        panel_title += f"（watch 模式，每 {watch_interval}s 扫描一次）"
+    if delete_audio:
+        panel_title += "  [转写后自动删除音频]"
+    console.print(Panel(f"[bold]{panel_title}[/bold]", title="Distill-Anyone"))
+
+    # 加载视频列表（用于元信息）
+    video_list_path = config.data_dir / "video_list.json"
+    if not video_list_path.exists():
+        console.print("[red]错误: 请先运行 crawl 阶段获取视频列表")
+        sys.exit(1)
+
+    videos = load_video_list(video_list_path)
+    video_meta_map = {v["bvid"]: v for v in videos}
+
+    # 单次扫描（非 watch 模式）：必须有音频才继续
+    if not watch:
+        pending, skipped, incomplete = _scan_pending_audios(config)
+        if skipped:
+            console.print(f"[dim]已跳过完整转写: {skipped} 个")
+        if incomplete:
+            console.print(f"[yellow]检测到不完整转写: {incomplete} 个，将重新转写")
+        if not pending:
+            console.print("[yellow]所有音频文件已转写完毕")
+            return
+        console.print(f"[blue]待转写: {len(pending)} 个音频文件")
+
+        engine = FunASREngine(
+            model_name=config.funasr.model,
+            vad_model=config.funasr.vad_model,
+            punc_model=config.funasr.punc_model,
+            model_dir=config.model_cache_dir,
+        )
+        success, deleted = _process_pending_batch(
+            pending, video_meta_map, engine, config, delete_audio,
+        )
+        summary = f"成功: {success}/{len(pending)}"
+        if delete_audio:
+            summary += f"，已删除音频: {deleted} 个"
+        console.print(f"[bold green]阶段2完成! {summary}")
         return
 
-    console.print(f"[blue]待转写: {len(pending_files)} 个音频文件")
-
-    # 初始化ASR引擎
+    # watch 模式：先加载引擎（30-60s 慢），再循环扫描，Ctrl+C 退出
+    console.print("[dim]初始化 ASR 引擎中（首次加载较慢）...")
     engine = FunASREngine(
         model_name=config.funasr.model,
         vad_model=config.funasr.vad_model,
         punc_model=config.funasr.punc_model,
         model_dir=config.model_cache_dir,
     )
-
-    # 逐文件转写并立即保存（断点续传）
-    success = 0
-    for i, (audio_file, bvid) in enumerate(zip(pending_files, pending_bvids), 1):
-        console.print(f"[blue]转写 [{i}/{len(pending_files)}] {bvid}")
-        try:
-            result = engine.transcribe(audio_file, bvid)
-            meta = video_meta_map.get(bvid, {})
-            save_transcript(result, meta, config.transcripts_dir)
-            success += 1
-        except Exception as e:
-            console.print(f"[red]转写失败 {bvid}: {e}")
-
-    console.print(f"[bold green]阶段2完成! 成功: {success}/{len(pending_files)}")
+    total_success = 0
+    total_deleted = 0
+    round_no = 0
+    try:
+        while True:
+            round_no += 1
+            pending, skipped, incomplete = _scan_pending_audios(config)
+            console.print(
+                f"[dim][轮 {round_no}] 扫描结果: 已跳过 {skipped} / 不完整 {incomplete} / 待转写 {len(pending)}"
+            )
+            if pending:
+                # 也刷新一次 video_list（crawl 可能刚增量写入新视频元信息）
+                if video_list_path.exists():
+                    videos = load_video_list(video_list_path)
+                    video_meta_map = {v["bvid"]: v for v in videos}
+                success, deleted = _process_pending_batch(
+                    pending, video_meta_map, engine, config, delete_audio,
+                )
+                total_success += success
+                total_deleted += deleted
+                console.print(
+                    f"[blue][轮 {round_no}] 完成: 成功 {success} / 已删 {deleted}"
+                )
+            else:
+                console.print(
+                    f"[dim][轮 {round_no}] 无待转写音频，{watch_interval}s 后再次扫描"
+                )
+            time.sleep(watch_interval)
+    except KeyboardInterrupt:
+        console.print(
+            f"\n[bold green]watch 模式退出。累计: 成功 {total_success} / 已删 {total_deleted}"
+        )
 
 
 @cli.command()

@@ -294,13 +294,39 @@ python main.py crawl [选项]
 ### `asr` — 阶段2: 语音识别
 
 ```
-python main.py asr
+python main.py asr [选项]
 ```
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `--delete-audio / --keep-audio` | 转写并校验通过后删除音频以释放磁盘 | `--delete-audio` |
+| `--watch` | 持续监听 audio 目录，新音频出现就转写（适合大量视频边下边转写） | 关闭 |
+| `--watch-interval` | watch 模式两次扫描的间隔秒数 | `60` |
 
 - 自动设备检测:**CUDA → MPS (Apple Silicon) → CPU** 三级回退
 - 已有**完整**转写结果的视频自动跳过
 - 对已有结果做完整性校验(JSON是否损坏、full_text是否为空、时长是否匹配),不完整则重新转写
 - CUDA / MPS OOM 时自动清理缓存并以更小批次(batch_size_s=60)重试
+- **转写完成后立即删除音频**（双保险：先 save_transcript 再做完整性校验，校验通过才 unlink；失败则保留音频供下次重试）
+
+#### 🚀 推荐：边下载边转写（避免大批量视频撑爆磁盘）
+
+1266 个视频 × ~30MB WAV ≈ 40GB，磁盘可能扛不住。打开两个终端并行跑即可，磁盘占用始终很小：
+
+```bash
+# 终端 1: 持续下载（已转写的 BV 即使音频被删，crawl 也不会重复下载）
+python main.py crawl --uid 12345678
+
+# 终端 2: 持续监听并转写，转写完立刻删音频
+python main.py asr --watch --watch-interval 60
+```
+
+**工作原理**：
+- `crawl` 启动时把 `data/transcripts/{bvid}.json` 完整的 BV 也算入「已处理」集合，跳过重复下载
+- `asr --watch` 每 60 秒扫一次 `data/audio/`，新出现的就转写、转写完立刻 `unlink` 释放磁盘
+- 两个进程通过 `data/transcripts/` 这个共享目录隐式协调，无需锁
+
+任意一端 Ctrl+C 退出，断点续传保证状态一致，重启后从中断处继续。
 
 ### `clean` — 阶段3: 文本清洗
 
