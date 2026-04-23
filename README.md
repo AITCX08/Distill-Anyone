@@ -212,6 +212,113 @@ python main.py fuse --name "戎震" --llm deepseek \
 python main.py chunks --source-id "BOOK_戎震避坑_*"
 ```
 
+## 并行工作流：边下载边识别（推荐大批量场景）
+
+> 1266 个视频 × 平均 30MB WAV ≈ **40GB**，磁盘可能扛不住。
+> 用并行工作流，磁盘占用始终保持在 **~3-5GB**，全程零冲突。
+
+### 快速使用（双终端）
+
+打开两个终端窗口（macOS Terminal 按 `⌘+T` 开新 tab），分别跑：
+
+```bash
+# 终端 1：持续下载所有未处理视频
+python main.py crawl --uid 12345678
+
+# 终端 2：监听 audio 目录，新音频出现就转写、转写完立刻删音频
+python main.py asr --watch --watch-interval 60
+```
+
+任一终端可随时 Ctrl+C 退出，对方继续跑；下次重启都会自动从中断处续传。
+
+### 一键 tmux 启动（推荐）
+
+```bash
+# 装 tmux（如果还没装）
+brew install tmux
+
+# 起一个会话，左边下载、右边识别
+tmux new-session -d -s distill 'python main.py crawl --uid 12345678'
+tmux split-window -h -t distill 'python main.py asr --watch --watch-interval 60'
+tmux attach -t distill
+
+# 之后任何时候可以 detach 再 attach 回来
+# Ctrl+B 然后 D = detach
+# tmux attach -t distill = 重新进入
+```
+
+### 为什么并行不会冲突
+
+| 潜在并发点 | 是否冲突 | 设计保障 |
+|---|---|---|
+| 同时读写 `data/audio/` | ❌ | yt-dlp 先写 `.part` 临时文件，下载完才**原子 rename** 成最终名；ASR 扫描时只能看到完整文件 |
+| ASR 删音频后 crawl 又重下 | ❌ | crawl 启动时把 `data/transcripts/{bvid}.json` 完整的 BV 也算入 `complete_bvids`，跳过 |
+| `data/transcripts/` 写入 | ❌ | 只有 ASR 写，crawl 只读 |
+| GPU / CPU 资源抢占 | ❌ | yt-dlp 是 IO 密集（带宽），ASR 是计算密集（MPS/CPU），两者不抢同一资源 |
+| B 站 cookie 文件 | ❌ | 只有 crawl 用 cookie，ASR 完全不碰 |
+| 多个 yt-dlp 实例同时下同一 BV | ❌ | 不要开两个 crawl，单 crawl 顺序下载即可（默认就是这样） |
+
+### 实时监控（开第三个终端）
+
+```bash
+cd /Users/wjx/Desktop/Project/Distill-Anyone
+
+# 实时观察磁盘占用、待处理队列、已完成进度
+watch -n 5 '
+echo "=== audio 目录占用 ==="
+du -sh data/audio/ 2>/dev/null
+echo ""
+echo "=== 队列状态 ==="
+echo "待识别音频:    $(ls data/audio/BV*.* 2>/dev/null | wc -l | tr -d " ")"
+echo "已转写完成:    $(ls data/transcripts/BV*.json 2>/dev/null | wc -l | tr -d " ")"
+echo "video_list 总数: $(python3 -c "import json;print(len(json.load(open(\"data/video_list.json\"))))" 2>/dev/null)"
+'
+```
+
+健康状态的特征：
+- **audio 目录占用稳定**在几 GB 内（不会无限增长）
+- **「已转写」数量持续上升**（说明 ASR 跟得上）
+- **「待识别」数量在小范围波动**（≤ watch_interval 内 crawl 能下完的数量）
+
+### 何时需要调整 `--watch-interval`
+
+```bash
+# 默认 60 秒：CPU/MPS 友好，少 IO 开销，适合 1266+ 视频长跑
+python main.py asr --watch --watch-interval 60
+
+# 30 秒：更敏捷，新音频更快被识别，但 IO 更频繁
+python main.py asr --watch --watch-interval 30
+
+# 300 秒：更省 CPU，但 audio 目录可能短期堆积更多文件
+python main.py asr --watch --watch-interval 300
+```
+
+经验法则：interval 设成「单视频平均下载耗时」的 2-3 倍最佳。
+
+### 边界情况处理
+
+| 场景 | 行为 |
+|---|---|
+| 下载失败（视频被删 / geo / 付费墙） | crawl 跳过，ASR 不会等 |
+| ASR 转写失败（OOM / 模型异常） | 该视频音频保留供下次重试，watch 下一轮再扫到 |
+| 磁盘满了 | yt-dlp 下载失败 → crawl 跳过；ASR 删完音频后磁盘释放，下轮自动继续 |
+| 两边都 Ctrl+C 退出 | 状态完全持久化在文件系统，下次任意一边重启自动续传 |
+| 想中途暂停 ASR 但保留所有音频 | `Ctrl+C` ASR + 重新跑 `python main.py asr --watch --keep-audio` |
+
+### 不想用 watch 模式怎么办
+
+可以走传统两阶段方案（磁盘需要够大）：
+
+```bash
+# 1. 一次性下载所有视频
+python main.py crawl --uid 12345678
+
+# 2. 再一次性转写（默认转写完仍会删音频，加 --keep-audio 保留）
+python main.py asr --keep-audio
+```
+
+或干脆走 `python main.py run` 一键串行（最简单但没并行加速）。
+
 ## CLI 参数说明
 
 ### `distill` — 文档蒸馏（书籍/文章 → SKILL.md）
