@@ -178,10 +178,21 @@ python main.py run --uid 12345678 --stages 1,3-5  # 跑阶段1和3-5
 
 # 分步运行
 python main.py crawl --uid 12345678 --max-videos 20  # 阶段1: 爬取+下载
-python main.py asr                                    # 阶段2: 语音识别
+python main.py asr                                    # 阶段2: 语音识别（默认转写后删音频释放磁盘）
 python main.py clean --llm deepseek                  # 阶段3: 文本清洗
 python main.py model --llm deepseek                  # 阶段4: 知识建模
-python main.py generate                               # 阶段5: 生成SKILL.md
+python main.py generate                               # 阶段5: 生成SKILL.md（每次新增带时间戳，不覆盖）
+
+# ⚡ 推荐：边下载边转写（避免大量视频撑爆磁盘，1266 视频从 ~40GB 降到 ~3-5GB）
+# 终端 1: 持续下载，已转写的 BV 即使音频被删也不重复下载
+python main.py crawl --uid 12345678
+# 终端 2: 持续监听 audio 目录，新音频出现就转写、转写完立刻删音频
+python main.py asr --watch --watch-interval 60
+
+# ASR 其他选项
+python main.py asr --keep-audio                       # 不删音频（保留旧行为）
+python main.py asr --watch --keep-audio               # watch 模式但不删
+python main.py asr --watch --watch-interval 30        # 30 秒扫一次（更敏捷）
 
 # 文档蒸馏（PDF/DOCX/TXT → SKILL.md，无需B站账号）
 # 默认按章节模块化处理 + 自动产出 RAG chunks
