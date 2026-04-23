@@ -7,6 +7,7 @@
 | 日期 | 变更 |
 |---|---|
 | 2026-04-21 | 初始化模块级 CLAUDE.md（架构师扫描补齐） |
+| 2026-04-23 | `main.py::asr` 新增 `--delete-audio/--keep-audio`（默认删）+ `--watch` 长跑模式 + `--watch-interval`；转写完整性校验通过后自动 `unlink` 音频释放磁盘；`crawl` 阶段把 `transcripts/` 完整的 BV 也算入「已处理」集合避免重复下载 |
 
 ---
 
@@ -36,6 +37,12 @@
 | `check_transcript_integrity(transcript_path, audio_path=None, tolerance=60.0)` | 断点续传的健康检查 |
 
 `main.py::asr` 的使用方式：遍历 `data/audio/BV*.*` → 对每个文件先 `check_transcript_integrity` → 不通过就调 `engine.transcribe()` → `save_transcript()`。
+
+**边下边转写工作流**（v0.4 起，磁盘节省关键）：
+- `main.py::_scan_pending_audios(config)` 抽出来给单次和 watch 模式共用
+- `main.py::_process_pending_batch(..., delete_audio: bool)` 在 `save_transcript` 后**再做一次** `check_transcript_integrity`（双保险），通过才 `audio_file.unlink()`；失败保留音频供下次重试
+- `asr --watch` 模式只加载一次 FunASR 引擎，循环 `_scan_pending_audios → _process_pending_batch → sleep(watch_interval)`，Ctrl+C 优雅退出
+- 配套：`crawl` 启动时把 `data/transcripts/{bvid}.json` 完整的 BV 也算入「已处理」集合 `complete_bvids`，**避免被 ASR 删音频后又被重复下载**
 
 ---
 

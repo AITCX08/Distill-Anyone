@@ -10,6 +10,8 @@
 | 2026-04-16 | 新增自动登录：`src/crawl/auth.py`（二维码扫码 + 凭证缓存），`login` CLI 命令，`crawl` 改用 `get_credential()` 三级策略 |
 | 2026-04-17 | 新增文档蒸馏：`src/reader/document_reader.py`（PDF/DOCX/TXT → cleaned JSON），`distill` CLI 命令，复用阶段 4-5 生成 SKILL.md |
 | 2026-04-21 | 架构师扫描：补齐模块级 CLAUDE.md，校准根级索引 |
+| 2026-04-22 | v0.3 大版本：`src/reader/` 章节模块化 + `src/rag/` chunks 输出 + `main.py fuse/chunks` 命令 + DeepSeek-R1 / 第三方代理 JSON 输出兼容 + `BloggerProfile.sources` schema 升级 + jinja2 模板缩进 bug 修复 + 单元测试套件（共 104 用例）|
+| 2026-04-23 | SKILL.md 输出加时间戳防覆盖（`output/{name}-{YYYYMMDD-HHMMSS}.skill.md`）；`asr` 命令新增 `--delete-audio/--keep-audio` + `--watch/--watch-interval` 支持边下边转写释放磁盘；`crawl` 把 `transcripts/` 完整的 BV 算入「已处理」避免重复下载；`_safe_json_loads` 升至 7 轮（含 Python 字面量替换 + 缺值补 null）+ LLM 失败自动 dump 到 `data/llm_debug/` |
 
 ---
 
