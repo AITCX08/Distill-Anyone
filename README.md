@@ -245,7 +245,7 @@ python main.py fuse --name <人物名> [选项]
 - 按 glob 从 `data/cleaned/` 收集匹配的 cleaned JSON
 - 自动加载或补提 `data/knowledge/` 中对应的知识文件
 - 视频和书章节作为对等的素材单元喂给同一个画像合成 Prompt
-- 合成 `data/knowledge/blogger_profile.json` + `output/{name}.skill.md`
+- 合成 `data/knowledge/blogger_profile.json` + `output/{name}-{YYYYMMDD-HHMMSS}.skill.md`（每次新增带时间戳，不覆盖历史）
 
 **source_type 自动识别**：`BV*` → video，`BOOK_*_chNN` → book_chapter，`DOC_*` → document。
 
@@ -387,7 +387,7 @@ Distill-Anyone/
 │   ├── rag_chunks/                 #   RAG 友好的 chunks JSON（schema_version 1.0）
 │   └── .cache/modelscope/          #   FunASR模型缓存（本地化，不写入系统目录）
 └── output/                         # 最终输出（已gitignore）
-    └── {name}.skill.md
+    └── {name}-{YYYYMMDD-HHMMSS}.skill.md   # 每次跑都新增带时间戳的版本，不覆盖
 ```
 
 ## 技术实现细节

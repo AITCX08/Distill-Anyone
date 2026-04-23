@@ -15,6 +15,7 @@ Distill-Anyone: B站UP主知识蒸馏工具
 
 import sys
 import json
+from datetime import datetime
 from pathlib import Path
 
 import click
@@ -27,6 +28,18 @@ console = Console()
 
 # CLI 中 --llm 可选值
 LLM_CHOICES = click.Choice(LLM_PROVIDERS)
+
+
+def _skill_output_path(output_dir: Path, name: str) -> Path:
+    """生成带时间戳的 SKILL.md 路径，每次生产新增不覆盖。
+
+    格式：{output_dir}/{name}-{YYYYMMDD-HHMMSS}.skill.md
+    Why: 同一人物多次蒸馏（不同素材组合 / Prompt 调整 / 模型切换）历史可对比，
+    避免新版静默覆盖旧版导致结果丢失。
+    """
+    safe_name = (name or "skill").strip() or "skill"
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return output_dir / f"{safe_name}-{timestamp}.skill.md"
 
 
 def parse_stages(stages_str: str) -> list[int]:
@@ -513,9 +526,9 @@ def generate():
 
     profile = load_blogger_profile(profile_path)
 
-    # 生成SKILL.md
+    # 生成SKILL.md（带时间戳，每次新增不覆盖）
     generator = SkillGenerator(template_dir="templates")
-    output_path = config.output_dir / f"{profile.name or 'skill'}.skill.md"
+    output_path = _skill_output_path(config.output_dir, profile.name)
     generator.generate_and_save(profile, output_path)
 
     console.print("[bold green]阶段5完成!")
@@ -609,7 +622,7 @@ def distill(file_path, llm_provider, author_name, by_chapter, rag_chunks):
 
     generator = SkillGenerator(template_dir="templates")
     output_name = author_name or fpath.stem
-    output_path = config.output_dir / f"{output_name}.skill.md"
+    output_path = _skill_output_path(config.output_dir, output_name)
     generator.generate_and_save(profile, output_path)
 
     console.print(f"\n[bold green]文档蒸馏完成!")
@@ -667,7 +680,7 @@ def fuse(author_name, llm_provider, source_patterns):
     save_blogger_profile(profile, config.knowledge_dir / "blogger_profile.json")
 
     generator = SkillGenerator(template_dir="templates")
-    output_path = config.output_dir / f"{author_name}.skill.md"
+    output_path = _skill_output_path(config.output_dir, author_name)
     generator.generate_and_save(profile, output_path)
     console.print(f"[bold green]融合完成! 输出文件: {output_path}")
 
