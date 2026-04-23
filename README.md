@@ -1,33 +1,59 @@
 # Distill-Anyone
 
-> B站知识区UP主视频内容 → 结构化知识 → SKILL.md
+> 视频/文档内容 → 结构化知识 → SKILL.md / RAG 知识块
 
-将B站UP主的视频内容，通过自动化流水线转化为可供AI助手使用的结构化知识文件（SKILL.md）。
+将B站UP主的视频内容或书籍/文档（PDF/DOCX/TXT），通过自动化流水线转化为可供AI助手使用的结构化知识文件（SKILL.md），并同时产出 RAG 友好的标准化知识块。
+
+> **v0.3 新能力**（2026-04）：
+> - 📚 **书籍章节模块化**：`distill` 默认按章节独立处理，每章一份 cleaned + knowledge
+> - 🔀 **视频 + 书籍融合**：新增 `fuse` 命令，对等合成统一的 SKILL.md
+> - 🧠 **RAG 知识块输出**：自动产出 `data/rag_chunks/` 标准 chunks，可直接接入向量库
+> - 🛠 **新增 CLI**：`fuse` / `chunks` 两条命令；`distill` 加 `--by-chapter` / `--rag-chunks` 开关
+
+**🎯 用本工具产出的开源 Skill 示例**：[戎震.skill](https://github.com/CJWang-bilibili/RongZheng-skill) — 基于 100 个 B 站视频 + 书籍《戎震避坑》72 章融合蒸馏的 Claude Code Skill。
 
 ```
+视频路径（B站 UP 主）：
 ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
 │  ① 爬取   │───→│  ② ASR   │───→│  ③ 清洗   │───→│  ④ 建模   │───→│  ⑤ 生成   │───→│ SKILL.md │
 │ 视频+音频  │    │ 语音转文字│    │ 文本处理  │    │ 知识提取  │    │ 模板渲染  │    │  知识文件 │
 └──────────┘    └──────────┘    └──────────┘    └──────────┘    └──────────┘    └──────────┘
  bilibili-api      FunASR        规则+LLM         LLM API          Jinja2
    yt-dlp        paraformer-zh
+
+文档路径（PDF / DOCX / TXT 书籍或文章）：
+┌─────────────┐    ┌────────────┐    ┌──────────┐    ┌──────────┐
+│ distill      │───→│ 章节切分    │───→│  ④ 建模  │───→│  ⑤ 生成   │───→ SKILL.md
+│ 文档读取     │    │ 每章独立     │    │ 知识提取 │    │ 模板渲染  │
+└─────────────┘    └────────────┘    └──────────┘    └──────────┘
+                                                              └────→ data/rag_chunks/ （供 RAG Agent 检索）
+
+融合蒸馏（视频 + 书籍章节 对等喂给画像合成）：
+cleaned/{BV*}.json  ┐
+                    ├──→ fuse ──→ blogger_profile.json ──→ 统一 SKILL.md
+cleaned/{BOOK_*_chNN}.json ┘
 ```
 
 ## 功能特性
 
-- **全自动流水线**: 从视频爬取到SKILL.md生成，一条命令完成
-- **断点续传**: 每个阶段自动检测文件完整性，已处理的跳过，损坏的重新处理
-- **音频完整性检查**: 自动检测付费视频未完整下载的情况，开通会员后重新运行自动补全
-- **FunASR中文识别**: 使用阿里达摩院 paraformer-zh 模型，GPU自动加速，OOM自动降级重试
-- **nuwa-skill方法论**: 提取思维框架、判断准则、表达DNA、价值观、反模式等深层知识
-- **多LLM支持**: Claude / OpenAI / Qwen / DeepSeek / Ollama（本地免费）五选一
-- **RAG兼容格式**: 所有中间数据采用JSON格式存储，可直接接入RAG系统
+- **全自动流水线**: 从视频爬取到 SKILL.md 生成，一条命令完成
+- **文档蒸馏（章节模块化）**: PDF/DOCX/TXT 书籍按章节独立蒸馏，每章一份 cleaned + knowledge，便于检索与迭代
+- **视频 + 书籍融合**: `fuse` 命令将同一人物的视频集与书籍章节对等合成统一 SKILL.md，书提供深度框架、视频提供表达 DNA
+- **RAG 友好知识块**: 自动产出 `data/rag_chunks/` 标准化 chunks JSON（含 source_type / chapter / char_range / keywords 元数据），可直接喂入向量库
+- **断点续传**: 每个阶段自动检测文件完整性,已处理的跳过,损坏的重新处理
+- **音频完整性检查**: 自动检测付费视频未完整下载的情况,开通会员后重新运行自动补全
+- **FunASR 中文识别**: 使用阿里达摩院 paraformer-zh 模型,自动选择 CUDA / Apple Silicon (MPS) / CPU,OOM 自动降级重试
+- **女娲 / 张雪峰.skill 风格对齐**: 生成的 SKILL.md 完全对齐 [女娲.skill](https://github.com/alchaincyf/nuwa-skill) / [张雪峰.skill](https://github.com/alchaincyf/zhangxuefeng-skill) 格式——角色扮演规则、Agentic Protocol、身份卡、心智模型(带证据/应用/局限三段)、决策启发式(带场景/案例)、7 维度表达 DNA、人物时间线、价值观三层(追求/拒绝/内在张力)、智识谱系、关键引用等
+- **多 LLM 支持**: Claude / OpenAI / Qwen / DeepSeek / Ollama(本地免费)五选一
 
 ## 环境要求
 
-- Python 3.11+
-- ffmpeg（yt-dlp 音频转换依赖）
-- GPU（可选，FunASR支持CPU运行，GPU约快5-10倍）
+- **Python** 3.9+(推荐 3.11+;macOS 系统自带 3.9 也可)
+- **ffmpeg**(yt-dlp 音频提取 + FunASR 音频解码依赖)
+- **加速硬件**(可选):
+  - NVIDIA GPU(CUDA)——Windows / Linux,最快
+  - Apple Silicon (M1/M2/M3/M4) MPS——macOS,自动启用
+  - CPU 也能跑,只是慢 5-10 倍
 
 ## 快速开始
 
@@ -40,23 +66,46 @@ cd Distill-Anyone
 
 ### 2. 安装依赖
 
+**方案 A:conda(推荐 Windows / Linux + NVIDIA)**
+
 ```bash
-# 创建 conda 虚拟环境（推荐）
 conda create -n Distill-Anyone python=3.11
 conda activate Distill-Anyone
 
-# 安装 PyTorch（CUDA版，按实际CUDA版本选择）
+# 安装 PyTorch(CUDA 版,按实际 CUDA 版本选择)
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 
 # 安装项目依赖
 pip install -r requirements.txt
+```
 
-# 安装 ffmpeg
-# Windows:
+**方案 B:venv(推荐 macOS / 无 GPU)**
+
+```bash
+# 创建虚拟环境
+python3 -m venv Distill-Anyone
+source Distill-Anyone/bin/activate
+
+# 升级 pip
+pip install --upgrade pip
+
+# 安装项目依赖
+pip install -r requirements.txt
+
+# funasr 未在 requirements 中把 torch 列为硬依赖,需要手动补装
+pip install torch torchaudio
+```
+
+**安装 ffmpeg**(系统级依赖,不在虚拟环境内):
+
+```bash
+# Windows
 winget install ffmpeg
-# Ubuntu/Debian:
+
+# Ubuntu / Debian
 sudo apt install ffmpeg
-# Mac:
+
+# macOS(需要先装 Homebrew: https://brew.sh)
 brew install ffmpeg
 ```
 
@@ -68,18 +117,19 @@ cp config.example.env .env
 
 编辑 `.env` 文件，填写以下配置：
 
-#### B站Cookie获取方法
+#### B站登录（二选一）
 
-1. 用浏览器登录 [bilibili.com](https://www.bilibili.com)
-2. 按 `F12` 打开开发者工具
-3. 切换到 `Application`（应用）标签页
-4. 在左侧找到 `Cookies` → `https://www.bilibili.com`
-5. 复制以下三个值：
-   - `SESSDATA` → 填入 `BILIBILI_SESSDATA`
-   - `bili_jct` → 填入 `BILIBILI_BILI_JCT`
-   - `buvid3` → 填入 `BILIBILI_BUVID3`
+**方式一（推荐）: 扫码登录**
+```bash
+python main.py login
+```
+自动弹出二维码，用B站App扫码即可。凭据自动缓存，过期自动刷新。
 
-> **注意**: Cookie 有效期通常为数天到数周，过期后需要重新获取。如果账号开通了充电/大会员，Cookie 代表的是账号会话，会员权限自动生效，无需额外操作。
+**方式二: 手动填写 Cookie**
+
+在 `.env` 中填入 `BILIBILI_SESSDATA`、`BILIBILI_BILI_JCT`、`BILIBILI_BUVID3`（从浏览器 F12 → Application → Cookies 获取）。
+
+> **注意**: 手动 Cookie 有效期数天到数周。推荐使用扫码登录，省去手动操作。
 
 #### LLM API 配置（五选一）
 
@@ -132,9 +182,95 @@ python main.py asr                                    # 阶段2: 语音识别
 python main.py clean --llm deepseek                  # 阶段3: 文本清洗
 python main.py model --llm deepseek                  # 阶段4: 知识建模
 python main.py generate                               # 阶段5: 生成SKILL.md
+
+# 文档蒸馏（PDF/DOCX/TXT → SKILL.md，无需B站账号）
+# 默认按章节模块化处理 + 自动产出 RAG chunks
+python main.py distill --file 书籍.pdf --llm deepseek --name "作者名"
+
+# 关闭章节化（旧行为：整书一份 cleaned/knowledge）
+python main.py distill --file 书籍.pdf --no-by-chapter
+
+# 关闭 RAG chunks 输出
+python main.py distill --file 书籍.pdf --no-rag-chunks
+
+# 视频 + 书籍 融合蒸馏（对等合成统一 SKILL.md）
+python main.py fuse --name "戎震" --llm deepseek \
+  --sources "BV*" --sources "BOOK_戎震避坑_*"
+
+# 独立重建 RAG chunks（修改 chunker 参数后用）
+python main.py chunks --source-id "BOOK_戎震避坑_*"
 ```
 
 ## CLI 参数说明
+
+### `distill` — 文档蒸馏（书籍/文章 → SKILL.md）
+
+```
+python main.py distill --file <路径> [选项]
+```
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `--file` | 文档文件路径（支持 .txt .docx .pdf） | **必填** |
+| `--llm` | LLM 提供商 | `.env` 中配置 |
+| `--name` | 作者/人物名称，用于输出文件名和画像 | 文件名 |
+| `--by-chapter / --no-by-chapter` | 按章节独立处理（每章产出独立的 cleaned + knowledge） | `--by-chapter` |
+| `--rag-chunks / --no-rag-chunks` | 同时产出 RAG 友好 chunks JSON 到 `data/rag_chunks/` | `--rag-chunks` |
+
+**默认（章节模式）一条命令完成**：章节切分 → 每章 cleaned → 每章知识提取 → RAG chunks → 画像合成 → SKILL.md。
+
+**章节切分策略**：
+1. 优先正则识别中文章节标题（"第 X 章" / "1." / "一、"），命中 ≥ 3 个按章节切
+2. 否则按 5000-8000 字硬切，标题统一 `第 N 部分`
+3. 重跑同一本书时会自动清理同 `BOOK_{stem}_{md5}_ch*` 前缀的旧 cleaned/knowledge/rag_chunks（防 stale 章节污染）
+
+**输出 ID 规范**：
+- 书 ID：`BOOK_{stem}_{md5_6}`
+- 章节 ID（=cleaned/knowledge 文件名）：`BOOK_{stem}_{md5_6}_ch{NN}`
+- 兼容旧路径：`--no-by-chapter` 仍走原 `DOC_{stem}_{md5_6}` 单文件方案
+
+### `fuse` — 视频 + 书籍 融合蒸馏
+
+```
+python main.py fuse --name <人物名> [选项]
+```
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `--name` | 人物名称，用于 SKILL.md 文件名和画像 | **必填** |
+| `--llm` | LLM 提供商 | `.env` 中配置 |
+| `--sources` | 要融合的素材 glob（可多次指定），如 `"BV*"`、`"BOOK_戎震避坑_*"` | **必填** |
+
+**行为**：
+- 按 glob 从 `data/cleaned/` 收集匹配的 cleaned JSON
+- 自动加载或补提 `data/knowledge/` 中对应的知识文件
+- 视频和书章节作为对等的素材单元喂给同一个画像合成 Prompt
+- 合成 `data/knowledge/blogger_profile.json` + `output/{name}.skill.md`
+
+**source_type 自动识别**：`BV*` → video，`BOOK_*_chNN` → book_chapter，`DOC_*` → document。
+
+**安全设计**：仅按显式 `--sources` glob 收集，不做隐式全量扫描，避免误纳入历史素材。
+
+### `chunks` — RAG 知识块重建
+
+```
+python main.py chunks --source-id <glob> [...]
+```
+
+| 参数 | 说明 |
+|------|------|
+| `--source-id` | 要重建 chunks 的 cleaned 文件 glob（可多次指定） |
+
+**行为**：从已有 `data/cleaned/` + `data/knowledge/` 重新生成 `data/rag_chunks/{source_id}.json`，幂等覆盖。
+
+**适用场景**：调整 chunker 切片参数、补出旧素材的 chunks、在已有视频/章节基础上单独构建 RAG 检索源。
+
+**chunk 切分策略**（`src/rag/chunker.py`）：
+- 优先按 cleaned.topics 出 chunk（每个 topic 一个 chunk）
+- topic 超长（> 1000 字）时按 `target_size=1000` + `overlap=100` 二次切
+- chunk.summary 优先复用 knowledge.summary，缺失时退首句
+- chunk.keywords 优先 knowledge.key_concepts[:8]，缺失时退 topic.tags
+- char_range 在 full_text 中精确定位，失败时标 `metadata.range_inferred=true`
 
 ### `crawl` — 阶段1: 数据采集
 
@@ -161,10 +297,10 @@ python main.py crawl [选项]
 python main.py asr
 ```
 
-- 自动检测 CUDA，有 GPU 则用 GPU，否则用 CPU
+- 自动设备检测:**CUDA → MPS (Apple Silicon) → CPU** 三级回退
 - 已有**完整**转写结果的视频自动跳过
-- 对已有结果做完整性校验（JSON是否损坏、full_text是否为空、时长是否匹配），不完整则重新转写
-- CUDA OOM 时自动清理缓存并以更小批次（batch_size_s=60）重试
+- 对已有结果做完整性校验(JSON是否损坏、full_text是否为空、时长是否匹配),不完整则重新转写
+- CUDA / MPS OOM 时自动清理缓存并以更小批次(batch_size_s=60)重试
 
 ### `clean` — 阶段3: 文本清洗
 
@@ -216,32 +352,39 @@ python main.py run [选项]
 
 ```
 Distill-Anyone/
-├── main.py                         # CLI入口（click子命令）
+├── main.py                         # CLI入口（10 个子命令：login/crawl/asr/clean/model/generate/distill/fuse/chunks/run）
 ├── requirements.txt
 ├── config.example.env              # 环境变量模板
 ├── src/
 │   ├── config.py                   # 配置管理（.env加载+Pydantic校验）
 │   ├── crawl/                      # 阶段1：数据采集
+│   │   ├── auth.py                 #   B站扫码登录 + 凭证缓存（三级策略）
 │   │   ├── video_list.py           #   获取UP主视频列表（增量、412重试）
 │   │   ├── audio_download.py       #   yt-dlp下载音频+完整性检查+重下载
 │   │   └── subtitle.py             #   获取B站官方字幕（备用）
 │   ├── asr/                        # 阶段2：语音识别
 │   │   └── funasr_engine.py        #   FunASR引擎（GPU检测+OOM重试+完整性校验）
-│   ├── clean/                      # 阶段3：文本清洗
-│   │   └── text_processor.py       #   去口语化+LLM主题切分+完整性检查
+│   ├── clean/                      # 阶段3：文本清洗 + LLM 客户端工厂
+│   │   └── text_processor.py       #   去口语化+LLM主题切分+create_llm_client()
 │   ├── model/                      # 阶段4：知识建模
-│   │   └── knowledge_extractor.py  #   nuwa-skill知识提取+画像合成+JSON容错解析
-│   └── generate/                   # 阶段5：Skill生成
-│       └── skill_generator.py      #   Jinja2模板渲染
+│   │   └── knowledge_extractor.py  #   nuwa-skill知识提取+画像合成+JSON容错+sources字段
+│   ├── generate/                   # 阶段5：Skill生成
+│   │   └── skill_generator.py      #   Jinja2模板渲染
+│   ├── reader/                     # 文档蒸馏入口（PDF/DOCX/TXT）
+│   │   └── document_reader.py      #   章节切分 + 章节级 cleaned 产出
+│   └── rag/                        # RAG 知识块输出
+│       └── chunker.py              #   topic 优先切块 + 元数据标注
 ├── templates/
 │   └── skill.md.j2                 # SKILL.md Jinja2模板（nuwa-skill风格）
+├── tests/                          # pytest 单元测试
 ├── examples/
 │   └── sample.skill.md             # 示例输出
 ├── data/                           # 运行时数据（自动创建，已gitignore）
 │   ├── audio/                      #   下载的音频文件（WAV）
 │   ├── transcripts/                #   ASR转写结果（JSON，含句级时间戳）
-│   ├── cleaned/                    #   清洗后结构化文本（JSON）
-│   ├── knowledge/                  #   单视频知识+博主总画像（JSON）
+│   ├── cleaned/                    #   清洗后结构化文本（视频 BV* 与书章节 BOOK_*_chNN 共存）
+│   ├── knowledge/                  #   单素材知识 + blogger_profile.json
+│   ├── rag_chunks/                 #   RAG 友好的 chunks JSON（schema_version 1.0）
 │   └── .cache/modelscope/          #   FunASR模型缓存（本地化，不写入系统目录）
 └── output/                         # 最终输出（已gitignore）
     └── {name}.skill.md
@@ -259,10 +402,10 @@ Distill-Anyone/
 
 ### 阶段2：语音识别
 
-- **模型**: FunASR `paraformer-zh`（达摩院） + `fsmn-vad`（端点检测）+ `ct-punc`（标点恢复）
-- **GPU自动检测**: `torch.cuda.is_available()`，`expandable_segments` 减少显存碎片
-- **句级时间戳**: `sentence_timestamp=True`，解析 `sentence_info` 得到每句的起止时间（毫秒级）
-- **OOM处理**: `batch_size_s=300` → OOM时 `torch.cuda.empty_cache()` → `batch_size_s=60` 重试
+- **模型**: FunASR `paraformer-zh`(达摩院) + `fsmn-vad`(端点检测) + `ct-punc`(标点恢复)
+- **设备自动检测**: `torch.cuda.is_available()` → `torch.backends.mps.is_available()` → CPU;CUDA 时设置 `expandable_segments` 减少显存碎片
+- **句级时间戳**: `sentence_timestamp=True`,解析 `sentence_info` 得到每句的起止时间(毫秒级)
+- **OOM 处理**: `batch_size_s=300` → OOM 时 `torch.cuda.empty_cache()` 或 `torch.mps.empty_cache()` → `batch_size_s=60` 重试
 - **完整性校验**: 检查 JSON 有效性 + full_text 非空 + 转写结束时间与音频实际时长差值 < 60s
 
 ### 阶段3：文本清洗
@@ -300,6 +443,30 @@ Distill-Anyone/
 - **模板风格**: 参考 [nuwa-skill](https://github.com/hotcoffeeshake/tong-jincheng-skill) 风格，包含效果示例、心智模型表格、表达DNA、诚实边界等章节
 - **Jinja2渲染**: 所有 `BloggerProfile` 字段注入模板，空字段自动跳过不渲染
 
+### 文档蒸馏 + RAG 输出
+
+**文档读取** (`src/reader/document_reader.py`)：
+- 三种格式延迟导入：`.txt`（utf-8）、`.docx`（python-docx）、`.pdf`（PyMuPDF）
+- 章节切分：正则识别 ≥ 3 个中文章节标题按章节切；否则按 5000-8000 字硬切并标 `第 N 部分`
+- 每章产出独立 `cleaned/{BOOK_*_chNN}.json`，与视频路径完全同 schema（章节专属字段在 `metadata` 内）
+
+**章节 metadata 扩展字段**：`source_type` / `chapter_index` / `chapter_title` / `parent_book_id` / `total_chapters` / `char_range`
+
+**RAG chunks** (`src/rag/chunker.py`)：
+- 优先按 `cleaned.topics` 出 chunk（每 topic 一个）
+- topic 超长时按 `target_size=1000` + `overlap=100` 字符二次切
+- chunk.summary 优先复用 `knowledge.summary`，缺失退首句
+- chunk.keywords 优先复用 `knowledge.key_concepts[:8]`，缺失退 topic.tags
+- chunk.char_range 在 full_text 中精确定位，定位失败时标 `metadata.range_inferred=true`
+- 输出 schema：`{schema_version, source_id, source_type, source_title, parent_id, chunks: [...]}`，详见 `DEVELOPMENT.md` §2
+
+### 视频 + 书籍 融合蒸馏
+
+- **对等融合**：`fuse` 命令把视频集和书章节作为对等的素材单元喂给 `PROFILE_SYNTHESIS_PROMPT`
+- **summaries 标注**：合成时按 `[视频]` / `[书章节]` / `[文档]` 区分来源，让 LLM 区别对待（书提供深度框架、视频提供表达 DNA）
+- **BloggerProfile.sources**：新版字段记录所有素材来源（含 `source_type`），保留 `video_sources` 兼容旧 JSON
+- **glob 收集**：`fuse --sources "BV*" --sources "BOOK_*_ch*"` 仅按显式 glob 拉取，避免误纳入旧 `DOC_*` 单文档蒸馏产物
+
 ## 配置参考
 
 | 环境变量 | 说明 | 必填 |
@@ -310,14 +477,14 @@ Distill-Anyone/
 | `UP_UID` | 目标UP主的UID | 是 |
 | `LLM_PROVIDER` | LLM提供商 (`claude`/`openai`/`qwen`/`deepseek`/`ollama`) | 否（默认`claude`） |
 | `ANTHROPIC_API_KEY` | Claude API Key | `LLM_PROVIDER=claude` 时 |
-| `ANTHROPIC_MODEL` | Claude模型 | 否（默认`claude-sonnet-4-6`） |
+| `ANTHROPIC_MODEL` | Claude模型 | 否（默认`claude-sonnet-4-20250514`） |
 | `OPENAI_API_KEY` | OpenAI API Key | `LLM_PROVIDER=openai` 时 |
 | `OPENAI_BASE_URL` | OpenAI兼容接口地址 | 否（默认官方地址） |
 | `OPENAI_MODEL` | OpenAI模型 | 否（默认`gpt-4o`） |
 | `QWEN_API_KEY` | 阿里云 DashScope API Key | `LLM_PROVIDER=qwen` 时 |
 | `QWEN_MODEL` | Qwen模型 | 否（默认`qwen3-235b-a22b`） |
 | `DEEPSEEK_API_KEY` | DeepSeek API Key | `LLM_PROVIDER=deepseek` 时 |
-| `DEEPSEEK_MODEL` | DeepSeek模型 | 否（默认`deepseek-chat`） |
+| `DEEPSEEK_MODEL` | DeepSeek模型 | 否（默认`deepseek-reasoner`；长文本提取推荐改为 `deepseek-chat` 更省钱） |
 | `OLLAMA_BASE_URL` | Ollama服务地址 | 否（默认`http://localhost:11434/v1`） |
 | `OLLAMA_MODEL` | Ollama本地模型 | 否（默认`qwen2.5:3b`） |
 | `FUNASR_MODEL` | FunASR模型 | 否（默认`paraformer-zh`） |
@@ -332,25 +499,48 @@ Distill-Anyone/
 
 直接重新运行 `python main.py crawl --uid 你的UID`，工具会自动对比每个已下载音频的实际时长与视频元信息，检测到时长不足的音频会自动重新下载替换，完整的文件不会重复处理。
 
-**没有GPU可以运行吗？**
+**没有 GPU 可以运行吗？**
 
-可以。FunASR支持CPU运行，速度较慢（约慢5-10倍）。程序会自动检测GPU可用性，无GPU时自动切换到CPU。
+可以。FunASR 支持 CPU 运行,速度较慢(约慢 5-10 倍)。程序自动按 CUDA → MPS → CPU 顺序选择,无需手动配置。
+
+**Mac(Apple Silicon)怎么加速?**
+
+M1/M2/M3/M4 芯片上会自动使用 PyTorch 的 MPS 后端,显示 `检测到 Apple Silicon,使用 MPS 加速`。若希望强制 CPU 运行可临时设置环境变量 `PYTORCH_ENABLE_MPS_FALLBACK=1` 或在代码里显式传 `device="cpu"`。
 
 **FunASR模型存在哪里？**
 
 首次运行时自动从ModelScope下载，缓存在项目目录 `data/.cache/modelscope/` 下，不会占用系统全局目录。
 
-**转写时出现 CUDA out of memory？**
+**转写时出现 CUDA / MPS out of memory?**
 
-程序会自动清理显存缓存后以更小批次重试。4GB显存运行超长视频（>2小时）时偶发，重试后通常能成功。
+程序会自动清理显存缓存后以更小批次(`batch_size_s=60`)重试。4GB 显存运行超长视频(>2 小时)时偶发,重试后通常能成功。仍失败可在 `.env` 或运行时显式指定 `device="cpu"`。
 
 **模型提取时 JSON 解析失败？**
 
 内置5轮容错修复逻辑，能处理控制字符、裸换行、尾随逗号、`...`占位符、输出截断等常见LLM输出问题。如仍失败，降级使用规则生成基础画像。
 
+**书籍章节切分识别不出来怎么办？**
+
+正则当前主要适配中文书籍目录（"第 X 章 / 1. / 一、"）。如果是英文书或异常排版 PDF，会自动落到 5000-8000 字硬切兜底，标题统一 `第 N 部分`。功能不会失败，只是章节边界粗一些。如需更精细，可以预先把 PDF 用 OCR 后转成 markdown 并手动加章节标题。
+
+**重新跑同一本书会污染旧章节文件吗？**
+
+不会。`distill --by-chapter` 启动时会自动清理同 `BOOK_{stem}_{md5}_ch*` 前缀的旧 cleaned/knowledge/rag_chunks，确保 PDF 改版（章节数变化）时不留 stale 文件。如果你不希望自动清理，目前需要先备份旧产物。
+
+**RAG chunks 怎么接入向量库？**
+
+`data/rag_chunks/{source_id}.json` 是中立的标准格式，每个 chunk 含 `text` / `summary` / `keywords` / `char_range` / `metadata`。直接读取该 JSON，把 `text` 字段送到任意 embedding 模型（bge-m3 / OpenAI text-embedding-3 等），向量与原 chunk 一起存入向量库（Chroma / Qdrant / Milvus 均可）即可检索。
+
+## 开发者文档
+
+如果你想深入定制、二次开发,或使用 AI 辅助编程对本项目进行修改,请阅读:
+
+- **[DEVELOPMENT.md](./DEVELOPMENT.md)** — 详尽的架构设计、数据契约、模块职责、关键算法、扩展点说明,长期维护文档
+- **[CLAUDE.md](./CLAUDE.md)** — 给 AI 编程助手(Claude Code / Cursor / Copilot)的硬性约定和反模式清单
+
 ## 授权说明
 
-使用本工具蒸馏UP主内容前，请确保已获得UP主本人的授权。
+使用本工具蒸馏 UP 主内容前,请确保已获得 UP 主本人的授权。
 
 ## 许可证
 
