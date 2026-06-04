@@ -97,3 +97,47 @@ def _g(d: dict, key: str) -> str:
     if isinstance(d, dict):
         return str(d.get(key) or "")
     return ""
+
+
+# ===== HTML / PDF =====
+
+_TASK_DONE_RE = re.compile(r"<li>\s*\[[xX]\]\s*")
+_TASK_OPEN_RE = re.compile(r"<li>\s*\[ \]\s*")
+
+
+def _render_task_items(html: str) -> str:
+    """把 markdown 渲染出的 `<li>[ ] …` / `<li>[x] …` 转成飞书复选框样式。"""
+    html = _TASK_DONE_RE.sub('<li class="todo done">☑ ', html)
+    html = _TASK_OPEN_RE.sub('<li class="todo">☐ ', html)
+    return html
+
+
+def markdown_to_html(markdown_text: str) -> str:
+    """Markdown → HTML 片段（含复选框转换）。"""
+    import markdown as md_lib  # 延迟导入（根级硬规则 #4）
+
+    body = md_lib.markdown(
+        markdown_text,
+        extensions=["extra", "sane_lists", "nl2br"],
+    )
+    return _render_task_items(body)
+
+
+def render_pdf(markdown_text: str, output_path: Path,
+               template_dir: str = "templates") -> Path:
+    """Markdown → HTML（飞书 CSS 外壳）→ PDF。
+
+    需要 weasyprint（依赖系统库 pango）。调用方应捕获异常做降级（MD 已单独产出）。
+    """
+    from jinja2 import Environment, FileSystemLoader  # 延迟导入
+    from weasyprint import HTML                        # 延迟导入（重 + 需系统库）
+
+    body_html = markdown_to_html(markdown_text)
+    env = Environment(loader=FileSystemLoader(template_dir))
+    html_doc = env.get_template("feishu_minutes.html.j2").render(body=body_html)
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    HTML(string=html_doc).write_pdf(str(output_path))
+    console.print(f"[green]PDF 已生成: {output_path}")
+    return output_path
