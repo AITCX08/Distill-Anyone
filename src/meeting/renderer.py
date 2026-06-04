@@ -55,9 +55,9 @@ def render_markdown(minutes: MeetingMinutes, transcript: MeetingTranscript) -> s
                 ptitle = _g(point, "title")
                 detail = _g(point, "detail")
                 if detail:
-                    out.append(f"        - **{ptitle}**：{detail}")
+                    out.append(f"        - {ptitle}：{detail}")
                 else:
-                    out.append(f"        - **{ptitle}**")
+                    out.append(f"        - {ptitle}")
         out.append("")
 
     # 待办
