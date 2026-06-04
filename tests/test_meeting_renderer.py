@@ -1,5 +1,6 @@
+import pytest
 from src.meeting.models import TranscriptLine, MeetingTranscript, MeetingMinutes
-from src.meeting.renderer import render_markdown
+from src.meeting.renderer import render_markdown, markdown_to_html, _render_task_items
 
 
 def _fixtures():
@@ -78,3 +79,41 @@ def test_render_markdown_omits_empty_sections():
     assert "# 待办" not in md       # 无 todos
     assert "# 关键词" not in md     # 无 keywords
     assert "# 文字记录" in md       # 文字记录段总是有（即使为空）
+
+
+def test_render_task_items_converts_checkboxes():
+    html = "<ul><li>[ ] 做事 A</li><li>[x] 完成 B</li></ul>"
+    out = _render_task_items(html)
+    assert '<li class="todo">☐ 做事 A</li>' in out
+    assert '<li class="todo done">☑ 完成 B</li>' in out
+
+
+def test_markdown_to_html_renders_nested_list_and_checkbox():
+    md = (
+        "# 总结\n\n- **A**\n    - **B**\n        - **C**：说明\n\n"
+        "# 待办\n\n* [ ] 任务 @说话人 1\n"
+    )
+    html = markdown_to_html(md)
+    assert "<h1" in html
+    assert "<strong>A</strong>" in html
+    # 嵌套：B 应在 A 的子列表里（出现嵌套 <ul>）
+    assert html.count("<ul>") >= 2 or html.count("<ul") >= 2
+    assert "☐ 任务 @说话人 1" in html
+
+
+def test_render_pdf_creates_nonempty_file(tmp_path):
+    pytest.importorskip("weasyprint")
+    from src.meeting.renderer import render_pdf
+    md = (
+        "# 智能纪要：测试 2026年6月2日\n\n> 会议主题：测试\n>\n"
+        "> 智能会议纪要由 AI 生成，可能不准确，请谨慎甄别后使用\n\n"
+        "# 总结\n\n本次会议内容如下：\n\n- **大主题**\n    - **子主题**\n"
+        "        - **要点**：中文说明，确保不乱码。\n\n"
+        "# 待办\n\n* [ ] 中文任务 @说话人 1\n\n"
+        "# 文字记录\n\n**说话人 1** 00:03\n你好世界。\n"
+    )
+    out = tmp_path / "test.pdf"
+    render_pdf(md, out)
+    assert out.exists()
+    assert out.stat().st_size > 1000        # 非空 PDF
+    assert out.read_bytes()[:5] == b"%PDF-"  # PDF 文件头
