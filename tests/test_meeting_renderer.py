@@ -48,9 +48,9 @@ def test_render_markdown_three_level_outline_indent():
     assert "本次会议讨论全托管目标，内容如下：" in md
     assert "- **全托管目标**" in md
     assert "    - **降低门槛**" in md            # 第 2 层 4 空格缩进
-    assert "        - **面向低操作能力达人**：直接给做好的视频。" in md  # 第 3 层 8 空格
-    assert "        - **无 detail 的要点**" in md  # 无 detail 时不带冒号
-    assert "        - **无 detail 的要点**：" not in md
+    assert "        - 面向低操作能力达人：直接给做好的视频。" in md  # 第 3 层 8 空格，不加粗（对齐飞书参考）
+    assert "        - 无 detail 的要点" in md  # 无 detail 时不带冒号
+    assert "        - 无 detail 的要点：" not in md
 
 
 def test_render_markdown_todos_and_keywords():
