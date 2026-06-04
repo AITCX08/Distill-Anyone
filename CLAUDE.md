@@ -68,6 +68,7 @@ graph TD
     B --> I["model/ -- 阶段4: 知识建模"]
     B --> J["generate/ -- 阶段5: Skill 生成"]
     B --> R["reader/ -- 文档蒸馏入口"]
+    B --> M["meeting/ -- 会议纪要 MD/PDF"]
     F --> F0["auth.py -- 认证"]
     F --> F1["video_list.py"]
     F --> F2["audio_download.py"]
@@ -77,6 +78,7 @@ graph TD
     I --> I1["knowledge_extractor.py"]
     J --> J1["skill_generator.py"]
     R --> R1["document_reader.py"]
+    M --> M1["transcript_parser / minutes_generator / renderer"]
     C --> C1["skill.md.j2"]
 
     click F "./src/crawl/CLAUDE.md" "查看 crawl 模块文档"
@@ -85,6 +87,7 @@ graph TD
     click I "./src/model/CLAUDE.md" "查看 model 模块文档"
     click J "./src/generate/CLAUDE.md" "查看 generate 模块文档"
     click R "./src/reader/CLAUDE.md" "查看 reader 模块文档"
+    click M "./src/meeting/CLAUDE.md" "查看 meeting 模块文档"
 ```
 
 ---
@@ -93,7 +96,7 @@ graph TD
 
 | 模块路径 | 职责 | 入口/关键类 | 文档 |
 |---|---|---|---|
-| `main.py` | CLI 入口，7 个子命令（login/crawl/asr/clean/model/generate/distill）+ `run` 编排 | `cli()` (click.group) | -- |
+| `main.py` | CLI 入口，8 个子命令（login/crawl/asr/clean/model/generate/distill/meeting）+ `run` 编排 | `cli()` (click.group) | -- |
 | `src/config.py` | 配置管理：`.env` 加载 + Pydantic 校验 | `load_config() -> AppConfig` | -- |
 | `src/crawl/` | 阶段 1：认证、视频列表、音频下载、字幕（备用） | `get_credential()`, `run_crawl()`, `download_audio()` | [CLAUDE.md](./src/crawl/CLAUDE.md) |
 | `src/asr/` | 阶段 2：FunASR 封装 + 设备三级回退 + OOM 重试 | `FunASREngine.transcribe()` | [CLAUDE.md](./src/asr/CLAUDE.md) |
@@ -101,6 +104,7 @@ graph TD
 | `src/model/` | 阶段 4：知识提取 + 画像合成 + JSON 5 轮容错 | `KnowledgeExtractor`, `BloggerProfile`, `_safe_json_loads` | [CLAUDE.md](./src/model/CLAUDE.md) |
 | `src/generate/` | 阶段 5：Jinja2 模板渲染 SKILL.md | `SkillGenerator.generate_and_save()` | [CLAUDE.md](./src/generate/CLAUDE.md) |
 | `src/reader/` | 文档蒸馏入口：PDF/DOCX/TXT → cleaned JSON | `document_to_cleaned()`, `read_document()` | [CLAUDE.md](./src/reader/CLAUDE.md) |
+| `src/meeting/` | 会议纪要：飞书文字记录 txt → 智能纪要（MD+PDF） | `parse_feishu_txt`, `MeetingMinutesGenerator`, `render_markdown/render_pdf` | [CLAUDE.md](./src/meeting/CLAUDE.md) |
 | `templates/skill.md.j2` | SKILL.md Jinja2 模板（nuwa-skill 风格） | -- | 见 `src/generate/CLAUDE.md` |
 | `tests/` | `auth.py` + `audio_download.py` 单元测试（pytest） | `tests/test_auth.py`, `tests/test_audio_download.py` | -- |
 

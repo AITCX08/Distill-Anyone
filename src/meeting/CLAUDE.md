@@ -66,7 +66,7 @@ render_pdf(md_text, output_path)      ──→  .pdf 文件
 | `renderer.py` | `markdown_to_html` | `(md_text: str) -> str`（python-markdown extra/sane_lists/nl2br + 复选框转换） |
 | `renderer.py` | `_render_task_items` | 内部辅助：把 `todos` 渲染为 Markdown 复选框 |
 | `renderer.py` | `render_pdf` | `(md_text: str, output_path: Path) -> None`（MD → HTML → weasyprint PDF） |
-| `main.py` | `meeting()` | CLI 命令：`--file`, `--name`, `--llm` |
+| `main.py` | `meeting()` | CLI 命令：`--file`, `--llm`, `--title`, `--no-pdf` |
 | `main.py` | `_meeting_output_paths()` | 构造 `.md` / `.pdf` 输出路径 |
 
 ---
@@ -106,11 +106,31 @@ class MeetingMinutes:
     participants: list[str]
     keywords: list[str]
     summary_intro: str
-    outline: list[dict]   # 三层：L1/L2 加粗，L3 普通，对齐飞书参考
+    outline: list[dict]   # 三层嵌套（见下），渲染时 L1/L2 加粗、L3 普通，对齐飞书参考
     todos: list[dict]     # 待办复选框
 ```
 
-`outline` 每个 `dict` 含 `level`（1/2/3）和 `text`；`todos` 每个 `dict` 含 `text`（待办描述）和可选 `owner`。
+`outline` 是**三层嵌套**的 `list[dict]`（不是带 `level` 的扁平列表）：
+
+```python
+outline = [
+    {
+        "title": "大主题",            # 第 1 层
+        "children": [
+            {
+                "title": "子主题",     # 第 2 层
+                "points": [
+                    {"title": "要点短句", "detail": "一两句具体说明"}  # 第 3 层
+                ],
+            },
+        ],
+    },
+]
+```
+
+`todos` 每个 `dict` 形如 `{"task": "任务描述", "assignee": "说话人 N" 或 ""}`（`assignee` 无法判断时为空字符串）。
+
+> 以 `src/meeting/models.py` 的 `MeetingMinutes` docstring 与 `minutes_generator.py` 底部 `MEETING_MINUTES_PROMPT` 的 JSON schema 为准。
 
 ---
 
@@ -217,7 +237,7 @@ class MeetingMinutes:
 | `src/meeting/minutes_generator.py` | `MeetingMinutesGenerator.generate`：LLM 产出摘要 + `MEETING_MINUTES_PROMPT`（文件底部） |
 | `src/meeting/renderer.py` | `render_markdown` / `render_pdf`：输出 MD + PDF |
 | `templates/feishu_minutes.html.j2` | render_pdf 的 HTML 外壳（飞书 CSS + PingFang 字体） |
-| `main.py::meeting()` | CLI 命令调用处（`--file`, `--name`, `--llm`） |
+| `main.py::meeting()` | CLI 命令调用处（`--file`, `--llm`, `--title`, `--no-pdf`） |
 | `main.py::_meeting_output_paths()` | 构造输出路径 `output/{name}-纪要-{时间戳}.{md,pdf}` |
 | `src/reader/document_reader.py` | 复用：`read_document` 读取 txt |
 | `src/clean/text_processor.py` | 复用：`create_llm_client` LLM 工厂 |
