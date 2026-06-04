@@ -46,3 +46,9 @@ Thumbs.db
 
 # LLM 调试 dump（含 Prompt 与原始返回，可能含用户数据）
 data/llm_debug/
+
+# 本地开发规划与存档（含本地路径，不公开；同 .claude/ 性质）
+plan/
+
+# 内部会议参考样本（含公司内部信息，仅本地开发参考）
+examples/feishu-miaoji-reference.md
