@@ -42,6 +42,17 @@ def _skill_output_path(output_dir: Path, name: str) -> Path:
     return output_dir / f"{safe_name}-{timestamp}.skill.md"
 
 
+def _meeting_output_paths(output_dir: Path, name: str) -> tuple[Path, Path]:
+    """生成带时间戳的会议纪要 MD / PDF 路径，每次新增不覆盖。
+
+    格式：{output_dir}/{name}-纪要-{YYYYMMDD-HHMMSS}.{md,pdf}
+    """
+    safe_name = (name or "meeting").strip() or "meeting"
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    stem = f"{safe_name}-纪要-{timestamp}"
+    return output_dir / f"{stem}.md", output_dir / f"{stem}.pdf"
+
+
 def parse_stages(stages_str: str) -> list[int]:
     """
     解析阶段选择字符串。
@@ -724,6 +735,69 @@ def distill(file_path, llm_provider, author_name, by_chapter, rag_chunks):
 
     console.print(f"\n[bold green]文档蒸馏完成!")
     console.print(f"[green]输出文件: {output_path}")
+
+
+@cli.command()
+@click.option("--file", "file_path", type=click.Path(exists=True), required=True,
+              help="飞书妙记「文字记录」txt 路径")
+@click.option("--llm", "llm_provider", type=LLM_CHOICES,
+              default=None, help="LLM提供商")
+@click.option("--title", "meeting_title", type=str, default=None,
+              help="会议主题（默认用文件名）")
+@click.option("--no-pdf", is_flag=True, default=False,
+              help="只生成 Markdown，不生成 PDF")
+def meeting(file_path, llm_provider, meeting_title, no_pdf):
+    """会议纪要: 从飞书妙记文字记录 txt 生成飞书风格智能纪要（MD + PDF）"""
+    from src.config import load_config
+    from src.reader.document_reader import read_document
+    from src.clean.text_processor import create_llm_client
+    from src.meeting.transcript_parser import parse_feishu_txt
+    from src.meeting.minutes_generator import MeetingMinutesGenerator
+    from src.meeting.renderer import render_markdown, render_pdf
+
+    config = load_config()
+    provider = llm_provider or config.llm_provider
+    fpath = Path(file_path)
+
+    console.print(Panel(
+        f"[bold]会议纪要[/bold]\n文件: {fpath.name}\nLLM: {provider}",
+        title="Distill-Anyone",
+    ))
+
+    # 1. 读取 + 解析飞书文字记录
+    text = read_document(fpath)
+    transcript = parse_feishu_txt(text)
+    transcript.title = meeting_title or fpath.stem
+    console.print(
+        f"[blue]解析完成: {len(transcript.lines)} 段发言, "
+        f"{len(transcript.speakers)} 位说话人, {len(transcript.keywords)} 个关键词"
+    )
+
+    # 2. LLM 生成智能纪要
+    llm_client = create_llm_client(provider, config)
+    if not llm_client:
+        console.print("[red]错误: 生成智能纪要需要可用的 LLM（请在 .env 配置对应 API Key）")
+        sys.exit(1)
+    console.print("[blue]生成智能纪要中...")
+    minutes = MeetingMinutesGenerator(llm_client).generate(transcript)
+
+    # 3. 渲染 MD（先落盘，保证即使 PDF 失败也有产物）
+    md_path, pdf_path = _meeting_output_paths(config.output_dir, transcript.title)
+    md_text = render_markdown(minutes, transcript)
+    md_path.parent.mkdir(parents=True, exist_ok=True)
+    md_path.write_text(md_text, encoding="utf-8")
+    console.print(f"[green]Markdown 已生成: {md_path}")
+
+    # 4. 渲染 PDF（失败不阻塞，给出修复提示）
+    if not no_pdf:
+        try:
+            render_pdf(md_text, pdf_path)
+        except Exception as e:
+            console.print(f"[yellow]PDF 生成失败（Markdown 已生成）: {e}")
+            console.print("[dim]提示: weasyprint 需系统库，执行 `brew install pango`；"
+                          "或加 --no-pdf 只出 Markdown")
+
+    console.print("[bold green]会议纪要完成!")
 
 
 @cli.command()
