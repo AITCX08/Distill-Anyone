@@ -112,3 +112,12 @@ def test_audio_to_transcript_assembles(monkeypatch, tmp_path):
     assert t.duration_str == "00:09"      # 末句 end=9s
     assert t.keywords == []               # 音频无关键词头
     assert t.date_str == ""
+
+
+def test_is_audio_file():
+    import main
+    assert main._is_audio_file(Path("a.m4a")) is True
+    assert main._is_audio_file(Path("a.MP3")) is True      # 大小写无关
+    assert main._is_audio_file(Path("a.wav")) is True
+    assert main._is_audio_file(Path("全托管.txt")) is False
+    assert main._is_audio_file(Path("a.docx")) is False
