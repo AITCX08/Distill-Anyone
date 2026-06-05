@@ -25,6 +25,7 @@ class TranscriptSegment:
     start: float = 0.0    # 开始时间（秒）
     end: float = 0.0      # 结束时间（秒）
     confidence: float = 0.0
+    speaker: str = ""     # 说话人标签（如 "说话人 1"）；无说话人分离时为空
 
 
 @dataclass
@@ -36,6 +37,53 @@ class TranscriptResult:
     segments: list[TranscriptSegment] = field(default_factory=list)
     model_name: str = ""
     source: str = "funasr"
+
+
+def _spk_label(spk) -> str:
+    """FunASR sentence_info 里的 spk 序号 → "说话人 N"；缺失/非法返回空串。"""
+    if spk is None:
+        return ""
+    try:
+        return f"说话人 {int(spk) + 1}"
+    except (ValueError, TypeError):
+        return ""
+
+
+def _parse_result_segments(result, bvid: str = ""):
+    """把 FunASR generate 的输出解析为 (full_text, segments)。
+
+    纯函数，便于单测（不依赖真实模型）。读取 sentence_info 的
+    text/start(ms)/end(ms)/spk；无 sentence_info 时整块降级为一个 segment。
+    """
+    segments = []
+    full_text = ""
+    if result and len(result) > 0:
+        for item in result:
+            text = item.get("text", "")
+            full_text += text
+            sentence_info = item.get("sentence_info", [])
+            if sentence_info:
+                for sent in sentence_info:
+                    seg = TranscriptSegment(
+                        id=f"{bvid}_seg_{len(segments):04d}" if bvid else f"seg_{len(segments):04d}",
+                        text=sent.get("text", ""),
+                        start=sent.get("start", 0) / 1000.0,
+                        end=sent.get("end", 0) / 1000.0,
+                        speaker=_spk_label(sent.get("spk")),
+                    )
+                    segments.append(seg)
+            else:
+                timestamp = item.get("timestamp", [])
+                start_ms = timestamp[0][0] if timestamp else 0
+                end_ms = timestamp[-1][1] if timestamp else 0
+                seg = TranscriptSegment(
+                    id=f"{bvid}_seg_{len(segments):04d}" if bvid else f"seg_{len(segments):04d}",
+                    text=text,
+                    start=start_ms / 1000.0,
+                    end=end_ms / 1000.0,
+                )
+                segments.append(seg)
+    return full_text, segments
 
 
 class FunASREngine:
@@ -53,6 +101,7 @@ class FunASREngine:
         punc_model: str = "ct-punc",
         device: Optional[str] = None,
         model_dir: Optional[Path] = None,
+        spk_model: Optional[str] = None,
     ):
         """
         初始化 FunASR 引擎。
@@ -100,13 +149,16 @@ class FunASREngine:
 
         from funasr import AutoModel
 
-        self.model = AutoModel(
+        automodel_kwargs = dict(
             model=model_name,
             vad_model=vad_model,
             vad_kwargs={"max_single_segment_time": 60000},  # 单段最长60秒
             punc_model=punc_model,
             device=device,
         )
+        if spk_model:
+            automodel_kwargs["spk_model"] = spk_model
+        self.model = AutoModel(**automodel_kwargs)
 
         console.print("[green]FunASR 模型加载完成")
 
@@ -125,38 +177,8 @@ class FunASREngine:
 
         result = self._generate_with_oom_retry(audio_path)
 
-        # 解析 FunASR 输出
-        segments = []
-        full_text = ""
-
-        if result and len(result) > 0:
-            for item in result:
-                text = item.get("text", "")
-                full_text += text
-
-                # 优先使用 sentence_info 获取句子级时间戳
-                sentence_info = item.get("sentence_info", [])
-                if sentence_info:
-                    for sent in sentence_info:
-                        seg = TranscriptSegment(
-                            id=f"{bvid}_seg_{len(segments):04d}" if bvid else f"seg_{len(segments):04d}",
-                            text=sent.get("text", ""),
-                            start=sent.get("start", 0) / 1000.0,
-                            end=sent.get("end", 0) / 1000.0,
-                        )
-                        segments.append(seg)
-                else:
-                    # 降级：整块作为一个 segment
-                    timestamp = item.get("timestamp", [])
-                    start_ms = timestamp[0][0] if timestamp else 0
-                    end_ms = timestamp[-1][1] if timestamp else 0
-                    seg = TranscriptSegment(
-                        id=f"{bvid}_seg_{len(segments):04d}" if bvid else f"seg_{len(segments):04d}",
-                        text=text,
-                        start=start_ms / 1000.0,
-                        end=end_ms / 1000.0,
-                    )
-                    segments.append(seg)
+        # 解析 FunASR 输出（抽成纯函数便于单测，含说话人 spk）
+        full_text, segments = _parse_result_segments(result, bvid)
 
         result_obj = TranscriptResult(
             bvid=bvid,
