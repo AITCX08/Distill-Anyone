@@ -53,6 +53,14 @@ def _meeting_output_paths(output_dir: Path, name: str) -> tuple[Path, Path]:
     return output_dir / f"{stem}.md", output_dir / f"{stem}.pdf"
 
 
+_AUDIO_SUFFIXES = {".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg"}
+
+
+def _is_audio_file(path: Path) -> bool:
+    """按后缀判断是否音频文件（阶段二音频路径）。"""
+    return path.suffix.lower() in _AUDIO_SUFFIXES
+
+
 def parse_stages(stages_str: str) -> list[int]:
     """
     解析阶段选择字符串。
@@ -739,7 +747,7 @@ def distill(file_path, llm_provider, author_name, by_chapter, rag_chunks):
 
 @cli.command()
 @click.option("--file", "file_path", type=click.Path(exists=True), required=True,
-              help="飞书妙记「文字记录」txt 路径")
+              help="飞书妙记文字记录 txt，或录音文件 (.mp3/.wav/.m4a/.flac/.aac/.ogg)")
 @click.option("--llm", "llm_provider", type=LLM_CHOICES,
               default=None, help="LLM提供商")
 @click.option("--title", "meeting_title", type=str, default=None,
@@ -764,9 +772,13 @@ def meeting(file_path, llm_provider, meeting_title, no_pdf):
         title="Distill-Anyone",
     ))
 
-    # 1. 读取 + 解析飞书文字记录
-    text = read_document(fpath)
-    transcript = parse_feishu_txt(text)
+    # 1. 读取输入：音频走 ASR+说话人分离，txt 走飞书文字记录解析
+    if _is_audio_file(fpath):
+        from src.meeting.audio_transcriber import audio_to_transcript
+        transcript = audio_to_transcript(fpath, config)
+    else:
+        text = read_document(fpath)
+        transcript = parse_feishu_txt(text)
     transcript.title = meeting_title or fpath.stem
     console.print(
         f"[blue]解析完成: {len(transcript.lines)} 段发言, "
