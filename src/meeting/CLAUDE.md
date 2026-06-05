@@ -7,6 +7,7 @@
 | 日期 | 变更 |
 |---|---|
 | 2026-06-04 | 初始化模块：`models.py` / `transcript_parser.py` / `minutes_generator.py` / `renderer.py`，`meeting` CLI 命令（阶段一：txt 路径） |
+| 2026-06-05 | 阶段二实现：新增 `audio_transcriber.py`（ffmpeg 转码 + FunASR cam++ 说话人分离 + 相邻同说话人合并）；`meeting` 命令按文件后缀分流，音频路径走 `audio_to_transcript`，txt 路径走 `parse_feishu_txt` |
 
 ---
 
@@ -20,8 +21,8 @@
 
 **调用方**：`main.py::meeting()` CLI 命令。
 
-**阶段一（已实现）**：仅支持 txt 文字记录路径。
-**阶段二（TODO）**：音频 → `FunASREngine.transcribe` + pyannote.audio 说话人分离，补入 `说话人 N` 前缀后走相同解析流程。
+**阶段一（已实现）**：支持飞书妙记 txt 文字记录路径。
+**阶段二（已实现）**：音频路径（`.mp3/.wav/.m4a/.flac/.aac/.ogg`）→ `audio_transcriber.audio_to_transcript`：ffmpeg 转码为 16kHz 单声道 WAV → `FunASREngine(spk_model="cam++")` 转写并带说话人标签 → 相邻同说话人合并 → `MeetingTranscript`。`meeting` 命令按后缀自动分流两条路径。
 
 ---
 
@@ -55,6 +56,10 @@ render_pdf(md_text, output_path)      ──→  .pdf 文件
 
 | 文件 | 关键函数 / 类 | 签名 |
 |---|---|---|
+| `audio_transcriber.py` | `audio_to_transcript` | `(audio_path: Path, config: AppConfig) -> MeetingTranscript`（ffmpeg + FunASR cam++ + merge） |
+| `audio_transcriber.py` | `convert_to_wav16k` | `(src: Path, dst: Path) -> None`（ffmpeg 转 16kHz 单声道 WAV） |
+| `audio_transcriber.py` | `_merge_consecutive` | `(segments: list[TranscriptSegment]) -> list[TranscriptLine]`（相邻同说话人合并） |
+| `audio_transcriber.py` | `_fmt_ts` | `(seconds: float) -> str`（秒 → MM:SS 或 HH:MM:SS） |
 | `models.py` | `TranscriptLine` | `dataclass: speaker, timestamp, text` |
 | `models.py` | `MeetingTranscript` | `dataclass: title, date_str, duration_str, keywords, speakers, lines` + `full_text: str`（property，拼接所有 `line.text`） |
 | `models.py` | `MeetingMinutes` | `dataclass: meeting_title, meeting_date, meeting_time, participants, keywords, summary_intro, outline: list[dict], todos: list[dict]` |
@@ -138,6 +143,7 @@ outline = [
 
 | 复用来源 | 用法 |
 |---|---|
+| `src/asr/funasr_engine.FunASREngine(spk_model="cam++")` | `audio_transcriber.py` 内部 lazy import，启用说话人分离转写 |
 | `src/reader/document_reader.read_document` | `meeting()` CLI 读取 txt 文件内容 |
 | `src/clean/text_processor.create_llm_client` | 构造 `MeetingMinutesGenerator` 所用的 LLM 客户端 |
 | `src/model/knowledge_extractor._safe_json_loads` | `minutes_generator.py` 内 lazy import，修复 LLM JSON 输出抖动（7 轮容错） |
@@ -193,11 +199,12 @@ outline = [
 
 ## 反模式（不要做）
 
-1. **不要**让 `render_markdown` 改用 jinja2 模板渲染「总结」三层缩进大纲 —— 空白敏感，jinja2 trim/lstrip 会破坏飞书对齐。
-2. **不要**在 `minutes_generator.py` / `renderer.py` 模块顶部 `import markdown` / `import weasyprint` / `from jinja2 import ...` —— 这三个重依赖必须在函数体内 lazy import（根级硬规则 #4）。
-3. **不要**在 `MeetingMinutes.outline` 里硬塞飞书参考里没有的板块（如"背景"、"决策理由"等额外层）—— 保持三层结构与飞书智能纪要对齐。
-4. **不要**在 LLM 失败时抛异常让 CLI 崩溃 —— 应调用 `_dump_llm_failure` 落盘 + 降级返回空壳 `MeetingMinutes`（保持 `generate` 对外无异常的契约）。
-5. **不要**直接把 `MeetingTranscript.full_text` 截断后跳过 `_extract_json_payload` 剥壳步骤 —— 各 LLM 供应商（特别是 DeepSeek-R1）会在 JSON 前后附加思考链 / markdown 代码块。
+1. **不要**在 `audio_transcriber.py` 模块顶部 `import` `FunASREngine` —— 必须在 `audio_to_transcript` 函数体内 lazy import（FunASR 是重依赖，影响 CLI 启动速度）。
+2. **不要**让 `render_markdown` 改用 jinja2 模板渲染「总结」三层缩进大纲 —— 空白敏感，jinja2 trim/lstrip 会破坏飞书对齐。
+3. **不要**在 `minutes_generator.py` / `renderer.py` 模块顶部 `import markdown` / `import weasyprint` / `from jinja2 import ...` —— 这三个重依赖必须在函数体内 lazy import（根级硬规则 #4）。
+4. **不要**在 `MeetingMinutes.outline` 里硬塞飞书参考里没有的板块（如"背景"、"决策理由"等额外层）—— 保持三层结构与飞书智能纪要对齐。
+5. **不要**在 LLM 失败时抛异常让 CLI 崩溃 —— 应调用 `_dump_llm_failure` 落盘 + 降级返回空壳 `MeetingMinutes`（保持 `generate` 对外无异常的契约）。
+6. **不要**直接把 `MeetingTranscript.full_text` 截断后跳过 `_extract_json_payload` 剥壳步骤 —— 各 LLM 供应商（特别是 DeepSeek-R1）会在 JSON 前后附加思考链 / markdown 代码块。
 
 ---
 
@@ -233,6 +240,7 @@ outline = [
 |---|---|
 | `src/meeting/__init__.py` | 模块标记（空） |
 | `src/meeting/models.py` | `TranscriptLine` / `MeetingTranscript` / `MeetingMinutes` 数据类 |
+| `src/meeting/audio_transcriber.py` | 音频路径：ffmpeg 转码 + FunASR cam++ 转写 + 说话人合并 → `MeetingTranscript` |
 | `src/meeting/transcript_parser.py` | `parse_feishu_txt`：解析妙记 txt → `MeetingTranscript` |
 | `src/meeting/minutes_generator.py` | `MeetingMinutesGenerator.generate`：LLM 产出摘要 + `MEETING_MINUTES_PROMPT`（文件底部） |
 | `src/meeting/renderer.py` | `render_markdown` / `render_pdf`：输出 MD + PDF |
