@@ -8,6 +8,7 @@
 |---|---|
 | 2026-04-21 | 初始化模块级 CLAUDE.md（架构师扫描补齐） |
 | 2026-04-23 | `main.py::asr` 新增 `--delete-audio/--keep-audio`（默认删）+ `--watch` 长跑模式 + `--watch-interval`；转写完整性校验通过后自动 `unlink` 音频释放磁盘；`crawl` 阶段把 `transcripts/` 完整的 BV 也算入「已处理」集合避免重复下载 |
+| 2026-06-05 | 新增 `spk_model` 参数支持说话人分离；`TranscriptSegment` 加 `speaker: str = ""` 字段；解析逻辑提取为纯函数 `_parse_result_segments` / `_spk_label`；`meeting` 命令通过 `FunASREngine(spk_model="cam++")` 启用分离，`asr` 命令行为不变 |
 
 ---
 
@@ -29,7 +30,7 @@
 
 | 入口 | 用途 |
 |---|---|
-| `FunASREngine(model_name, vad_model, punc_model, device=None, model_dir=None)` | 引擎初始化；`device=None` 自动探测 |
+| `FunASREngine(model_name, vad_model, punc_model, device=None, model_dir=None, spk_model=None)` | 引擎初始化；`device=None` 自动探测；`spk_model="cam++"` 启用说话人分离（diarization），未传则不启用 |
 | `FunASREngine.transcribe(audio_path, bvid) -> TranscriptResult` | 单文件转写（主流程使用） |
 | `FunASREngine.transcribe_batch(audio_paths, bvids) -> list[TranscriptResult]` | 批量转写（带 rich 进度条） |
 | `save_transcript(result, video_meta, output_dir) -> Path` | 合并视频元信息落盘 JSON |
@@ -101,6 +102,7 @@ class TranscriptSegment:
     start: float = 0.0    # 秒
     end: float = 0.0
     confidence: float = 0.0
+    speaker: str = ""     # 说话人标签，如 "说话人 1"；未启用 spk_model 时为空字符串
 
 @dataclass
 class TranscriptResult:
@@ -139,10 +141,14 @@ class TranscriptResult:
 
 ### 增加转写结果字段（例如 speaker diarization）
 
-1. 在 `TranscriptSegment` 加字段。
-2. `transcribe()` 里写入。
-3. `save_transcript()` 的 `asdict(seg)` 自动拾取，**但** `check_transcript_integrity` 需要明确加一条校验（否则旧 JSON 会误判）。
-4. 更新 `clean/text_processor.py` 的消费逻辑（通常 `segments` 里新字段只要不破坏 `text/start/end` 就兼容）。
+**说话人分离已实现（Stage 2）**：通过 `FunASREngine(spk_model="cam++")` 启用，`_parse_result_segments` 和 `_spk_label` 两个模块级纯函数负责解析，便于单独测试。
+
+- `_parse_result_segments(result, bvid) -> (full_text, segments)`：从 FunASR 输出中提取 `sentence_info`，读取 `spk` 字段并转为 `说话人 N` 标签。
+- `_spk_label(spk: int) -> str`：将 spk 整数（如 `0`）转为 `"说话人 1"`（1-indexed）。
+- `TranscriptSegment.speaker` 携带结果，未启用时为空字符串（已兼容旧 JSON）。
+- `asr` 命令行不传 `spk_model`，行为完全不变。
+
+若需在 `asr` 命令也开启说话人分离，可在 `main.py::asr` 构建 `FunASREngine` 时传 `spk_model="cam++"`，并在 `check_transcript_integrity` 里酌情加 `speaker` 非空校验。
 
 ---
 
