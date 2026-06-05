@@ -81,6 +81,7 @@ def _parse_result_segments(result, bvid: str = ""):
                     text=text,
                     start=start_ms / 1000.0,
                     end=end_ms / 1000.0,
+                    speaker=_spk_label(item.get("spk")),
                 )
                 segments.append(seg)
     return full_text, segments
