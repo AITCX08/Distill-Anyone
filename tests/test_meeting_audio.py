@@ -84,8 +84,8 @@ def test_convert_to_wav16k_raises_on_failure(monkeypatch, tmp_path):
 def test_audio_to_transcript_assembles(monkeypatch, tmp_path):
     from src.asr.funasr_engine import TranscriptResult, TranscriptSegment
 
-    # 不真跑 ffmpeg
-    monkeypatch.setattr(at, "convert_to_wav16k", lambda src, dst: Path(dst).write_bytes(b"x"))
+    # 不真跑 ffmpeg（接受可选 ffmpeg_bin 参数）
+    monkeypatch.setattr(at, "convert_to_wav16k", lambda src, dst, **kw: Path(dst).write_bytes(b"x"))
 
     class StubEngine:
         def __init__(self, **kwargs):
@@ -121,3 +121,51 @@ def test_is_audio_file():
     assert main._is_audio_file(Path("a.wav")) is True
     assert main._is_audio_file(Path("全托管.txt")) is False
     assert main._is_audio_file(Path("a.docx")) is False
+
+
+def test_convert_to_wav16k_uses_custom_ffmpeg_bin(monkeypatch, tmp_path):
+    # Minor 修复：ffmpeg 二进制可由 config 覆盖（不再硬依赖 PATH 里的 "ffmpeg"）
+    captured = {}
+
+    class FakeProc:
+        returncode = 0
+        stderr = b""
+
+    def fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        return FakeProc()
+
+    monkeypatch.setattr(at.subprocess, "run", fake_run)
+    at.convert_to_wav16k(Path("in.m4a"), tmp_path / "out.wav",
+                         ffmpeg_bin="/opt/homebrew/bin/ffmpeg")
+    assert captured["cmd"][0] == "/opt/homebrew/bin/ffmpeg"
+
+
+def test_config_ffmpeg_bin_default():
+    from src.config import AppConfig
+    assert AppConfig().ffmpeg_bin == "ffmpeg"
+
+
+def test_audio_to_transcript_empty_result_no_crash(monkeypatch, tmp_path):
+    # Minor 修复：转写结果为空时不崩溃，返回空 transcript（命令层 LLM 已有兜底）
+    from src.asr.funasr_engine import TranscriptResult
+
+    monkeypatch.setattr(at, "convert_to_wav16k", lambda src, dst, **kw: Path(dst).write_bytes(b"x"))
+
+    class StubEngine:
+        def __init__(self, **kwargs):
+            pass
+
+        def transcribe(self, audio_path, bvid=""):
+            return TranscriptResult(segments=[])
+
+    monkeypatch.setattr("src.asr.funasr_engine.FunASREngine", StubEngine)
+
+    class Cfg:
+        model_cache_dir = tmp_path / "cache"
+        ffmpeg_bin = "ffmpeg"
+
+    t = at.audio_to_transcript(tmp_path / "x.m4a", Cfg())
+    assert t.lines == []
+    assert t.speakers == []
+    assert t.duration_str == ""
