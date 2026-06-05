@@ -18,10 +18,13 @@ console = Console()
 FFMPEG_BIN = "ffmpeg"
 
 
-def convert_to_wav16k(src: Path, dst: Path) -> None:
-    """用 ffmpeg 把任意音频转成 16kHz 单声道 WAV（paraformer 要求）。失败抛 RuntimeError。"""
+def convert_to_wav16k(src: Path, dst: Path, ffmpeg_bin: str = FFMPEG_BIN) -> None:
+    """用 ffmpeg 把任意音频转成 16kHz 单声道 WAV（paraformer 要求）。失败抛 RuntimeError。
+
+    ffmpeg_bin 可由调用方（命令层从 config.ffmpeg_bin）覆盖，默认走 PATH 里的 "ffmpeg"。
+    """
     cmd = [
-        FFMPEG_BIN, "-i", str(src),
+        ffmpeg_bin, "-i", str(src),
         "-ar", "16000", "-ac", "1", "-y", str(dst),
     ]
     proc = subprocess.run(cmd, capture_output=True)
@@ -75,12 +78,14 @@ def audio_to_transcript(audio_path: Path, config) -> MeetingTranscript:
     with tempfile.TemporaryDirectory() as tmpd:
         wav = Path(tmpd) / "audio_16k.wav"
         console.print(f"[blue]转码音频 → 16kHz 单声道 WAV: {audio_path.name}")
-        convert_to_wav16k(audio_path, wav)
+        convert_to_wav16k(audio_path, wav, ffmpeg_bin=getattr(config, "ffmpeg_bin", FFMPEG_BIN))
         console.print("[blue]FunASR 转写 + cam++ 说话人分离中（首次会下载 cam++ 模型）...")
         engine = FunASREngine(spk_model="cam++", model_dir=config.model_cache_dir)
         result = engine.transcribe(wav)
 
     transcript.lines = _merge_consecutive(result.segments)
+    if not transcript.lines:
+        console.print("[yellow]转写结果为空（可能是静默音频或转码/识别异常），仅生成空纪要")
 
     # 说话人去重保序
     seen = set()

@@ -80,6 +80,7 @@ class AppConfig(BaseModel):
     llm_provider: str = Field(default="claude", description="LLM提供商")
     data_dir: Path = Field(default=PROJECT_ROOT / "data", description="数据存储目录")
     output_dir: Path = Field(default=PROJECT_ROOT / "output", description="输出目录")
+    ffmpeg_bin: str = Field(default="ffmpeg", description="ffmpeg 可执行文件路径（音频转码）")
     bilibili: BilibiliConfig = Field(default_factory=BilibiliConfig)
     anthropic: AnthropicConfig = Field(default_factory=AnthropicConfig)
     openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
@@ -138,6 +139,7 @@ def load_config() -> AppConfig:
         llm_provider=os.getenv("LLM_PROVIDER", "claude"),
         data_dir=Path(os.getenv("DATA_DIR", str(PROJECT_ROOT / "data"))),
         output_dir=Path(os.getenv("OUTPUT_DIR", str(PROJECT_ROOT / "output"))),
+        ffmpeg_bin=os.getenv("FFMPEG_BIN", "ffmpeg"),
         bilibili=BilibiliConfig(
             sessdata=os.getenv("BILIBILI_SESSDATA", ""),
             bili_jct=os.getenv("BILIBILI_BILI_JCT", ""),
