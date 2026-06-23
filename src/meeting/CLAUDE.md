@@ -8,6 +8,7 @@
 |---|---|
 | 2026-06-04 | 初始化模块：`models.py` / `transcript_parser.py` / `minutes_generator.py` / `renderer.py`，`meeting` CLI 命令（阶段一：txt 路径） |
 | 2026-06-05 | 阶段二实现：新增 `audio_transcriber.py`（ffmpeg 转码 + FunASR cam++ 说话人分离 + 相邻同说话人合并）；`meeting` 命令按文件后缀分流，音频路径走 `audio_to_transcript`，txt 路径走 `parse_feishu_txt` |
+| 2026-06-23 | Stage1 复用重构：抽出 pipeline.py（meeting_output_paths + transcript_to_minutes_files），meeting() 改为调用它；feishu-meeting 命令复用同一管线 |
 
 ---
 
@@ -48,7 +49,7 @@ render_markdown(minutes, transcript)  ──→  .md 文件
 render_pdf(md_text, output_path)      ──→  .pdf 文件
 ```
 
-输出路径：`output/{name}-纪要-{时间戳}.{md,pdf}`（由 `main.py::_meeting_output_paths()` 构造）。
+输出路径：`output/{name}-纪要-{时间戳}.{md,pdf}`（由 `src/meeting/pipeline.py::meeting_output_paths()` 构造）。
 
 ---
 
@@ -72,7 +73,7 @@ render_pdf(md_text, output_path)      ──→  .pdf 文件
 | `renderer.py` | `_render_task_items` | 内部辅助：把 `todos` 渲染为 Markdown 复选框 |
 | `renderer.py` | `render_pdf` | `(md_text: str, output_path: Path) -> None`（MD → HTML → weasyprint PDF） |
 | `main.py` | `meeting()` | CLI 命令：`--file`, `--llm`, `--title`, `--no-pdf` |
-| `main.py` | `_meeting_output_paths()` | 构造 `.md` / `.pdf` 输出路径 |
+| `src/meeting/pipeline.py` | `meeting_output_paths()` | 构造 `.md` / `.pdf` 输出路径 |
 
 ---
 
@@ -246,7 +247,7 @@ outline = [
 | `src/meeting/renderer.py` | `render_markdown` / `render_pdf`：输出 MD + PDF |
 | `templates/feishu_minutes.html.j2` | render_pdf 的 HTML 外壳（飞书 CSS + PingFang 字体） |
 | `main.py::meeting()` | CLI 命令调用处（`--file`, `--llm`, `--title`, `--no-pdf`） |
-| `main.py::_meeting_output_paths()` | 构造输出路径 `output/{name}-纪要-{时间戳}.{md,pdf}` |
+| `src/meeting/pipeline.py` | 管线复用层：`MeetingTranscript` → MD/PDF，meeting/feishu-meeting 共用（`meeting_output_paths` + `transcript_to_minutes_files`） |
 | `src/reader/document_reader.py` | 复用：`read_document` 读取 txt |
 | `src/clean/text_processor.py` | 复用：`create_llm_client` LLM 工厂 |
 | `src/model/knowledge_extractor.py` | 复用：`_safe_json_loads` / `_extract_json_payload` / `_dump_llm_failure` |

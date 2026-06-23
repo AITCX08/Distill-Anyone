@@ -14,6 +14,7 @@
 | 2026-04-23 | SKILL.md 输出加时间戳防覆盖（`output/{name}-{YYYYMMDD-HHMMSS}.skill.md`）；`asr` 命令新增 `--delete-audio/--keep-audio` + `--watch/--watch-interval` 支持边下边转写释放磁盘；`crawl` 把 `transcripts/` 完整的 BV 算入「已处理」避免重复下载；`_safe_json_loads` 升至 7 轮（含 Python 字面量替换 + 缺值补 null）+ LLM 失败自动 dump 到 `data/llm_debug/` |
 | 2026-06-04 | 新增会议纪要：`src/meeting/`（飞书妙记文字记录 txt → 智能纪要），`meeting` CLI 命令，MD + PDF（weasyprint，需 brew install pango）输出，复用 reader/LLM 工厂/JSON 容错；阶段一仅 txt 路径，音频+说话人分离留阶段二 |
 | 2026-06-05 | 会议纪要阶段二：音频路径。`FunASREngine` 加 cam++ 说话人分离（`spk_model` + `TranscriptSegment.speaker`）；新增 `src/meeting/audio_transcriber.py`（ffmpeg 转码 + FunASR）；`meeting` 命令按后缀分流音频/txt，音频产出带「说话人 N」的 MD+PDF |
+| 2026-06-23 | 飞书妙记 Stage 1：新增 `src/feishu/`（client/minutes/errors，raw requests 下载妙记录音）+ `feishu-meeting` CLI 命令（链接→下载→本地转写→MD/PDF）；抽出 `src/meeting/pipeline.py` 供 meeting/feishu-meeting 复用 |
 
 ---
 
@@ -106,6 +107,7 @@ graph TD
 | `src/generate/` | 阶段 5：Jinja2 模板渲染 SKILL.md | `SkillGenerator.generate_and_save()` | [CLAUDE.md](./src/generate/CLAUDE.md) |
 | `src/reader/` | 文档蒸馏入口：PDF/DOCX/TXT → cleaned JSON | `document_to_cleaned()`, `read_document()` | [CLAUDE.md](./src/reader/CLAUDE.md) |
 | `src/meeting/` | 会议纪要：飞书文字记录 txt → 智能纪要（MD+PDF） | `parse_feishu_txt`, `MeetingMinutesGenerator`, `render_markdown/render_pdf` | [CLAUDE.md](./src/meeting/CLAUDE.md) |
+| `src/feishu/` | 飞书开放平台集成（Stage 1：妙记录音下载） | `FeishuClient`, `download_minute_media`, `extract_minute_token` | [CLAUDE.md](./src/feishu/CLAUDE.md) |
 | `templates/skill.md.j2` | SKILL.md Jinja2 模板（nuwa-skill 风格） | -- | 见 `src/generate/CLAUDE.md` |
 | `tests/` | `auth.py` + `audio_download.py` 单元测试（pytest） | `tests/test_auth.py`, `tests/test_audio_download.py` | -- |
 
