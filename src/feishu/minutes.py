@@ -40,12 +40,15 @@ def get_media_download_url(client, minute_token: str) -> str:
     注意：该接口返回 JSON（含 download_url），不是二进制流。失败按飞书错误码抛
     对应异常（见 src/feishu/errors.py）。client 需提供 base_url / timeout / auth_headers()。
     """
-    resp = requests.get(
-        f"{client.base_url}/minutes/v1/minutes/{minute_token}/media",
-        headers=client.auth_headers(),
-        timeout=client.timeout,
-    )
-    resp.raise_for_status()
+    try:
+        resp = requests.get(
+            f"{client.base_url}/minutes/v1/minutes/{minute_token}/media",
+            headers=client.auth_headers(),
+            timeout=client.timeout,
+        )
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        raise FeishuError(f"调用妙记 media 接口网络/HTTP 失败: {e}") from e
     data = resp.json()
     log_id = resp.headers.get("X-Tt-Logid") if getattr(resp, "headers", None) else None
     raise_for_feishu_code(data.get("code", -1), data.get("msg", ""), log_id=log_id)
@@ -58,18 +61,24 @@ def get_media_download_url(client, minute_token: str) -> str:
 
 
 def download_file(url: str, dest_path, timeout: int = 60, chunk_size: int = 8192) -> Path:
-    """流式下载 url 到 dest_path（自动建父目录）。返回 dest_path。"""
+    """流式下载 url 到 dest_path（自动建父目录）。返回 dest_path。
+
+    网络/HTTP 错误统一包成 FeishuError，便于上层 CLI 统一捕获展示（而非裸 traceback）。
+    """
     dest_path = Path(dest_path)
     dest_path.parent.mkdir(parents=True, exist_ok=True)
-    resp = requests.get(url, stream=True, timeout=timeout)
     try:
-        resp.raise_for_status()
-        with open(dest_path, "wb") as f:
-            for chunk in resp.iter_content(chunk_size=chunk_size):
-                if chunk:
-                    f.write(chunk)
-    finally:
-        resp.close()
+        resp = requests.get(url, stream=True, timeout=timeout)
+        try:
+            resp.raise_for_status()
+            with open(dest_path, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        f.write(chunk)
+        finally:
+            resp.close()
+    except requests.RequestException as e:
+        raise FeishuError(f"下载妙记文件网络/HTTP 失败: {e}") from e
     return dest_path
 
 

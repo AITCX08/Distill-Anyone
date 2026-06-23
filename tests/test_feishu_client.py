@@ -85,3 +85,13 @@ def test_auth_headers(monkeypatch):
     )
     client = FeishuClient("cli_x", "sec_y")
     assert client.auth_headers() == {"Authorization": "Bearer t-xyz"}
+
+
+def test_get_token_network_error_wrapped(monkeypatch):
+    import requests
+    def boom(url, json=None, timeout=None):
+        raise requests.ConnectionError("no network")
+    monkeypatch.setattr("src.feishu.client.requests.post", boom)
+    client = FeishuClient("cli_x", "sec_y")
+    with pytest.raises(FeishuError):
+        client.get_tenant_access_token()
