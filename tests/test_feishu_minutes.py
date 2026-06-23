@@ -80,12 +80,12 @@ class _HttpErrResp:
 
 
 def test_get_media_download_url_http_error_before_business(monkeypatch):
-    import requests
+    from src.feishu.errors import FeishuError
     monkeypatch.setattr(
         "src.feishu.minutes.requests.get",
         lambda url, headers=None, timeout=None: _HttpErrResp(),
     )
-    with pytest.raises(requests.HTTPError):
+    with pytest.raises(FeishuError):
         M.get_media_download_url(_Client(), "obcnq3b9jl72l83w4f149w9c")
 
 
@@ -129,3 +129,23 @@ def test_download_minute_media_end_to_end(monkeypatch, tmp_path):
     out = M.download_minute_media(object(), "obcnq3b9jl72l83w4f149w9c", dest)
     assert out == dest
     assert dest.read_bytes() == b"AUDIO"
+
+
+def test_get_media_download_url_network_error_wrapped(monkeypatch):
+    import requests
+    from src.feishu.errors import FeishuError
+    def boom(url, headers=None, timeout=None):
+        raise requests.ConnectionError("no network")
+    monkeypatch.setattr("src.feishu.minutes.requests.get", boom)
+    with pytest.raises(FeishuError):
+        M.get_media_download_url(_Client(), "obcnq3b9jl72l83w4f149w9c")
+
+
+def test_download_file_network_error_wrapped(monkeypatch, tmp_path):
+    import requests
+    from src.feishu.errors import FeishuError
+    def boom(url, stream=False, timeout=None):
+        raise requests.ConnectionError("no network")
+    monkeypatch.setattr("src.feishu.minutes.requests.get", boom)
+    with pytest.raises(FeishuError):
+        M.download_file("https://dl/x", tmp_path / "out.media")

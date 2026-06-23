@@ -34,12 +34,15 @@ class FeishuClient:
         """换取 tenant_access_token；进程内缓存，force_refresh 强制重换。"""
         if self._token and not force_refresh:
             return self._token
-        resp = requests.post(
-            f"{self.base_url}/auth/v3/tenant_access_token/internal",
-            json={"app_id": self.app_id, "app_secret": self.app_secret},
-            timeout=self.timeout,
-        )
-        resp.raise_for_status()
+        try:
+            resp = requests.post(
+                f"{self.base_url}/auth/v3/tenant_access_token/internal",
+                json={"app_id": self.app_id, "app_secret": self.app_secret},
+                timeout=self.timeout,
+            )
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            raise FeishuError(f"换取 tenant_access_token 网络/HTTP 失败: {e}") from e
         data = resp.json()
         if data.get("code", -1) != 0:
             raise FeishuError(
