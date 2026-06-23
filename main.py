@@ -42,16 +42,6 @@ def _skill_output_path(output_dir: Path, name: str) -> Path:
     return output_dir / f"{safe_name}-{timestamp}.skill.md"
 
 
-def _meeting_output_paths(output_dir: Path, name: str) -> tuple[Path, Path]:
-    """生成带时间戳的会议纪要 MD / PDF 路径，每次新增不覆盖。
-
-    格式：{output_dir}/{name}-纪要-{YYYYMMDD-HHMMSS}.{md,pdf}
-    """
-    safe_name = (name or "meeting").strip() or "meeting"
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    stem = f"{safe_name}-纪要-{timestamp}"
-    return output_dir / f"{stem}.md", output_dir / f"{stem}.pdf"
-
 
 _AUDIO_SUFFIXES = {".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg"}
 
@@ -760,8 +750,7 @@ def meeting(file_path, llm_provider, meeting_title, no_pdf):
     from src.reader.document_reader import read_document
     from src.clean.text_processor import create_llm_client
     from src.meeting.transcript_parser import parse_feishu_txt
-    from src.meeting.minutes_generator import MeetingMinutesGenerator
-    from src.meeting.renderer import render_markdown, render_pdf
+    from src.meeting.pipeline import transcript_to_minutes_files
 
     config = load_config()
     provider = llm_provider or config.llm_provider
@@ -785,29 +774,12 @@ def meeting(file_path, llm_provider, meeting_title, no_pdf):
         f"{len(transcript.speakers)} 位说话人, {len(transcript.keywords)} 个关键词"
     )
 
-    # 2. LLM 生成智能纪要
+    # 2. LLM 生成智能纪要 + 渲染 MD/PDF（复用 meeting 管线）
     llm_client = create_llm_client(provider, config)
     if not llm_client:
         console.print("[red]错误: 生成智能纪要需要可用的 LLM（请在 .env 配置对应 API Key）")
         sys.exit(1)
-    console.print("[blue]生成智能纪要中...")
-    minutes = MeetingMinutesGenerator(llm_client).generate(transcript)
-
-    # 3. 渲染 MD（先落盘，保证即使 PDF 失败也有产物）
-    md_path, pdf_path = _meeting_output_paths(config.output_dir, transcript.title)
-    md_text = render_markdown(minutes, transcript)
-    md_path.parent.mkdir(parents=True, exist_ok=True)
-    md_path.write_text(md_text, encoding="utf-8")
-    console.print(f"[green]Markdown 已生成: {md_path}")
-
-    # 4. 渲染 PDF（失败不阻塞，给出修复提示）
-    if not no_pdf:
-        try:
-            render_pdf(md_text, pdf_path)
-        except Exception as e:
-            console.print(f"[yellow]PDF 生成失败（Markdown 已生成）: {e}")
-            console.print("[dim]提示: weasyprint 需系统库，执行 `brew install pango`；"
-                          "或加 --no-pdf 只出 Markdown")
+    transcript_to_minutes_files(transcript, llm_client, config.output_dir, no_pdf)
 
     console.print("[bold green]会议纪要完成!")
 
