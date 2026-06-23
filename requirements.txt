@@ -13,3 +13,4 @@ pymupdf>=1.23.0
 python-docx>=1.0.0
 markdown>=3.5
 weasyprint>=60.0
+requests>=2.31.0                 # 飞书 Open Platform REST 调用（妙记下载）
