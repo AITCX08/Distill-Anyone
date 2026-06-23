@@ -74,6 +74,12 @@ class FunASRConfig(BaseModel):
     punc_model: str = Field(default="ct-punc", description="标点恢复模型名称")
 
 
+class FeishuConfig(BaseModel):
+    """飞书开放平台自建应用配置"""
+    app_id: str = Field(default="", description="飞书自建应用 App ID")
+    app_secret: str = Field(default="", description="飞书自建应用 App Secret")
+
+
 class AppConfig(BaseModel):
     """应用全局配置"""
     up_uid: int = Field(default=0, description="UP主UID")
@@ -88,6 +94,7 @@ class AppConfig(BaseModel):
     deepseek: DeepSeekConfig = Field(default_factory=DeepSeekConfig)
     ollama: OllamaConfig = Field(default_factory=OllamaConfig)
     funasr: FunASRConfig = Field(default_factory=FunASRConfig)
+    feishu: FeishuConfig = Field(default_factory=FeishuConfig)
 
     @property
     def credentials_cache(self) -> Path:
@@ -173,6 +180,10 @@ def load_config() -> AppConfig:
             model=os.getenv("FUNASR_MODEL", "paraformer-zh"),
             vad_model=os.getenv("FUNASR_VAD_MODEL", "fsmn-vad"),
             punc_model=os.getenv("FUNASR_PUNC_MODEL", "ct-punc"),
+        ),
+        feishu=FeishuConfig(
+            app_id=os.getenv("FEISHU_APP_ID", ""),
+            app_secret=os.getenv("FEISHU_APP_SECRET", ""),
         ),
     )
     config.ensure_dirs()
