@@ -784,6 +784,68 @@ def meeting(file_path, llm_provider, meeting_title, no_pdf):
     console.print("[bold green]会议纪要完成!")
 
 
+@cli.command("feishu-meeting")
+@click.option("--url", "minute_url", type=str, required=True,
+              help="飞书妙记分享链接或 24 位 minute_token")
+@click.option("--llm", "llm_provider", type=LLM_CHOICES,
+              default=None, help="LLM提供商")
+@click.option("--title", "meeting_title", type=str, default=None,
+              help="会议主题（默认用 minute_token）")
+@click.option("--no-pdf", is_flag=True, default=False,
+              help="只生成 Markdown，不生成 PDF")
+def feishu_meeting(minute_url, llm_provider, meeting_title, no_pdf):
+    """飞书妙记录音 → 自动下载 → 本地转写(说话人分离) → 智能纪要（MD + PDF）"""
+    from src.config import load_config
+    from src.clean.text_processor import create_llm_client
+    from src.feishu.client import FeishuClient
+    from src.feishu.errors import FeishuError
+    from src.feishu.minutes import extract_minute_token, download_minute_media
+    from src.meeting.audio_transcriber import audio_to_transcript
+    from src.meeting.pipeline import transcript_to_minutes_files
+
+    config = load_config()
+    provider = llm_provider or config.llm_provider
+
+    try:
+        minute_token = extract_minute_token(minute_url)
+    except ValueError as e:
+        console.print(f"[red]链接或 token 无法解析: {e}")
+        sys.exit(1)
+
+    console.print(Panel(
+        f"[bold]飞书妙记纪要[/bold]\nminute_token: {minute_token}\nLLM: {provider}",
+        title="Distill-Anyone",
+    ))
+
+    # 1. 从飞书下载妙记录音到本地（config.audio_dir 已由 ensure_dirs 建好）
+    try:
+        client = FeishuClient(config.feishu.app_id, config.feishu.app_secret)
+        media_path = config.audio_dir / f"feishu-{minute_token}.media"
+        console.print("[blue]下载妙记录音中...")
+        download_minute_media(client, minute_token, media_path)
+    except FeishuError as e:
+        console.print(f"[red]下载妙记录音失败: {e}")
+        sys.exit(1)
+    console.print(f"[green]录音已下载: {media_path}")
+
+    # 2. 本地转写（ffmpeg + FunASR cam++ 说话人分离）
+    console.print("[blue]本地转写中（首次会下载 cam++ 模型）...")
+    transcript = audio_to_transcript(media_path, config)
+    transcript.title = meeting_title or minute_token
+    console.print(
+        f"[blue]转写完成: {len(transcript.lines)} 段发言, {len(transcript.speakers)} 位说话人"
+    )
+
+    # 3. LLM 生成纪要 + 渲染 MD/PDF（复用 meeting 管线）
+    llm_client = create_llm_client(provider, config)
+    if not llm_client:
+        console.print("[red]错误: 生成智能纪要需要可用的 LLM（请在 .env 配置对应 API Key）")
+        sys.exit(1)
+    transcript_to_minutes_files(transcript, llm_client, config.output_dir, no_pdf)
+
+    console.print("[bold green]飞书妙记纪要完成!")
+
+
 @cli.command()
 @click.option("--name", "author_name", type=str, required=True, help="画像名称 / 输出文件名")
 @click.option("--llm", "llm_provider", type=LLM_CHOICES,
