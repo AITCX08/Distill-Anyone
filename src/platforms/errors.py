@@ -37,3 +37,15 @@ class TargetResolutionError(PlatformError):
 
 class PlatformDownloadError(PlatformError):
     """A platform adapter could not produce its required local assets."""
+
+
+class PlatformAuthenticationError(PlatformError):
+    """Interactive authentication failed or timed out."""
+
+
+class PlatformDependencyError(PlatformError):
+    """An optional platform runtime dependency is unavailable."""
+
+
+class PlatformSessionBusyError(PlatformError):
+    """A persistent browser profile is already owned by another task."""

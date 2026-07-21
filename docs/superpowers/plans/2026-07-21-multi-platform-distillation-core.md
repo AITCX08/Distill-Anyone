@@ -517,7 +517,7 @@ git commit -m "feat: add shared distillation application service"
 - Produces: `DouyinSession`, `DouyinResolver.resolve_share_url`, `DouyinAdapter.resolve/auth_status/authenticate`.
 - Browser profile lives below configured `data_dir/browser/douyin`.
 
-- [ ] **Step 1: Write failing session and resolver tests**
+- [x] **Step 1: Write failing session and resolver tests**
 
 ```python
 def test_share_url_resolves_final_url_and_sec_uid():
@@ -531,13 +531,13 @@ def test_expired_auth_returns_actionable_status(tmp_path):
     assert session.auth_status().status == "expired"
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run: `python -m pytest tests/platforms/douyin/test_session.py tests/platforms/douyin/test_resolver.py -q`
 
 Expected: missing Douyin modules.
 
-- [ ] **Step 3: Implement persistent profile, exclusive lock, login, expiry, and resolver**
+- [x] **Step 3: Implement persistent profile, exclusive lock, login, expiry, and resolver**
 
 ```python
 class DouyinResolver:
@@ -550,7 +550,7 @@ class DouyinResolver:
         return ResolvedTarget("douyin", creator_id, final_url)
 ```
 
-- [ ] **Step 4: Run tests without a real browser**
+- [x] **Step 4: Run tests without a real browser**
 
 Run: `python -m pytest tests/platforms/douyin/test_session.py tests/platforms/douyin/test_resolver.py -q`
 
