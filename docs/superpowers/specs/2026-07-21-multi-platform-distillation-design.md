@@ -35,6 +35,7 @@ DistillationRequest
 - 分阶段流水线，默认下载并发 3、ASR 并发 1、LLM 并发 3、最多 3 个活跃作品。
 - 原子状态账本、断点续跑、单项重试、应用内 supervisor、Rich Live 进度和双 ETA。
 - `EpisodeMarkdownTarget` 与 `SkillTarget` 可单独或同时启用。
+- 提供仅监听本机的 Dashboard，由 CLI 与 Dashboard 共用同一应用服务、状态和进度事件；详细设计见 `2026-07-21-local-dashboard-design.md`。
 - 图文作品在 v0.4 中完整枚举并明确标记为 `unsupported_note`；不得计为完成。OCR 通过后续 `ContentProcessor` 扩展加入，不阻塞首个可发布版本。
 - Windows 正式支持；路径、状态、浏览器数据目录和运行逻辑保持 Linux/macOS 可移植。
 
@@ -63,10 +64,10 @@ DistillationRequest
 ## 3. 总体架构
 
 ```text
-CLI
+CLI / Local Dashboard
  │
  ▼
-DistillationRequest ──► PlatformManager ──► PlatformAdapter
+DistillationService ──► DistillationRequest ──► PlatformManager ──► PlatformAdapter
                               │                  │
                               │             SourceItem stream
                               │                  │
@@ -110,7 +111,7 @@ src/platforms/
     downloader.py     # 素材 URL 刷新和下载
 ```
 
-`PlatformManager` 是 CLI 和引擎唯一接触的平台入口。它负责：
+`PlatformManager` 是应用服务和引擎唯一接触的平台入口。CLI 与 Dashboard 只能通过应用服务调用它。它负责：
 
 - 根据显式 `--platform` 或 URL 匹配结果选择适配器。
 - 在零个或多个适配器匹配时返回明确错误，不猜测。
@@ -250,7 +251,7 @@ src/distillation/
   engine.py           # 队列和生命周期编排
   state.py            # 状态模型与迁移
   supervisor.py       # worker 失败恢复
-  progress.py         # 只读快照和 Rich Live
+  progress.py         # Rich Live 与 Dashboard 共用的只读快照
   eta.py              # 阶段统计与双 ETA
 ```
 
@@ -447,7 +448,7 @@ pending → enumerated → downloading → downloaded → extracting_audio
 
 ## 9. 进度与双 ETA
 
-Rich Live 只消费不可变的 `ProgressSnapshot`，不直接修改作业状态。每个活跃 item 固定一行并原地更新，最多显示 3 行；阶段变化不新增行。
+Rich Live 和 Dashboard 均只消费不可变的 `ProgressSnapshot`，不直接修改作业状态。每个活跃 item 固定一行并原地更新，最多显示 3 行；阶段变化不新增行。Dashboard 通过应用事件流接收相同快照，不能另算一套百分比或 ETA。
 
 阶段权重以可测工作量为基础，初始默认：下载 15%、抽音频 5%、ASR 45%、clean 15%、knowledge 15%、单项输出 5%。具体阶段内进度优先使用字节数、媒体时长/已转写时长和已完成 LLM 子步骤；没有依据时显示阶段名和 `estimating`，不伪造精确百分比。
 
@@ -506,9 +507,13 @@ output/
 ### 11.1 新增
 
 - `src/platforms/`：公共模型、协议、注册表、manager、Bilibili 和 Douyin 适配器。
+- `src/application/`：CLI 与 Dashboard 共用的命令、查询、任务 lease 和事件接口。
 - `src/distillation/`：请求、artifact、状态、引擎、supervisor、进度和 ETA。
 - `src/outputs/`：输出协议、注册表、episodes、skill 和 RAG 目标。
+- `src/dashboard/`：FastAPI 应用、版本化 API、SSE、安全边界和内置静态资源。
+- `dashboard/`：React/Vite/Fluent UI 源码、测试和锁定的前端构建依赖。
 - `tests/platforms/`：注册、检测、Bilibili 映射、Douyin resolver/enumerator/session/downloader。
+- `tests/application/`、`tests/dashboard/`：共享服务、lease、API、SSE、安全和静态包测试。
 - `tests/distillation/`：状态、原子写、恢复、流水线并发、supervisor、progress、ETA、清理。
 - `tests/outputs/`：episodes、skill fingerprint、组合输出和 partial metadata。
 
@@ -544,6 +549,9 @@ output/
 - Skill fingerprint 跳过、partial/coverage metadata。
 - episodes + skill 同时启用时不重复 ASR/LLM。
 - 无 Playwright、无 Chromium、无登录、登录过期时的可操作错误。
+- CLI 与 Dashboard 对同一 job 返回一致状态、进度与 ETA；Dashboard 断线重连后由完整快照校正。
+- Dashboard 只监听 loopback、拒绝非法 Origin、变更请求要求本地会话令牌，事件和 API 响应不泄漏敏感信息。
+- 构建后的 Dashboard 在无 Node 运行时的 Python 环境中可启动并提供内置静态资源。
 
 仓库级测试命令为：
 
@@ -566,6 +574,7 @@ python -m pytest -q
 5. **可恢复引擎**：artifact store、状态机、分阶段队列、重试、supervisor 和清理。
 6. **可观测性**：Rich Live、阶段进度和双 ETA。
 7. **发布准备**：跨平台测试修正、文档、依赖、CLI 帮助和本地冒烟检查。
+8. **本地 Dashboard**：共享应用服务、FastAPI/SSE、React 作战台、平台登录、历史任务和产物预览。该阶段按独立 Dashboard 实施计划执行，但必须复用阶段 1—6 的契约。
 
 每阶段独立测试和提交，不把 Scout 代码、用户数据或本地 `main` 的会议功能提交混入分支。
 
@@ -600,6 +609,7 @@ python -m pytest -q
 - 临时媒体只在 transcript 双重验证后删除。
 - 图文明确 unsupported，coverage 和进度不伪装为全部完成。
 - Rich Live 固定行显示真实进度、Active x/3、汇总计数和双 ETA。
+- 本地 Dashboard 显示与 Rich Live 同源的固定任务行、汇总计数和双 ETA，支持安全暂停、恢复、单项重试和断线恢复。
 - 新旧测试通过；已知 Windows 权限测试被正确跨平台化，无新增回归。
 - README 足以让陌生用户安装浏览器、登录、运行、恢复和理解隐私/清理行为。
 - 分支 diff 不包含 Cookie、profile、媒体、用户结果、模型、本机绝对路径或 Scout 私有代码。
