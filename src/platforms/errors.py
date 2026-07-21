@@ -29,3 +29,11 @@ class AmbiguousPlatformError(PlatformError):
 class TargetMismatchError(PlatformError):
     def __init__(self, platform: str, target: str):
         super().__init__(f"Target is not valid for explicit platform {platform}: {target}")
+
+
+class TargetResolutionError(PlatformError):
+    """A target matched a platform but could not resolve to a creator."""
+
+
+class PlatformDownloadError(PlatformError):
+    """A platform adapter could not produce its required local assets."""

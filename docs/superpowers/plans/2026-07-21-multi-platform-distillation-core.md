@@ -146,7 +146,7 @@ git commit -m "feat: add platform adapter contracts"
 - Produces: `BilibiliAdapter.matches/resolve/get_creator/iter_items/refresh_item/download_assets`.
 - Maps `uid → creator_id`, `bvid → item_id`, and legacy artifacts to `bilibili_<bvid>` without changing old file names.
 
-- [ ] **Step 1: Write failing mapping and delegation tests**
+- [x] **Step 1: Write failing mapping and delegation tests**
 
 ```python
 def test_bilibili_video_maps_to_source_item():
@@ -163,13 +163,13 @@ def test_download_assets_delegates_to_existing_audio_download(tmp_path):
     assert result.audio_path.name == "BV1abc.m4a"
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run: `python -m pytest tests/platforms/test_bilibili_adapter.py -q`
 
 Expected: import or attribute failure for `BilibiliAdapter`.
 
-- [ ] **Step 3: Implement a thin adapter over existing crawl functions**
+- [x] **Step 3: Implement a thin adapter over existing crawl functions**
 
 ```python
 class BilibiliAdapter:
@@ -190,13 +190,13 @@ class BilibiliAdapter:
         )
 ```
 
-- [ ] **Step 4: Run adapter and existing crawl tests**
+- [x] **Step 4: Run adapter and existing crawl tests**
 
 Run: `python -m pytest tests/platforms/test_bilibili_adapter.py tests/test_audio_download.py -q`
 
 Expected: all selected tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/platforms/bilibili src/crawl tests/platforms/test_bilibili_adapter.py
