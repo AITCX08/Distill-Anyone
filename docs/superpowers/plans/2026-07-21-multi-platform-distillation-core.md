@@ -358,7 +358,7 @@ git commit -m "feat: add skill and rag output targets"
 - Produces: `atomic_write_bytes`, `atomic_write_json`, `ArtifactRecord`, `ItemState`, `JobState`, `JobStateStore.load/save/recover_item`.
 - Every successful `save` increments `JobState.revision`.
 
-- [ ] **Step 1: Write failing atomicity, corruption, and recovery tests**
+- [x] **Step 1: Write failing atomicity, corruption, and recovery tests**
 
 ```python
 def test_atomic_json_fsyncs_then_replaces(tmp_path, monkeypatch):
@@ -379,13 +379,13 @@ def test_completed_item_with_invalid_transcript_recovers_to_transcribing():
     assert recover_item(state).processing_status == ProcessingStatus.TRANSCRIBING
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run: `python -m pytest tests/distillation/test_store.py tests/distillation/test_state.py -q`
 
 Expected: missing store/state modules.
 
-- [ ] **Step 3: Implement atomic writes, schema migration, integrity records, and recovery**
+- [x] **Step 3: Implement atomic writes, schema migration, integrity records, and recovery**
 
 ```python
 def atomic_write_json(path: Path, value: Mapping[str, Any]) -> None:
@@ -408,7 +408,7 @@ class JobStateStore:
         return updated
 ```
 
-- [ ] **Step 4: Run state tests**
+- [x] **Step 4: Run state tests**
 
 Run: `python -m pytest tests/distillation/test_store.py tests/distillation/test_state.py -q`
 
