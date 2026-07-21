@@ -208,8 +208,10 @@ git commit -m "feat: adapt bilibili to platform interface"
 **Files:**
 - Create: `src/outputs/__init__.py`
 - Create: `src/outputs/base.py`
+- Create: `src/outputs/errors.py`
 - Create: `src/outputs/registry.py`
 - Create: `src/outputs/manager.py`
+- Create: `src/outputs/files.py`
 - Create: `src/outputs/episodes.py`
 - Test: `tests/outputs/test_registry.py`
 - Test: `tests/outputs/test_episodes.py`
@@ -218,7 +220,7 @@ git commit -m "feat: adapt bilibili to platform interface"
 - Produces: `ArtifactKind`, `ItemOutputContext`, `CorpusOutputContext`, `OutputReceipt`, `OutputTarget`, `OutputRegistry`, `OutputManager`, `EpisodeMarkdownTarget`.
 - Episode path is `output/<safe-name>-<platform>-<creator-id>/episodes/<item-id>.md`.
 
-- [ ] **Step 1: Write failing output tests**
+- [x] **Step 1: Write failing output tests**
 
 ```python
 def test_episode_uses_stable_item_id_filename(tmp_path):
@@ -233,13 +235,13 @@ def test_output_manager_unions_required_artifacts():
     assert manager.required_artifacts() == {ArtifactKind.CLEANED, ArtifactKind.KNOWLEDGE}
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run: `python -m pytest tests/outputs/test_registry.py tests/outputs/test_episodes.py -q`
 
 Expected: missing output modules.
 
-- [ ] **Step 3: Implement output contracts and atomic episode rendering**
+- [x] **Step 3: Implement output contracts and atomic episode rendering**
 
 ```python
 class EpisodeMarkdownTarget:
@@ -255,13 +257,13 @@ class EpisodeMarkdownTarget:
         return OutputReceipt(self.name, context.item.source_id, path, sha256_text(content))
 ```
 
-- [ ] **Step 4: Run focused tests**
+- [x] **Step 4: Run focused tests**
 
 Run: `python -m pytest tests/outputs -q`
 
 Expected: output tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/outputs tests/outputs
