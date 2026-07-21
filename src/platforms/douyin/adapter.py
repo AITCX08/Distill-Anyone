@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Callable, Iterator
+from typing import Any, Callable, Iterator, Mapping
 from urllib.parse import urlparse
 
 from src.platforms.douyin.resolver import DouyinResolver, extract_sec_uid, extract_target_url
+from src.platforms.douyin.enumerator import DouyinBrowserRoute, DouyinEnumerator
 from src.platforms.models import (
     AuthStatus,
     DownloadedAssets,
@@ -41,11 +42,13 @@ class DouyinAdapter:
         resolver_factory: Callable = DouyinResolver,
         enumerator=None,
         downloader=None,
+        creator_loader: Callable[[ResolvedTarget], SourceCreator] | None = None,
     ) -> None:
         self.session = session
         self._resolver_factory = resolver_factory
-        self._enumerator = enumerator
+        self._enumerator = enumerator or DouyinEnumerator(DouyinBrowserRoute(session))
         self._downloader = downloader
+        self._creator_loader = creator_loader
 
     def matches(self, target: str) -> bool:
         if _DIRECT_RE.fullmatch(target.strip()):
@@ -71,11 +74,33 @@ class DouyinAdapter:
             return self._resolver_factory(page).resolve_share_url(target)
 
     def get_creator(self, target: ResolvedTarget) -> SourceCreator:
+        if self._creator_loader is not None:
+            return self._creator_loader(target)
+        profile: dict[str, Any] = {}
+        with self.session.open_page(headless=True, task="creator-profile") as page:
+            def capture(response: Any) -> None:
+                if "/user/profile/other/" not in str(getattr(response, "url", "")):
+                    return
+                try:
+                    payload = response.json()
+                except Exception:
+                    return
+                user = payload.get("user") if isinstance(payload, Mapping) else None
+                if isinstance(user, Mapping):
+                    profile.update(user)
+
+            page.on("response", capture)
+            page.goto(target.canonical_url, wait_until="domcontentloaded", timeout=30_000)
+            page.wait_for_timeout(1_000)
+
+        avatar = profile.get("avatar_larger") or profile.get("avatar_medium") or {}
+        avatar_urls = avatar.get("url_list", ()) if isinstance(avatar, Mapping) else ()
         return SourceCreator(
             platform="douyin",
             creator_id=target.creator_id,
-            display_name=f"Douyin {target.creator_id[:12]}",
+            display_name=str(profile.get("nickname") or f"Douyin {target.creator_id[:12]}"),
             canonical_url=target.canonical_url,
+            avatar_url=str(avatar_urls[0]) if avatar_urls else None,
         )
 
     def iter_items(
@@ -86,7 +111,11 @@ class DouyinAdapter:
     ) -> Iterator[EnumerationPage]:
         if self._enumerator is None:
             raise RuntimeError("Douyin item enumerator is not configured")
-        yield from self._enumerator.iter_items(creator, checkpoint=checkpoint)
+        iterator = getattr(self._enumerator, "iter_pages", None)
+        if iterator is not None:
+            yield from iterator(creator, checkpoint)
+        else:
+            yield from self._enumerator.iter_items(creator, checkpoint=checkpoint)
 
     def refresh_item(self, item: SourceItem) -> SourceItem:
         if self._downloader is None:

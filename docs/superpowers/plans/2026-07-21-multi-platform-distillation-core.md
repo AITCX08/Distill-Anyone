@@ -574,7 +574,7 @@ git commit -m "feat: add douyin session and resolver"
 - Consumes: Task 7 session and resolver.
 - Produces: `DouyinEnumerator.iter_pages(creator, checkpoint)` and raw aweme-to-`SourceItem` mapping.
 
-- [ ] **Step 1: Write failing pagination, dedup, resume, and incremental tests**
+- [x] **Step 1: Write failing pagination, dedup, resume, and incremental tests**
 
 ```python
 def test_pages_stop_on_has_more_false_and_deduplicate():
@@ -589,13 +589,13 @@ def test_resume_starts_from_saved_cursor():
     assert enum.requested_cursors == ["20"]
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run: `python -m pytest tests/platforms/douyin/test_enumerator.py -q`
 
 Expected: missing enumerator.
 
-- [ ] **Step 3: Implement API-response-only mapping and checkpoint pages**
+- [x] **Step 3: Implement API-response-only mapping and checkpoint pages**
 
 ```python
 def map_aweme(raw: Mapping[str, Any], creator_id: str) -> SourceItem:
@@ -613,7 +613,7 @@ def map_aweme(raw: Mapping[str, Any], creator_id: str) -> SourceItem:
     )
 ```
 
-- [ ] **Step 4: Run enumerator tests**
+- [x] **Step 4: Run enumerator tests**
 
 Run: `python -m pytest tests/platforms/douyin/test_enumerator.py -q`
 

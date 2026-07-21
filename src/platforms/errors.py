@@ -49,3 +49,7 @@ class PlatformDependencyError(PlatformError):
 
 class PlatformSessionBusyError(PlatformError):
     """A persistent browser profile is already owned by another task."""
+
+
+class PlatformEnumerationError(PlatformError):
+    """A creator page could not produce a reliable enumeration response."""
