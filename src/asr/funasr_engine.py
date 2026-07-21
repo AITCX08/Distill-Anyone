@@ -32,11 +32,18 @@ class TranscriptSegment:
 class TranscriptResult:
     """完整转写结果"""
     bvid: str = ""
+    source_id: str = ""
     audio_path: str = ""
     full_text: str = ""
     segments: list[TranscriptSegment] = field(default_factory=list)
     model_name: str = ""
     source: str = "funasr"
+
+    def __post_init__(self) -> None:
+        if not self.source_id:
+            self.source_id = self.bvid
+        if not self.bvid:
+            self.bvid = self.source_id
 
 
 def _spk_label(spk) -> str:
@@ -183,6 +190,7 @@ class FunASREngine:
 
         result_obj = TranscriptResult(
             bvid=bvid,
+            source_id=bvid,
             audio_path=str(audio_path),
             full_text=full_text,
             segments=segments,
@@ -274,10 +282,12 @@ def save_transcript(result: TranscriptResult, video_meta: dict,
         保存的文件路径
     """
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"{result.bvid}.json"
+    source_id = result.source_id or result.bvid
+    output_path = output_dir / f"{source_id}.json"
 
     data = {
         "bvid": result.bvid,
+        "source_id": source_id,
         "title": video_meta.get("title", ""),
         "source": result.source,
         "model": result.model_name,
@@ -289,11 +299,15 @@ def save_transcript(result: TranscriptResult, video_meta: dict,
             "view_count": video_meta.get("view_count", 0),
             "comment_count": video_meta.get("comment_count", 0),
             "description": video_meta.get("description", ""),
+            "platform": video_meta.get("platform", ""),
+            "item_type": video_meta.get("item_type", "video"),
+            "source_url": video_meta.get("source_url", ""),
         },
     }
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    from src.distillation.store import atomic_write_json
+
+    atomic_write_json(output_path, data)
 
     return output_path
 

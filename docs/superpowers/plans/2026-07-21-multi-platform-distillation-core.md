@@ -641,7 +641,7 @@ git commit -m "feat: enumerate douyin creator works"
 - Produces: `DouyinDownloader.download`, `VideoContentProcessor.prepare`, `VideoContentProcessor.transcribe`, `VideoContentProcessor.enrich`, `UnsupportedProcessor.process`, `safe_cleanup_media`.
 - Progress callback is `Callable[[TransferProgress], None]` with bytes completed/total, bytes per second, and timestamp.
 
-- [ ] **Step 1: Write failing download, unsupported, and cleanup tests**
+- [x] **Step 1: Write failing download, unsupported, and cleanup tests**
 
 ```python
 def test_downloader_reports_real_bytes(tmp_path):
@@ -667,13 +667,13 @@ def test_media_is_not_deleted_until_transcript_reopens_valid(tmp_path):
     assert media.exists()
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run: `python -m pytest tests/platforms/douyin/test_downloader.py tests/distillation/test_processors.py tests/distillation/test_media_cleanup.py -q`
 
 Expected: missing downloader/processors.
 
-- [ ] **Step 3: Implement streaming download, separate stage methods, existing ASR/clean/model calls, and verified cleanup**
+- [x] **Step 3: Implement streaming download, separate stage methods, existing ASR/clean/model calls, and verified cleanup**
 
 ```python
 class VideoContentProcessor:
@@ -694,7 +694,7 @@ class VideoContentProcessor:
         return EnrichedArtifacts(transcript=artifact, cleaned=cleaned, knowledge=knowledge)
 ```
 
-- [ ] **Step 4: Run processor and existing ASR tests**
+- [x] **Step 4: Run processor and existing ASR tests**
 
 Run: `python -m pytest tests/platforms/douyin/test_downloader.py tests/distillation/test_processors.py tests/distillation/test_media_cleanup.py tests/test_asr_pipeline.py -q`
 

@@ -568,8 +568,9 @@ def save_video_knowledge(knowledge: VideoKnowledge, output_dir: Path) -> Path:
     """保存单个视频的知识提取结果。"""
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{knowledge.source_id or knowledge.bvid}.json"
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(asdict(knowledge), f, ensure_ascii=False, indent=2)
+    from src.distillation.store import atomic_write_json
+
+    atomic_write_json(output_path, asdict(knowledge))
     return output_path
 
 

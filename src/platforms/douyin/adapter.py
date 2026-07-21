@@ -9,6 +9,8 @@ from urllib.parse import urlparse
 
 from src.platforms.douyin.resolver import DouyinResolver, extract_sec_uid, extract_target_url
 from src.platforms.douyin.enumerator import DouyinBrowserRoute, DouyinEnumerator
+from src.platforms.douyin.downloader import DouyinDownloader
+from src.platforms.douyin.enumerator import map_aweme
 from src.platforms.models import (
     AuthStatus,
     DownloadedAssets,
@@ -47,7 +49,7 @@ class DouyinAdapter:
         self.session = session
         self._resolver_factory = resolver_factory
         self._enumerator = enumerator or DouyinEnumerator(DouyinBrowserRoute(session))
-        self._downloader = downloader
+        self._downloader = downloader or DouyinDownloader(refresh_item=self._refresh_from_browser)
         self._creator_loader = creator_loader
 
     def matches(self, target: str) -> bool:
@@ -118,9 +120,26 @@ class DouyinAdapter:
             yield from self._enumerator.iter_items(creator, checkpoint=checkpoint)
 
     def refresh_item(self, item: SourceItem) -> SourceItem:
-        if self._downloader is None:
-            return item
         return self._downloader.refresh_item(item)
+
+    def _refresh_from_browser(self, item: SourceItem) -> SourceItem:
+        refreshed: list[SourceItem] = []
+        with self.session.open_page(headless=True, task="refresh-media") as page:
+            def capture(response: Any) -> None:
+                if "/aweme/detail/" not in str(getattr(response, "url", "")):
+                    return
+                try:
+                    payload = response.json()
+                except Exception:
+                    return
+                raw = payload.get("aweme_detail") if isinstance(payload, Mapping) else None
+                if isinstance(raw, Mapping):
+                    refreshed.append(map_aweme(raw, item.creator_id))
+
+            page.on("response", capture)
+            page.goto(item.canonical_url, wait_until="domcontentloaded", timeout=30_000)
+            page.wait_for_timeout(1_000)
+        return refreshed[-1] if refreshed else item
 
     def download_assets(
         self,
@@ -129,6 +148,4 @@ class DouyinAdapter:
         *,
         progress,
     ) -> DownloadedAssets:
-        if self._downloader is None:
-            raise RuntimeError("Douyin downloader is not configured")
         return self._downloader.download_assets(item, destination, progress=progress)
