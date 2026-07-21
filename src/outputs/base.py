@@ -70,8 +70,8 @@ class OutputTarget(Protocol):
     def required_artifacts(self) -> frozenset[ArtifactKind]:
         """Return item artifacts required by this target."""
 
-    def consume_item(self, context: ItemOutputContext) -> OutputReceipt:
-        """Write or update an item-level output."""
+    def consume_item(self, context: ItemOutputContext) -> OutputReceipt | None:
+        """Write an item-level output, or return None for corpus-only targets."""
 
     def finalize(self, context: CorpusOutputContext) -> OutputReceipt | None:
         """Write a corpus-level output after item processing reaches terminal states."""

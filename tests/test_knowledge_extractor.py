@@ -130,6 +130,13 @@ class TestSafeJsonLoadsUnicodeAndLarge:
 # ===================================================================
 
 class TestVideoKnowledgeRoundtrip:
+    def test_source_id_and_legacy_bvid_stay_in_sync(self):
+        legacy = VideoKnowledge(bvid="BV1legacy")
+        modern = VideoKnowledge(source_id="douyin_123")
+
+        assert legacy.source_id == "BV1legacy"
+        assert modern.bvid == "douyin_123"
+
     def test_save_then_load_preserves_full_schema(self, tmp_path):
         vk = VideoKnowledge(
             bvid="BV1abc",

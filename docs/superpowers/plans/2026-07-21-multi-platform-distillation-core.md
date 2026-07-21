@@ -288,7 +288,7 @@ git commit -m "feat: add composable episode output"
 - Produces: `SkillTarget`, `RagTarget`, `corpus_fingerprint(items)`.
 - Fingerprint is SHA-256 of sorted `(source_id, knowledge_sha256)` pairs.
 
-- [ ] **Step 1: Write failing fingerprint, partial, and source-id tests**
+- [x] **Step 1: Write failing fingerprint, partial, and source-id tests**
 
 ```python
 def test_skill_skips_when_corpus_fingerprint_matches(tmp_path):
@@ -304,13 +304,13 @@ def test_partial_skill_records_coverage(tmp_path):
     assert receipt.metadata["coverage"] == 0.8
 ```
 
-- [ ] **Step 2: Run selected tests and verify failure**
+- [x] **Step 2: Run selected tests and verify failure**
 
 Run: `python -m pytest tests/outputs/test_skill.py tests/outputs/test_rag.py tests/test_chunker.py -q`
 
 Expected: new target imports fail.
 
-- [ ] **Step 3: Implement wrappers and platform-neutral metadata**
+- [x] **Step 3: Implement wrappers and platform-neutral metadata**
 
 ```python
 def corpus_fingerprint(items: Iterable[KnowledgeArtifact]) -> str:
@@ -331,7 +331,7 @@ class SkillTarget:
         return OutputReceipt(self.name, "corpus", context.skill_path, fingerprint, skipped=False)
 ```
 
-- [ ] **Step 4: Run output/model/RAG tests**
+- [x] **Step 4: Run output/model/RAG tests**
 
 Run: `python -m pytest tests/outputs tests/test_knowledge_extractor.py tests/test_chunker.py -q`
 

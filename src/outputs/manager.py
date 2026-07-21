@@ -22,7 +22,8 @@ class OutputManager:
         return frozenset(required)
 
     def consume_item(self, context: ItemOutputContext) -> tuple[OutputReceipt, ...]:
-        return tuple(target.consume_item(context) for target in self._targets)
+        receipts = (target.consume_item(context) for target in self._targets)
+        return tuple(receipt for receipt in receipts if receipt is not None)
 
     def finalize(self, context: CorpusOutputContext) -> tuple[OutputReceipt, ...]:
         receipts = (target.finalize(context) for target in self._targets)

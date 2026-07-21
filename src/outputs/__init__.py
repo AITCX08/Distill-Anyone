@@ -9,7 +9,9 @@ from src.outputs.base import (
 )
 from src.outputs.episodes import EpisodeMarkdownTarget
 from src.outputs.manager import OutputManager
+from src.outputs.rag import RagTarget
 from src.outputs.registry import OutputRegistry
+from src.outputs.skill import SkillTarget, corpus_fingerprint
 
 __all__ = [
     "ArtifactKind",
@@ -20,4 +22,7 @@ __all__ = [
     "OutputReceipt",
     "OutputRegistry",
     "OutputTarget",
+    "RagTarget",
+    "SkillTarget",
+    "corpus_fingerprint",
 ]

@@ -12,6 +12,20 @@ from src.rag.chunker import build_chunks
 
 
 class TestBuildChunks:
+    def test_uses_platform_neutral_source_id_and_item_type(self):
+        cleaned_doc = {
+            "source_id": "douyin_123",
+            "title": "A Douyin video",
+            "full_text": "Knowledge",
+            "topics": [],
+            "metadata": {"platform": "douyin", "item_type": "video"},
+        }
+
+        chunk_doc = build_chunks(cleaned_doc, knowledge=None)
+
+        assert chunk_doc["source_id"] == "douyin_123"
+        assert chunk_doc["source_type"] == "video"
+
     def test_builds_one_chunk_per_topic_by_default(self):
         cleaned_doc = {
             "bvid": "BOOK_demo_123456_ch01",
