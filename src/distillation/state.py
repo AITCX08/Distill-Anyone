@@ -99,6 +99,7 @@ class JobState:
     job_id: str
     schema_version: int = CURRENT_SCHEMA_VERSION
     revision: int = 0
+    status: str = "created"
     request: Mapping[str, Any] = field(default_factory=dict)
     creator: Mapping[str, Any] = field(default_factory=dict)
     enumeration_checkpoint: Mapping[str, Any] = field(default_factory=dict)
@@ -118,6 +119,7 @@ class JobState:
             job_id=str(value["job_id"]),
             schema_version=int(value.get("schema_version", CURRENT_SCHEMA_VERSION)),
             revision=int(value.get("revision", 0)),
+            status=str(value.get("status", "created")),
             request=dict(value.get("request", {})),
             creator=dict(value.get("creator", {})),
             enumeration_checkpoint=dict(value.get("enumeration_checkpoint", {})),
@@ -196,4 +198,3 @@ def recover_item(state: ItemState) -> ItemState:
             completed_at=None,
         )
     return state
-

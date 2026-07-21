@@ -439,7 +439,7 @@ git commit -m "feat: add atomic distillation state store"
 - Consumes: Task 5 state store.
 - Produces: `ApplicationEvent`, `EventHub.publish/subscribe/snapshot`, `JobLeaseManager.acquire/heartbeat/release`, `DistillationService.preview/create/pause/resume/retry_failed/retry_item`.
 
-- [ ] **Step 1: Write failing lease, event, and revision tests**
+- [x] **Step 1: Write failing lease, event, and revision tests**
 
 ```python
 def test_live_lease_cannot_be_stolen(tmp_path):
@@ -459,13 +459,13 @@ def test_pause_rejects_stale_revision():
         make_service(revision=3).pause("job-1", expected_revision=2)
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run: `python -m pytest tests/application -q`
 
 Expected: missing application modules.
 
-- [ ] **Step 3: Implement presentation-neutral commands, queries, events, and leases**
+- [x] **Step 3: Implement presentation-neutral commands, queries, events, and leases**
 
 ```python
 @dataclass(frozen=True)
@@ -489,7 +489,7 @@ class DistillationService:
         return self.commands.resume(job_id, expected_revision)
 ```
 
-- [ ] **Step 4: Run application and state tests**
+- [x] **Step 4: Run application and state tests**
 
 Run: `python -m pytest tests/application tests/distillation/test_state.py -q`
 
