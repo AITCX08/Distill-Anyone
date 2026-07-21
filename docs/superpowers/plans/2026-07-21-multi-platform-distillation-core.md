@@ -783,7 +783,7 @@ git commit -m "feat: add recoverable staged distillation engine"
 **Interfaces:**
 - Produces: `ProgressSnapshot`, `ItemProgress`, `TransferProgress`, `EtaEstimate`, `ProgressTracker.snapshot`, `EtaEstimator.update/estimate_total/estimate_active_slowest`, `RichProgressView`.
 
-- [ ] **Step 1: Write failing fixed-row, coverage, and ETA tests**
+- [x] **Step 1: Write failing fixed-row, coverage, and ETA tests**
 
 ```python
 def test_same_source_id_keeps_same_active_row():
@@ -803,13 +803,13 @@ def test_eta_requires_three_samples():
     assert estimator.estimate_total(make_remaining()) is None
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run: `python -m pytest tests/distillation/test_progress.py tests/distillation/test_eta.py -q`
 
 Expected: missing progress/ETA modules.
 
-- [ ] **Step 3: Implement weighted progress, real transfer metrics, rolling medians, provisional total ETA, and Rich rendering**
+- [x] **Step 3: Implement weighted progress, real transfer metrics, rolling medians, provisional total ETA, and Rich rendering**
 
 ```python
 @dataclass(frozen=True)
@@ -825,7 +825,7 @@ class ProgressSnapshot:
     provisional_eta: bool
 ```
 
-- [ ] **Step 4: Run progress/ETA and engine tests**
+- [x] **Step 4: Run progress/ETA and engine tests**
 
 Run: `python -m pytest tests/distillation/test_progress.py tests/distillation/test_eta.py tests/distillation/test_engine.py -q`
 

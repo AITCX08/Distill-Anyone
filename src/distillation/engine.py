@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import time
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +16,12 @@ from src.asr.funasr_engine import load_transcript
 from src.clean.text_processor import load_cleaned
 from src.distillation.artifacts import ArtifactRecord, sha256_file
 from src.distillation.processors import safe_cleanup_media
+from src.distillation.progress import ProgressTracker, TransferProgress
+from src.distillation.eta import (
+    ActiveItemRemaining,
+    EtaEstimator,
+    RemainingWork,
+)
 from src.distillation.request import DistillationRequest
 from src.distillation.state import (
     ItemState,
@@ -80,6 +87,8 @@ class DistillationEngine:
         output_manager: Any | None = None,
         events: EventHub | None = None,
         supervisor: WorkerSupervisor | None = None,
+        progress_tracker: ProgressTracker | None = None,
+        eta_estimator: EtaEstimator | None = None,
     ) -> None:
         self.adapter = adapter
         self.processor_factory = processor_factory
@@ -87,12 +96,99 @@ class DistillationEngine:
         self.output_manager = output_manager
         self.events = events or EventHub()
         self.supervisor = supervisor or WorkerSupervisor()
+        self.progress = progress_tracker
+        self.eta = eta_estimator or EtaEstimator()
         self.state: JobState | None = None
         self._state_lock = asyncio.Lock()
         self._pause_requested = False
         self._processor = None
         self._contexts: dict[str, ItemOutputContext] = {}
         self._items: dict[str, SourceItem] = {}
+        self._request: DistillationRequest | None = None
+
+    def _publish_progress(self) -> None:
+        if self.progress is None or self.state is None:
+            return
+        self.events.publish(
+            "progress.snapshot",
+            {
+                "job_id": self.state.job_id,
+                "snapshot": self.progress.snapshot(
+                    revision=self.state.revision,
+                    enumeration_complete=True,
+                ),
+            },
+        )
+
+    @staticmethod
+    def _download_work(item: SourceItem) -> float:
+        expected = sum(
+            asset.expected_bytes or 0
+            for asset in item.assets
+            if asset.kind in {"video", "audio"}
+        )
+        return expected / (1024 * 1024) if expected > 0 else 1.0
+
+    def _remaining_stages(self, item: SourceItem, status: ProcessingStatus) -> dict[str, float]:
+        order = {
+            ProcessingStatus.PENDING: 0,
+            ProcessingStatus.ENUMERATED: 0,
+            ProcessingStatus.DOWNLOADING: 0,
+            ProcessingStatus.DOWNLOADED: 1,
+            ProcessingStatus.EXTRACTING_AUDIO: 1,
+            ProcessingStatus.TRANSCRIBING: 1,
+            ProcessingStatus.CLEANING: 2,
+            ProcessingStatus.SUMMARIZING: 2,
+            ProcessingStatus.WRITING: 2,
+        }
+        position = order.get(status)
+        if position is None:
+            return {}
+        remaining: dict[str, float] = {}
+        if position <= 0:
+            remaining["download"] = self._download_work(item)
+        if position <= 1:
+            remaining["asr"] = item.duration_seconds or 1.0
+        if position <= 2:
+            remaining["llm"] = 1.0
+        return remaining
+
+    def _refresh_eta(self, request: DistillationRequest) -> None:
+        if self.progress is None or self.state is None:
+            return
+        stage_work = {"download": 0.0, "asr": 0.0, "llm": 0.0}
+        active: list[ActiveItemRemaining] = []
+        snapshot = self.progress.snapshot(revision=self.state.revision)
+        active_ids = {item.source_id for item in snapshot.active_items}
+        for source_id, item_state in self.state.items.items():
+            item = self._items.get(source_id)
+            if item is None:
+                continue
+            remaining = self._remaining_stages(item, item_state.processing_status)
+            for stage, work in remaining.items():
+                stage_work[stage] += work
+            if source_id in active_ids and remaining:
+                active.append(
+                    ActiveItemRemaining(source_id, item.platform, remaining)
+                )
+        total = self.eta.estimate_total(
+            RemainingWork(
+                platform=request.creator.platform,
+                stage_work=stage_work,
+                concurrency={
+                    "download": request.download_workers,
+                    "asr": request.asr_workers,
+                    "llm": request.llm_workers,
+                },
+                provisional=False,
+            )
+        )
+        slowest = self.eta.estimate_active_slowest(tuple(active))
+        self.progress.set_eta(
+            total_seconds=total.seconds if total else None,
+            active_slowest_seconds=slowest.seconds if slowest else None,
+            provisional=bool(total and total.provisional),
+        )
 
     def request_pause(self) -> None:
         self._pause_requested = True
@@ -153,6 +249,20 @@ class DistillationEngine:
                 "revision": self.state.revision,
             },
         )
+        if self.progress is not None:
+            source = self._items.get(source_id)
+            self.progress.update(
+                source_id,
+                title=source.title if source is not None else source_id,
+                stage=updated_item.processing_status.value,
+                stage_progress=(
+                    1.0
+                    if updated_item.processing_status is ProcessingStatus.COMPLETED
+                    else None
+                ),
+                status_text=updated_item.last_error or "",
+            )
+            self._publish_progress()
         return updated_item
 
     async def _stage_call(
@@ -163,6 +273,7 @@ class DistillationEngine:
         function: Callable,
         *args,
         retry_limit: int,
+        work_units: float = 1.0,
         **kwargs,
     ):
         for attempt in range(retry_limit + 1):
@@ -175,8 +286,19 @@ class DistillationEngine:
                 attempts=attempts,
                 last_error=None,
             )
+            started = time.monotonic()
             try:
-                return await self._invoke(function, *args, **kwargs)
+                result = await self._invoke(function, *args, **kwargs)
+                self.eta.update(
+                    stage,
+                    work=work_units,
+                    elapsed=time.monotonic() - started,
+                    platform=item.platform,
+                )
+                if self._request is not None:
+                    self._refresh_eta(self._request)
+                    self._publish_progress()
+                return result
             except Exception:
                 if attempt >= retry_limit:
                     raise
@@ -205,6 +327,31 @@ class DistillationEngine:
                     continue
                 await active.acquire()
                 try:
+                    def transfer_callback(*values) -> None:
+                        if len(values) == 1 and isinstance(values[0], TransferProgress):
+                            transfer = values[0]
+                        elif len(values) == 2:
+                            transfer = TransferProgress(
+                                source_id=item.source_id,
+                                completed_bytes=int(values[0]),
+                                total_bytes=(int(values[1]) if values[1] is not None else None),
+                                bytes_per_second=0.0,
+                                timestamp=datetime.now(timezone.utc),
+                            )
+                        else:
+                            return
+                        if self.progress is not None:
+                            self.progress.update_transfer(transfer, title=item.title)
+                            self._publish_progress()
+                        self.events.publish(
+                            "transfer.updated",
+                            {
+                                "job_id": request.job_id,
+                                "source_id": item.source_id,
+                                "progress": transfer,
+                            },
+                        )
+
                     assets = await self._stage_call(
                         item,
                         "download",
@@ -212,15 +359,9 @@ class DistillationEngine:
                         self.adapter.download_assets,
                         item,
                         request.output_root / "media",
-                        progress=lambda value: self.events.publish(
-                            "transfer.updated",
-                            {
-                                "job_id": request.job_id,
-                                "source_id": item.source_id,
-                                "progress": value,
-                            },
-                        ),
+                        progress=transfer_callback,
                         retry_limit=request.retry_limit,
+                        work_units=self._download_work(item),
                     )
                     prepared = await self._invoke(self._processor.prepare, item, assets)
                     artifacts = dict(self.state.items[item.source_id].artifacts)
@@ -263,6 +404,7 @@ class DistillationEngine:
                         self._processor.transcribe,
                         work.prepared,
                         retry_limit=request.retry_limit,
+                        work_units=work.item.duration_seconds or 1.0,
                     )
                     artifacts = dict(self.state.items[work.item.source_id].artifacts)
                     record = _record(getattr(transcript, "path", None))
@@ -300,6 +442,7 @@ class DistillationEngine:
                         self._processor.enrich,
                         work.transcript,
                         retry_limit=request.retry_limit,
+                        work_units=1.0,
                     )
                     artifacts = dict(self.state.items[work.item.source_id].artifacts)
                     for name, path in (
@@ -509,9 +652,31 @@ class DistillationEngine:
     async def run(self, request: DistillationRequest) -> JobResult:
         self._pause_requested = False
         self._state_lock = asyncio.Lock()
+        self._request = request
         self._processor = self.processor_factory()
         self._items = {item.source_id: item for item in request.items}
         await self._initialize_state(request)
+        if self.progress is None or self.progress.job_id != request.job_id:
+            self.progress = ProgressTracker(
+                job_id=request.job_id,
+                max_active=request.max_active_items,
+            )
+        for item in request.items:
+            self.progress.register(item.source_id, title=item.title)
+            item_state = self.state.items[item.source_id]
+            self.progress.update(
+                item.source_id,
+                title=item.title,
+                stage=item_state.processing_status.value,
+                stage_progress=(
+                    1.0
+                    if item_state.processing_status is ProcessingStatus.COMPLETED
+                    else None
+                ),
+                status_text=item_state.last_error or "",
+            )
+        self._refresh_eta(request)
+        self._publish_progress()
 
         download_queue = asyncio.Queue(maxsize=request.download_workers * 2)
         asr_queue = asyncio.Queue(maxsize=max(2, request.max_active_items))
@@ -575,6 +740,7 @@ class DistillationEngine:
         await asyncio.gather(*llm_tasks)
 
         await self._finalize_outputs(request)
+        self._refresh_eta(request)
         completed, failed, unsupported = self._counts()
         paused = self._pause_requested
         if paused:
@@ -596,6 +762,7 @@ class DistillationEngine:
                 "revision": self.state.revision,
             },
         )
+        self._publish_progress()
         return JobResult(
             job_id=request.job_id,
             total=len(request.items),
