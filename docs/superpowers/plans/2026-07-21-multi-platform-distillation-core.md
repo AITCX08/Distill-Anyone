@@ -720,7 +720,7 @@ git commit -m "feat: process douyin video artifacts"
 - Consumes: platform/output managers, state store, processors, events.
 - Produces: `DistillationRequest`, `DistillationEngine.run`, cooperative pause, bounded stage queues, `WorkerSupervisor`.
 
-- [ ] **Step 1: Write failing concurrency and failure-isolation tests**
+- [x] **Step 1: Write failing concurrency and failure-isolation tests**
 
 ```python
 @pytest.mark.asyncio
@@ -740,13 +740,13 @@ async def test_one_item_failure_does_not_stop_batch():
     assert result.completed == 2 and result.failed == 1
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run: `python -m pytest tests/distillation/test_engine.py tests/distillation/test_supervisor.py -q`
 
 Expected: missing engine/supervisor.
 
-- [ ] **Step 3: Implement bounded queues, one ASR consumer, retry policy, pause safe points, and worker restart budget**
+- [x] **Step 3: Implement bounded queues, one ASR consumer, retry policy, pause safe points, and worker restart budget**
 
 ```python
 class DistillationEngine:
@@ -759,7 +759,7 @@ class DistillationEngine:
         return self._finalize_result()
 ```
 
-- [ ] **Step 4: Run engine/state/application tests**
+- [x] **Step 4: Run engine/state/application tests**
 
 Run: `python -m pytest tests/distillation/test_engine.py tests/distillation/test_supervisor.py tests/application -q`
 

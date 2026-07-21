@@ -9,6 +9,7 @@ from typing import Any
 
 from src.asr.funasr_engine import (
     TranscriptResult,
+    TranscriptSegment,
     check_transcript_integrity,
     load_transcript,
     save_transcript,
@@ -138,6 +139,42 @@ class VideoContentProcessor:
         if not valid:
             raise ArtifactIntegrityError(item.source_id, "transcript", reason)
         return TranscriptArtifact(item, path, load_transcript(path), result)
+
+    def restore_prepared(
+        self,
+        item: SourceItem,
+        artifacts: dict[str, Any],
+    ) -> PreparedMedia:
+        audio = artifacts.get("audio")
+        video = artifacts.get("video")
+        assets = DownloadedAssets(
+            audio_path=Path(audio.path) if audio is not None else None,
+            video_path=Path(video.path) if video is not None else None,
+        )
+        return self.prepare(item, assets)
+
+    def load_transcript_artifact(self, item: SourceItem, path: Path) -> TranscriptArtifact:
+        document = load_transcript(path)
+        result = TranscriptResult(
+            bvid=str(document.get("bvid") or item.source_id),
+            source_id=str(document.get("source_id") or item.source_id),
+            audio_path=str(document.get("audio_path") or ""),
+            full_text=str(document.get("full_text") or ""),
+            segments=[
+                TranscriptSegment(
+                    id=str(segment.get("id") or ""),
+                    text=str(segment.get("text") or ""),
+                    start=float(segment.get("start") or 0),
+                    end=float(segment.get("end") or 0),
+                    confidence=float(segment.get("confidence") or 0),
+                )
+                for segment in document.get("segments", ())
+                if isinstance(segment, dict)
+            ],
+            model_name=str(document.get("model") or ""),
+            source=str(document.get("source") or "funasr"),
+        )
+        return TranscriptArtifact(item, path, document, result)
 
     def enrich(self, transcript: TranscriptArtifact) -> EnrichedArtifacts:
         item = transcript.item
