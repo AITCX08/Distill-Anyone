@@ -40,7 +40,7 @@
 - `SourceItem.source_id` returns `f"{platform}_{item_id}"`.
 - `PlatformRegistry.detect(target)` returns exactly one adapter or raises `PlatformNotDetectedError`/`AmbiguousPlatformError`.
 
-- [ ] **Step 1: Write failing model and registry tests**
+- [x] **Step 1: Write failing model and registry tests**
 
 ```python
 def test_source_id_is_platform_qualified():
@@ -59,13 +59,13 @@ def test_auto_detect_requires_exactly_one_match():
         registry.detect("https://example.test")
 ```
 
-- [ ] **Step 2: Run tests and verify missing modules fail**
+- [x] **Step 2: Run tests and verify missing modules fail**
 
 Run: `python -m pytest tests/platforms/test_models.py tests/platforms/test_registry.py -q`
 
 Expected: collection fails because `src.platforms` is not implemented.
 
-- [ ] **Step 3: Implement immutable models, protocol, registry, and manager**
+- [x] **Step 3: Implement immutable models, protocol, registry, and manager**
 
 ```python
 @dataclass(frozen=True)
@@ -119,13 +119,13 @@ class PlatformRegistry:
         return tuple(x.descriptor for x in self._adapters.values())
 ```
 
-- [ ] **Step 4: Run focused tests**
+- [x] **Step 4: Run focused tests**
 
 Run: `python -m pytest tests/platforms/test_models.py tests/platforms/test_registry.py -q`
 
 Expected: all focused tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/platforms tests/platforms
