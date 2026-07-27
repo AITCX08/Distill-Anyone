@@ -58,4 +58,17 @@ describe("MissionControlPage", () => {
 
     expect(within(view.container).getByText("ASR 00:15 / 00:30 · RTF 0.75x")).toBeVisible();
   });
+
+  it("preserves a source row across a server stage transition", () => {
+    const view = render(<MissionControlPage snapshot={snapshot} />);
+    const initialRow = within(view.container).getByRole("group", { name: "Work A · downloading" });
+
+    view.rerender(<MissionControlPage snapshot={{
+      ...snapshot,
+      revision: 2,
+      active_items: [{ ...snapshot.active_items[0], stage: "transcribing" }],
+    }} />);
+
+    expect(within(view.container).getByRole("group", { name: "Work A · transcribing" })).toBe(initialRow);
+  });
 });

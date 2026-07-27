@@ -29,7 +29,7 @@ function formatDuration(value: number): string {
 
 export function ActiveItemRow({ item }: { item: ActiveItem }) {
   return (
-    <Card>
+    <Card aria-label={`${item.title || item.source_id} · ${item.stage}`}>
       <Text as="h3">#{item.row_id} {item.title || item.source_id}</Text>
       <Text>{item.stage}</Text>
       {item.total_bytes === null
