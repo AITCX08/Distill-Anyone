@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import quote
 
+from src.application.commands import PreviewRequest, PreviewResult
 from src.application.events import EventHub
 from src.application.leases import JobLeaseManager
 from src.distillation.state import JobState
@@ -148,6 +149,7 @@ class SourceDistillationRunner:
         self.pipeline_executor = pipeline_executor or self._execute_pipeline
         self.engine_executor = engine_executor or self._execute_engine
         self.owner = owner
+        self._preview_job_ids: dict[str, str] = {}
 
     @staticmethod
     def _execute_engine(engine, request, events: EventHub):
@@ -168,6 +170,77 @@ class SourceDistillationRunner:
             / "job_state.json"
         )
         return JobStateStore(path)
+
+    def _resolve_creator(
+        self,
+        target_value: str,
+        *,
+        platform: str,
+        headful: bool,
+    ) -> tuple[Any, SourceCreator]:
+        """Resolve one creator after checking the adapter's safe auth status."""
+
+        adapter = self.platform_manager.select(target_value, platform=platform)
+        session = getattr(adapter, "session", None)
+        if session is not None:
+            session.acquisition_headless = not headful
+        auth = adapter.auth_status()
+        if auth.status not in {"configured", "authenticated", "ready"}:
+            raise PlatformAuthenticationError(
+                auth.message
+                or f"{adapter.descriptor.name} authentication is required"
+            )
+        target = adapter.resolve(target_value)
+        return adapter, adapter.get_creator(target)
+
+    def preview(self, request: PreviewRequest) -> PreviewResult:
+        """Enumerate a creator without writing state or starting the pipeline."""
+
+        adapter, creator = self._resolve_creator(
+            request.target,
+            platform=request.platform,
+            headful=False,
+        )
+        items: list[SourceItem] = []
+        for page in adapter.iter_items(creator, checkpoint=None):
+            items.extend(page.items)
+        unsupported = sum(item.item_type is not ItemType.VIDEO for item in items)
+        fingerprint = hashlib.sha256(
+            json.dumps(
+                {
+                    "platform": creator.platform,
+                    "creator_id": creator.creator_id,
+                    "target": creator.canonical_url,
+                    "outputs": request.outputs,
+                    "rag_chunks": request.rag_chunks,
+                    "items": [
+                        (item.source_id, item.item_type.value)
+                        for item in items
+                    ],
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        self._preview_job_ids[fingerprint] = self._job_id(creator)
+        return PreviewResult(
+            fingerprint=fingerprint,
+            platform=creator.platform,
+            creator_id=creator.creator_id,
+            creator_name=creator.display_name,
+            total_items=len(items),
+            processable_items=len(items) - unsupported,
+            unsupported_items=unsupported,
+            auth_status=adapter.auth_status().status,
+        )
+
+    def job_id_for_preview(self, preview: PreviewResult) -> str:
+        """Return the state-store job ID associated with a local preview."""
+
+        try:
+            return self._preview_job_ids[preview.fingerprint]
+        except KeyError as exc:
+            raise RuntimeError("The requested preview is no longer available") from exc
 
     @staticmethod
     def _checkpoint(state: JobState | None) -> EnumerationCheckpoint | None:
@@ -212,19 +285,11 @@ class SourceDistillationRunner:
         )
 
     def run(self, request: SourceCreatorRequest) -> SourceRunResult:
-        adapter = self.platform_manager.select(request.target, platform=request.platform)
-        session = getattr(adapter, "session", None)
-        if session is not None:
-            session.acquisition_headless = not request.headful
-        auth = adapter.auth_status()
-        if auth.status not in {"configured", "authenticated", "ready"}:
-            raise PlatformAuthenticationError(
-                auth.message
-                or f"{adapter.descriptor.name} authentication is required"
-            )
-
-        target = adapter.resolve(request.target)
-        creator = adapter.get_creator(target)
+        adapter, creator = self._resolve_creator(
+            request.target,
+            platform=request.platform,
+            headful=request.headful,
+        )
         job_id = self._job_id(creator)
         store = self._state_store(creator)
 

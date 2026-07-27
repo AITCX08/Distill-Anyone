@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 from src.application.events import EventHub
+from src.application.commands import PreviewRequest
 from src.application.leases import JobLeaseConflict, JobLeaseManager
 from src.application.source_runner import (
     SourceCreatorRequest,
@@ -73,6 +74,46 @@ class GuardedAdapter:
         )
 
 
+class PreviewAdapter:
+    descriptor = SimpleNamespace(name="douyin")
+
+    def auth_status(self):
+        return AuthStatus("ready", "")
+
+    def resolve(self, target):
+        return ResolvedTarget("douyin", "creator", target, target)
+
+    def get_creator(self, target):
+        return SourceCreator("douyin", target.creator_id, "Creator", target.canonical_url)
+
+    def iter_items(self, creator, *, checkpoint):
+        del checkpoint
+        yield EnumerationPage(
+            items=(
+                SourceItem(
+                    platform="douyin",
+                    item_id="video-1",
+                    creator_id=creator.creator_id,
+                    item_type=ItemType.VIDEO,
+                    title="One",
+                    description="",
+                    canonical_url="https://fixture.invalid/video-1",
+                ),
+                SourceItem(
+                    platform="douyin",
+                    item_id="gallery-1",
+                    creator_id=creator.creator_id,
+                    item_type=ItemType.GALLERY,
+                    title="Gallery",
+                    description="",
+                    canonical_url="https://fixture.invalid/gallery-1",
+                ),
+            ),
+            checkpoint=EnumerationCheckpoint(complete=True),
+            has_more=False,
+        )
+
+
 def make_config(tmp_path):
     return SimpleNamespace(
         data_dir=tmp_path / "data",
@@ -128,6 +169,33 @@ def test_dry_run_does_not_write_state_or_invoke_pipeline(tmp_path):
 
     assert result.total == 1
     assert result.dry_run is True
+    assert not list((tmp_path / "data").rglob("job_state.json"))
+
+
+def test_preview_enumerates_without_writing_and_returns_stable_job_id(tmp_path):
+    adapter = PreviewAdapter()
+    runner = SourceDistillationRunner(
+        config=make_config(tmp_path),
+        platform_manager=SimpleNamespace(select=lambda target, platform: adapter),
+        events=EventHub(),
+    )
+
+    preview = runner.preview(
+        PreviewRequest(
+            target="https://fixture.invalid/creator",
+            platform="douyin",
+            outputs=("episodes", "skill"),
+        )
+    )
+
+    assert preview.platform == "douyin"
+    assert preview.creator_id == "creator"
+    assert preview.total_items == 2
+    assert preview.processable_items == 1
+    assert preview.unsupported_items == 1
+    assert runner.job_id_for_preview(preview) == runner._job_id(
+        SourceCreator("douyin", "creator", "Creator", "https://fixture.invalid/creator")
+    )
     assert not list((tmp_path / "data").rglob("job_state.json"))
 
 
