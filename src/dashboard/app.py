@@ -5,11 +5,23 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from src.application.service import DistillationService
+from src.application.errors import (
+    ApplicationError,
+    InvalidJobTransitionError,
+    ItemNotRetryableError,
+    JobAlreadyExistsError,
+    JobNotFoundError,
+    PreviewChangedError,
+)
 from src.dashboard.api.health import router as health_router
+from src.dashboard.api.artifacts import router as artifacts_router
+from src.dashboard.api.jobs import router as jobs_router
+from src.dashboard.api.platforms import router as platforms_router
 from src.dashboard.security import CSRF_COOKIE, SESSION_COOKIE, new_local_session
+from src.distillation.state import RevisionConflict
 
 _CSP = "default-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 
@@ -32,6 +44,29 @@ def create_dashboard_app(
     app.state.static_compatible = True
     app.state.local_session = new_local_session()
     app.include_router(health_router)
+    app.include_router(jobs_router)
+    app.include_router(platforms_router)
+    app.include_router(artifacts_router)
+
+    @app.exception_handler(RevisionConflict)
+    async def revision_conflict(_: Request, error: RevisionConflict) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content={"error": {"code": "revision_conflict", "retryable": True}},
+        )
+
+    @app.exception_handler(ApplicationError)
+    async def application_error(_: Request, error: ApplicationError) -> JSONResponse:
+        status_code = 404 if isinstance(error, JobNotFoundError) else 400
+        if isinstance(
+            error,
+            (JobAlreadyExistsError, InvalidJobTransitionError, ItemNotRetryableError, PreviewChangedError),
+        ):
+            status_code = 409
+        return JSONResponse(
+            status_code=status_code,
+            content={"error": {"code": error.code, "retryable": status_code == 409}},
+        )
 
     @app.middleware("http")
     async def protect_dashboard(request: Request, call_next) -> Response:

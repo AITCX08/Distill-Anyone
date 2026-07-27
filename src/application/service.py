@@ -23,12 +23,14 @@ class DistillationService:
         events: EventHub | None = None,
         previewer: Callable[[PreviewRequest], PreviewResult] | None = None,
         source_runner: Any | None = None,
+        platform_manager: Any | None = None,
     ) -> None:
         self.repository = repository
         self.events = events or EventHub()
         self.commands = JobCommands(repository, self.events, previewer=previewer)
         self.queries = JobQueries(repository)
         self.source_runner = source_runner
+        self.platform_manager = platform_manager or getattr(source_runner, "platform_manager", None)
 
     def run_source(self, request):
         if self.source_runner is None:
@@ -58,3 +60,16 @@ class DistillationService:
 
     def retry_item(self, job_id: str, source_id: str, expected_revision: int) -> JobView:
         return self.commands.retry_item(job_id, source_id, expected_revision)
+
+    def list_platforms(self):
+        if self.platform_manager is None:
+            return ()
+        return tuple(
+            (descriptor, self.platform_manager.get(descriptor.name).auth_status())
+            for descriptor in self.platform_manager.list_descriptors()
+        )
+
+    def login_platform(self, platform: str, *, headful: bool = True) -> None:
+        if self.platform_manager is None:
+            raise RuntimeError("No platform manager is configured")
+        self.platform_manager.get(platform).authenticate(headful=headful)
