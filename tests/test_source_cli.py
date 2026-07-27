@@ -61,6 +61,16 @@ def test_distillation_config_defaults_match_cli():
     assert config.douyin.profile_dir == config.data_dir / "browser" / "douyin"
 
 
+def test_source_event_hub_persists_only_redacted_events_under_data_dir(tmp_path):
+    events = main.build_source_event_hub(AppConfig(data_dir=tmp_path))
+
+    events.publish("trace.appended", {"line": "SESSDATA=not-for-disk"})
+
+    persisted = (tmp_path / "dashboard-events.jsonl").read_text(encoding="utf-8")
+    assert "not-for-disk" not in persisted
+    assert "[REDACTED]" in persisted
+
+
 def test_source_creator_uses_environment_defaults(monkeypatch, tmp_path):
     captured = []
     monkeypatch.setenv("DATA_DIR", str(tmp_path / "data"))

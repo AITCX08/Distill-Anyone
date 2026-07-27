@@ -179,13 +179,21 @@ def _run_engine_with_live(engine, request, events):
     return asyncio.run(_run_engine_with_live_async(engine, request, events))
 
 
+def build_source_event_hub(config) -> EventHub:
+    """Compose the production source event stream with a redacted local log."""
+
+    from src.application.event_log import SanitizedEventLog
+
+    return EventHub(event_log=SanitizedEventLog(config.data_dir / "dashboard-events.jsonl"))
+
+
 def execute_source_request(request: SourceCreatorRequest) -> int:
     """Execute through the same application service consumed by the Dashboard."""
     from src.config import load_config
     from src.platforms.errors import PlatformError
 
     config = load_config()
-    events = EventHub()
+    events = build_source_event_hub(config)
     runner = SourceDistillationRunner(
         config=config,
         platform_manager=build_platform_manager(config),
