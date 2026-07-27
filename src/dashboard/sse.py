@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from asyncio import to_thread
+from collections.abc import Mapping
 from queue import Empty
 from typing import AsyncIterator
 
@@ -41,7 +42,24 @@ def _snapshot_message(service, job_id: str | None) -> str:
     for job in service.list_jobs():
         if job_id is None or job.job_id == job_id:
             jobs.append({"job_id": job.job_id, "status": job.status.value, "revision": job.revision})
-    return f"event: snapshot\ndata: {json.dumps({'schema_version': 1, 'jobs': jobs}, ensure_ascii=False)}\n\n"
+    progress_snapshots = []
+    seen_job_ids = set()
+    for event in reversed(service.events.snapshot(job_id=job_id)):
+        if event.event_type != "progress.snapshot":
+            continue
+        payload = redact_value(event.payload)
+        if not isinstance(payload, Mapping):
+            continue
+        snapshot = payload.get("snapshot")
+        current_job_id = payload.get("job_id")
+        if not isinstance(snapshot, Mapping) or not isinstance(current_job_id, str):
+            continue
+        if current_job_id in seen_job_ids:
+            continue
+        seen_job_ids.add(current_job_id)
+        progress_snapshots.append(snapshot)
+    message = {"schema_version": 1, "jobs": jobs, "progress_snapshots": progress_snapshots}
+    return f"event: snapshot\ndata: {json.dumps(message, ensure_ascii=False)}\n\n"
 
 
 async def event_stream(
