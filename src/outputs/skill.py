@@ -133,4 +133,3 @@ class SkillTarget:
             fingerprint=fingerprint,
             metadata=metadata,
         )
-

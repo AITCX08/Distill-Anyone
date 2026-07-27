@@ -84,4 +84,3 @@ def test_partial_file_is_removed_after_download_failure(tmp_path):
 
     assert not list(tmp_path.glob("*.part"))
     assert not (tmp_path / "123.mp4").exists()
-

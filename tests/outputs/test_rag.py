@@ -42,7 +42,6 @@ def test_rag_target_writes_platform_neutral_source_id(tmp_path):
         processed_at=datetime(2026, 7, 21, tzinfo=timezone.utc),
         processing_status="completed",
     )
-
     receipt = RagTarget(tmp_path).consume_item(context)
 
     assert receipt.subject_id == "douyin_123"

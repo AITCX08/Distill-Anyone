@@ -71,4 +71,3 @@ def test_adapter_matches_share_text_and_direct_creator_url(tmp_path):
     assert adapter.matches("https://www.douyin.com/user/MS4w")
     assert adapter.matches("复制打开 https://v.douyin.com/abc/")
     assert not adapter.matches("https://www.bilibili.com/video/BV1")
-

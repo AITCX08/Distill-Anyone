@@ -48,4 +48,3 @@ def test_dead_and_expired_lease_can_be_recovered(tmp_path):
     recovered.heartbeat()
     recovered.release()
     assert not manager.lease_path("job-1").exists()
-

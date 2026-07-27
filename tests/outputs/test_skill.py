@@ -132,4 +132,3 @@ def test_partial_skill_records_coverage_and_writes_atomically(tmp_path):
     assert receipt.metadata["total_items"] == 10
     assert receipt.metadata["unsupported_items"] == 2
     merge_fn.assert_called_once_with([item.artifacts[ArtifactKind.KNOWLEDGE]], up_name="Creator", up_uid=0)
-

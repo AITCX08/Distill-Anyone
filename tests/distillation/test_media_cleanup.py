@@ -29,4 +29,3 @@ def test_valid_reopened_transcript_allows_cleanup(tmp_path):
 
     assert safe_cleanup_media(media, transcript_path=transcript) is True
     assert not media.exists()
-

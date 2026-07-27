@@ -51,4 +51,3 @@ def test_active_slowest_is_distinct_from_total_eta():
 
     assert estimate.seconds == 10
     assert estimate.provisional is False
-

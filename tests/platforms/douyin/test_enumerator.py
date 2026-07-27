@@ -144,4 +144,3 @@ def test_map_aweme_preserves_video_and_gallery_shapes():
     assert [asset.kind for asset in gallery.assets] == ["image", "image"]
     assert gallery.canonical_url.endswith("/note/2")
     assert gallery.raw_metadata["author"]["nickname"] == "Creator"
-

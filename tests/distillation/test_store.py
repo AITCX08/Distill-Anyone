@@ -22,7 +22,6 @@ def test_atomic_json_fsyncs_then_replaces(tmp_path, monkeypatch):
     assert fsync.call_count >= 1
     assert not list(tmp_path.glob("*.tmp"))
 
-
 def test_validation_failure_keeps_previous_file(tmp_path):
     target = tmp_path / "artifact.bin"
     target.write_bytes(b"previous")

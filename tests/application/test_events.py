@@ -25,4 +25,3 @@ def test_subscription_receives_events_and_can_close():
     assert subscription.get(timeout=0.1) == expected
     subscription.close()
     assert subscription.closed is True
-

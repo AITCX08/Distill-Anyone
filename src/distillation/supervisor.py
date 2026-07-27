@@ -39,4 +39,3 @@ class WorkerSupervisor:
                         self.restart_counts[worker_name],
                     ) from exc
                 self.restart_counts[worker_name] += 1
-

@@ -60,4 +60,3 @@ def test_external_headful_login_clears_stale_marker(tmp_path):
     assert calls[0]["headless"] is False
     assert not session.stale_flag.exists()
     assert (session.profile_dir / ".profile-initialized").exists()
-

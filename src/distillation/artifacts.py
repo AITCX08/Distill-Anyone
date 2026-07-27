@@ -53,4 +53,3 @@ def verify_artifact(record: ArtifactRecord) -> bool:
         return sha256_file(path) == record.sha256
     except OSError:
         return False
-

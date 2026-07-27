@@ -79,4 +79,3 @@ class RagTarget:
     def finalize(self, context: CorpusOutputContext) -> None:
         del context
         return None
-

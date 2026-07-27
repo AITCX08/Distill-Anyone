@@ -92,4 +92,3 @@ class EtaEstimator:
         if not item_seconds:
             return None
         return EtaEstimate(max(item_seconds), provisional=False)
-
