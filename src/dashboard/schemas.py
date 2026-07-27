@@ -56,6 +56,7 @@ class JobResponse(BaseModel):
 class ItemResponse(BaseModel):
     source_id: str
     processing_status: str
+    retryable: bool
     stage_progress: float
     overall_progress: float
     last_error: str | None

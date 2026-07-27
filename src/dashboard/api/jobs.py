@@ -13,6 +13,7 @@ from src.dashboard.schemas import (
     RevisionInput,
 )
 from src.dashboard.security import require_mutation_security
+from src.distillation.state import ProcessingStatus
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
 
@@ -70,6 +71,7 @@ def list_items(job_id: str, request: Request):
         ItemResponse(
             source_id=item.source_id,
             processing_status=item.processing_status.value,
+            retryable=item.processing_status in {ProcessingStatus.FAILED, ProcessingStatus.RETRY_WAIT},
             stage_progress=item.stage_progress,
             overall_progress=item.overall_progress,
             last_error=item.last_error,

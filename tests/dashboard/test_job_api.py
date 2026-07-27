@@ -1,9 +1,12 @@
+from dataclasses import replace
+
 from fastapi.testclient import TestClient
 
 from src.application.commands import CreateJobRequest, PreviewResult
 from src.application.queries import JobRepository
 from src.application.service import DistillationService
 from src.dashboard.app import create_dashboard_app
+from src.distillation.state import ItemState, ProcessingStatus
 
 
 def make_job_client(tmp_path):
@@ -70,3 +73,30 @@ def test_domain_errors_use_stable_codes_without_raw_exception_text(tmp_path):
 
     assert response.status_code == 404
     assert response.json() == {"error": {"code": "job_not_found", "retryable": False}}
+
+
+def test_item_listing_marks_only_server_retryable_items(tmp_path):
+    client, service = make_job_client(tmp_path)
+    created = service.create(
+        CreateJobRequest(
+            target="https://space.bilibili.com/1", preview_fingerprint="preview-1", job_id="job-1"
+        )
+    )
+    store = service.repository.store(created.job_id)
+    state = store.load()
+    store.save(
+        replace(
+            state,
+            items={
+                "retryable": ItemState(source_id="retryable", processing_status=ProcessingStatus.FAILED),
+                "completed": ItemState(source_id="completed", processing_status=ProcessingStatus.COMPLETED),
+            },
+        ),
+        expected_revision=state.revision,
+    )
+
+    response = client.get("/api/v1/jobs/job-1/items")
+    items = {item["source_id"]: item for item in response.json()}
+
+    assert items["retryable"]["retryable"] is True
+    assert items["completed"]["retryable"] is False
