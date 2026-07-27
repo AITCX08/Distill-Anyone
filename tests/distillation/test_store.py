@@ -30,4 +30,3 @@ def test_validation_failure_keeps_previous_file(tmp_path):
 
     assert target.read_bytes() == b"previous"
     assert not list(tmp_path.glob("*.tmp"))
-
