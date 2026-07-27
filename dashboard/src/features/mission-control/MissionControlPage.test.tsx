@@ -71,4 +71,13 @@ describe("MissionControlPage", () => {
 
     expect(within(view.container).getByRole("group", { name: "Work A · transcribing" })).toBe(initialRow);
   });
+
+  it("uses an indeterminate transfer indicator when the server total is unknown", () => {
+    const view = render(<MissionControlPage snapshot={{
+      ...snapshot,
+      active_items: [{ ...snapshot.active_items[0], total_bytes: null, stage_progress: null }],
+    }} />);
+
+    expect(within(view.container).getByRole("progressbar", { name: "Work A transfer progress" })).toBeVisible();
+  });
 });

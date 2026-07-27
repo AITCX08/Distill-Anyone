@@ -35,6 +35,7 @@ export function ActiveItemRow({ item }: { item: ActiveItem }) {
       {item.total_bytes === null
         ? <Text>Unknown total · {formatBytes(item.completed_bytes)} · {formatBytes(item.bytes_per_second)}/s</Text>
         : <Text>{formatBytes(item.completed_bytes)} / {formatBytes(item.total_bytes)}</Text>}
+      {item.total_bytes === null && <ProgressBar aria-label={`${item.title || item.source_id} transfer progress`} />}
       <Text className="metric">{formatBytes(item.bytes_per_second)}/s</Text>
       <Text>Transfer ETA {item.download_eta_seconds === null ? "unknown" : formatDuration(item.download_eta_seconds)}</Text>
       {item.stage === "transcribing" && (
