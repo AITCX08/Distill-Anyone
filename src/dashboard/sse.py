@@ -30,7 +30,7 @@ def serialize_sse(event: ApplicationEvent) -> str:
     payload = {
         "schema_version": 1,
         "timestamp": safe.timestamp.isoformat(),
-        "payload": dict(safe.payload),
+        "payload": redact_value(safe.payload),
     }
     event_name = _PUBLIC_EVENT_NAMES.get(safe.event_type, safe.event_type)
     return f"id: {safe.event_id}\nevent: {event_name}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"

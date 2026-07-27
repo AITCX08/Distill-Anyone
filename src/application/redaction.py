@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
+from dataclasses import asdict, is_dataclass
 from typing import Any
 
 _SENSITIVE_KEYS = {"cookie", "cookies", "authorization", "api_key", "token", "secret", "profile", "path"}
@@ -21,6 +22,8 @@ def redact_value(value: Any, *, key: str = "") -> Any:
 
     if key.lower() in _SENSITIVE_KEYS:
         return "[REDACTED]"
+    if is_dataclass(value) and not isinstance(value, type):
+        return redact_value(asdict(value), key=key)
     if isinstance(value, Mapping):
         return {str(name): redact_value(item, key=str(name)) for name, item in value.items()}
     if isinstance(value, (tuple, list)):
