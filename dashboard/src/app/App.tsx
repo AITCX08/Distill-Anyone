@@ -1,3 +1,15 @@
-import { Card, Text } from "@fluentui/react-components";
+import { MissionControlPage } from "../features/mission-control/MissionControlPage";
+import { useMissionControl } from "../features/mission-control/useMissionControl";
 import { AppShell } from "./AppShell";
-export function App(){return <AppShell><Card id="mission"><Text as="p">等待本地引擎推送任务快照。</Text></Card></AppShell>}
+
+export function App() {
+  const snapshot = useMissionControl();
+
+  return (
+    <AppShell>
+      {snapshot
+        ? <MissionControlPage snapshot={snapshot} />
+        : <section id="mission" aria-label="Mission Control"><p>Waiting for server snapshot...</p></section>}
+    </AppShell>
+  );
+}
