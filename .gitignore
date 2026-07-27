@@ -61,3 +61,6 @@ data/media/
 input/
 .local-reference/
 .local-artifacts/
+
+# Dashboard development dependencies are reproducible from package-lock.json.
+dashboard/node_modules/
