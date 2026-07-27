@@ -102,7 +102,10 @@ def test_markdown_to_html_renders_nested_list_and_checkbox():
 
 
 def test_render_pdf_creates_nonempty_file(tmp_path):
-    pytest.importorskip("weasyprint")
+    try:
+        __import__("weasyprint")
+    except (ImportError, OSError) as exc:
+        pytest.skip(f"WeasyPrint native renderer is unavailable: {exc}")
     from src.meeting.renderer import render_pdf
     md = (
         "# 智能纪要：测试 2026年6月2日\n\n> 会议主题：测试\n>\n"
