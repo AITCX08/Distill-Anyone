@@ -269,13 +269,16 @@ def download_audio_with_progress(
         deadline = started_at + _DOWNLOAD_TIMEOUT_SECONDS
         last_completed = 0
         last_update_at = started_at
-        stdout_lines: Queue[str | None] = Queue()
+        stdout_lines: Queue[tuple[str, float] | None] = Queue()
 
         def read_stdout() -> None:
             try:
                 if process.stdout is not None:
                     for line in iter(process.stdout.readline, ""):
-                        stdout_lines.put(line)
+                        # Timestamp at the producer boundary. The consumer can
+                        # drain several already-buffered lines in one scheduler
+                        # slice, so its own clock is not a transfer interval.
+                        stdout_lines.put((line, monotonic()))
             finally:
                 stdout_lines.put(None)
 
@@ -286,17 +289,17 @@ def download_audio_with_progress(
             if remaining <= 0:
                 raise subprocess.TimeoutExpired(cmd, _DOWNLOAD_TIMEOUT_SECONDS)
             try:
-                line = stdout_lines.get(timeout=remaining)
+                item = stdout_lines.get(timeout=remaining)
             except Empty as error:
                 raise subprocess.TimeoutExpired(cmd, _DOWNLOAD_TIMEOUT_SECONDS) from error
-            if line is None:
+            if item is None:
                 break
+            line, received_at = item
             update = _parse_progress_line(line)
             if update is None:
                 continue
             downloaded, total, reported_speed = update
-            now = monotonic()
-            elapsed = now - last_update_at
+            elapsed = received_at - last_update_at
             if reported_speed is not None and reported_speed > 0:
                 speed = reported_speed
             elif downloaded > last_completed and elapsed > 0:
@@ -304,7 +307,7 @@ def download_audio_with_progress(
             else:
                 speed = None
             last_completed = downloaded
-            last_update_at = now
+            last_update_at = received_at
             if speed is not None and speed > 0:
                 progress_callback(downloaded, total, speed)
 
