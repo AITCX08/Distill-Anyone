@@ -1,4 +1,5 @@
 import { Card, ProgressBar, Text } from "@fluentui/react-components";
+import { memo } from "react";
 
 export type ActiveItem = {
   source_id: string;
@@ -27,7 +28,7 @@ function formatDuration(value: number): string {
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export function ActiveItemRow({ item }: { item: ActiveItem }) {
+export const ActiveItemRow = memo(function ActiveItemRow({ item }: { item: ActiveItem }) {
   return (
     <Card aria-label={`${item.title || item.source_id} · ${item.stage}`}>
       <Text as="h3">#{item.row_id} {item.title || item.source_id}</Text>
@@ -48,4 +49,4 @@ export function ActiveItemRow({ item }: { item: ActiveItem }) {
         : <ProgressBar value={item.stage_progress} aria-label={`${item.title || item.source_id} stage progress`} />}
     </Card>
   );
-}
+});
