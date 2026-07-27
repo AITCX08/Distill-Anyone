@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import hashlib
+import os
+import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
+
+from src.dashboard.security import require_mutation_security
 
 router = APIRouter(prefix="/api/v1/jobs/{job_id}/artifacts", tags=["artifacts"])
 _TEXT_SUFFIXES = {".md", ".txt", ".json"}
@@ -60,6 +65,25 @@ def _summary(value: _Artifact) -> ArtifactSummary:
     )
 
 
+def _allowlisted_artifact(request: Request, job_id: str, artifact_id: str) -> _Artifact:
+    if artifact_id in {".", ".."} or "/" in artifact_id or "\\" in artifact_id:
+        raise HTTPException(status_code=403, detail="artifact path rejected")
+    artifact = _artifacts(request, job_id).get(artifact_id)
+    if artifact is None:
+        raise HTTPException(status_code=403, detail="artifact is not allowlisted")
+    return artifact
+
+
+def reveal_directory(directory: Path) -> None:
+    """Ask the local desktop to show a previously allowlisted output folder."""
+
+    if sys.platform == "win32":
+        os.startfile(str(directory))
+        return
+    command = ["open", str(directory)] if sys.platform == "darwin" else ["xdg-open", str(directory)]
+    subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 @router.get("", response_model=tuple[ArtifactSummary, ...])
 def list_artifacts(job_id: str, request: Request):
     return tuple(_summary(value) for value in _artifacts(request, job_id).values())
@@ -67,11 +91,7 @@ def list_artifacts(job_id: str, request: Request):
 
 @router.get("/{artifact_id}", response_model=ArtifactContent)
 def read_artifact(job_id: str, artifact_id: str, request: Request):
-    if artifact_id in {".", ".."} or "/" in artifact_id or "\\" in artifact_id:
-        raise HTTPException(status_code=403, detail="artifact path rejected")
-    artifact = _artifacts(request, job_id).get(artifact_id)
-    if artifact is None:
-        raise HTTPException(status_code=403, detail="artifact is not allowlisted")
+    artifact = _allowlisted_artifact(request, job_id, artifact_id)
     if artifact.path.stat().st_size > _MAX_TEXT_BYTES:
         raise HTTPException(status_code=413, detail="artifact is too large to preview")
     try:
@@ -79,3 +99,17 @@ def read_artifact(job_id: str, artifact_id: str, request: Request):
     except UnicodeDecodeError as error:
         raise HTTPException(status_code=415, detail="artifact is not UTF-8 text") from error
     return ArtifactContent(**_summary(artifact).model_dump(), content=content)
+
+
+@router.post("/{artifact_id}/reveal", status_code=204, dependencies=[Depends(require_mutation_security)])
+def reveal_artifact(job_id: str, artifact_id: str, request: Request) -> Response:
+    artifact = _allowlisted_artifact(request, job_id, artifact_id)
+    root = request.app.state.service.repository.root.resolve()
+    directory = artifact.path.parent.resolve()
+    if not directory.is_relative_to(root):
+        raise HTTPException(status_code=403, detail="artifact path rejected")
+    try:
+        request.app.state.reveal_directory(directory)
+    except OSError as error:
+        raise HTTPException(status_code=409, detail="artifact reveal unavailable") from error
+    return Response(status_code=204)

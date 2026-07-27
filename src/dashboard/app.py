@@ -17,7 +17,7 @@ from src.application.errors import (
     PreviewChangedError,
 )
 from src.dashboard.api.health import router as health_router
-from src.dashboard.api.artifacts import router as artifacts_router
+from src.dashboard.api.artifacts import reveal_directory, router as artifacts_router
 from src.dashboard.api.jobs import router as jobs_router
 from src.dashboard.api.platforms import router as platforms_router
 from src.dashboard.api.events import router as events_router
@@ -44,6 +44,7 @@ def create_dashboard_app(
     app.state.static_dir = static_dir.resolve()
     app.state.static_compatible = True
     app.state.local_session = new_local_session()
+    app.state.reveal_directory = reveal_directory
     app.include_router(health_router)
     app.include_router(jobs_router)
     app.include_router(platforms_router)
