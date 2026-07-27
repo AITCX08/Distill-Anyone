@@ -20,6 +20,7 @@ from src.dashboard.api.health import router as health_router
 from src.dashboard.api.artifacts import router as artifacts_router
 from src.dashboard.api.jobs import router as jobs_router
 from src.dashboard.api.platforms import router as platforms_router
+from src.dashboard.api.events import router as events_router
 from src.dashboard.security import CSRF_COOKIE, SESSION_COOKIE, new_local_session
 from src.distillation.state import RevisionConflict
 
@@ -47,6 +48,7 @@ def create_dashboard_app(
     app.include_router(jobs_router)
     app.include_router(platforms_router)
     app.include_router(artifacts_router)
+    app.include_router(events_router)
 
     @app.exception_handler(RevisionConflict)
     async def revision_conflict(_: Request, error: RevisionConflict) -> JSONResponse:
