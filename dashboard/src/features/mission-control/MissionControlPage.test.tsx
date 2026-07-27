@@ -43,4 +43,19 @@ describe("MissionControlPage", () => {
 
     expect(within(view.container).getByText("Transfer ETA 00:01")).toBeVisible();
   });
+
+  it("renders the server supplied ASR duration and RTF", () => {
+    const view = render(<MissionControlPage snapshot={{
+      ...snapshot,
+      active_items: [{
+        ...snapshot.active_items[0],
+        stage: "transcribing",
+        audio_completed_seconds: 15,
+        audio_total_seconds: 30,
+        asr_rtf: 0.75,
+      }],
+    }} />);
+
+    expect(within(view.container).getByText("ASR 00:15 / 00:30 · RTF 0.75x")).toBeVisible();
+  });
 });

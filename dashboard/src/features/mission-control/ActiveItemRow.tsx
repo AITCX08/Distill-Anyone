@@ -37,6 +37,11 @@ export function ActiveItemRow({ item }: { item: ActiveItem }) {
         : <Text>{formatBytes(item.completed_bytes)} / {formatBytes(item.total_bytes)}</Text>}
       <Text className="metric">{formatBytes(item.bytes_per_second)}/s</Text>
       <Text>Transfer ETA {item.download_eta_seconds === null ? "unknown" : formatDuration(item.download_eta_seconds)}</Text>
+      {item.stage === "transcribing" && (
+        <Text>
+          ASR {formatDuration(item.audio_completed_seconds)} / {item.audio_total_seconds === null ? "unknown" : formatDuration(item.audio_total_seconds)} · RTF {item.asr_rtf === null ? "unknown" : `${item.asr_rtf.toFixed(2)}x`}
+        </Text>
+      )}
       {item.stage_progress === null
         ? <Text>Stage progress estimating</Text>
         : <ProgressBar value={item.stage_progress} aria-label={`${item.title || item.source_id} stage progress`} />}
