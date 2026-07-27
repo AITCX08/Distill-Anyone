@@ -9,6 +9,7 @@ from typing import Any, Callable
 from src.application.commands import (
     CreateJobRequest,
     JobCommands,
+    JobStatus,
     JobView,
     PreviewRequest,
     PreviewResult,
@@ -52,19 +53,48 @@ class DistillationService:
         if self.source_runner is not None:
             from src.application.source_runner import SourceCreatorRequest
 
-            source_request = SourceCreatorRequest(
-                target=request.target,
-                platform=request.platform,
-                emit=request.outputs,
-                rag_chunks=request.rag_chunks,
+            self._start_source(
+                created.job_id,
+                SourceCreatorRequest(
+                    target=request.target,
+                    platform=request.platform,
+                    emit=request.outputs,
+                    rag_chunks=request.rag_chunks,
+                ),
             )
-            Thread(
-                target=self._run_created_source,
-                args=(created.job_id, source_request),
-                daemon=True,
-                name=f"distill-source-{created.job_id[:12]}",
-            ).start()
         return created
+
+    def _start_source(self, job_id: str, request: Any) -> None:
+        Thread(
+            target=self._run_created_source,
+            args=(job_id, request),
+            daemon=True,
+            name=f"distill-source-{job_id[:12]}",
+        ).start()
+
+    def _source_request_from_state(self, job_id: str, *, retry_failed: bool = False):
+        from src.application.source_runner import SourceCreatorRequest
+
+        state = self.queries.get(job_id)
+        values = state.request
+        target = str(values.get("target") or state.creator.get("canonical_url") or "")
+        if not target:
+            raise RuntimeError("The job cannot be resumed because its source target is unavailable")
+        return SourceCreatorRequest(
+            target=target,
+            platform=str(values.get("platform") or state.creator.get("platform") or "auto"),
+            emit=tuple(values.get("outputs") or ("skill",)),
+            rag_chunks=bool(values.get("rag_chunks", False)),
+            download_workers=int(values.get("download_workers", 3)),
+            asr_workers=int(values.get("asr_workers", 1)),
+            llm_workers=int(values.get("llm_workers", 3)),
+            max_active_items=int(values.get("max_active_items", 3)),
+            retry_limit=int(values.get("retry_limit", 2)),
+            resume=True,
+            retry_failed=retry_failed,
+            keep_media=bool(values.get("keep_media", False)),
+            llm_provider=values.get("llm_provider"),
+        )
 
     def _run_created_source(self, job_id: str, request: Any) -> None:
         try:
@@ -88,16 +118,29 @@ class DistillationService:
         return tuple(JobView.from_state(state) for state in self.queries.list())
 
     def pause(self, job_id: str, expected_revision: int) -> JobView:
-        return self.commands.pause(job_id, expected_revision)
+        paused = self.commands.pause(job_id, expected_revision)
+        request_pause = getattr(self.source_runner, "request_pause", None)
+        if callable(request_pause):
+            request_pause(job_id)
+        return paused
 
     def resume(self, job_id: str, expected_revision: int) -> JobView:
-        return self.commands.resume(job_id, expected_revision)
+        resumed = self.commands.resume(job_id, expected_revision)
+        if self.source_runner is not None:
+            self._start_source(job_id, self._source_request_from_state(job_id))
+        return resumed
 
     def retry_failed(self, job_id: str, expected_revision: int) -> JobView:
-        return self.commands.retry_failed(job_id, expected_revision)
+        retried = self.commands.retry_failed(job_id, expected_revision)
+        if self.source_runner is not None:
+            self._start_source(job_id, self._source_request_from_state(job_id, retry_failed=True))
+        return retried
 
     def retry_item(self, job_id: str, source_id: str, expected_revision: int) -> JobView:
-        return self.commands.retry_item(job_id, source_id, expected_revision)
+        retried = self.commands.retry_item(job_id, source_id, expected_revision)
+        if self.source_runner is not None:
+            self._start_source(job_id, self._source_request_from_state(job_id, retry_failed=True))
+        return retried
 
     def list_platforms(self):
         if self.platform_manager is None:

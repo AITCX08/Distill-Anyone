@@ -231,3 +231,97 @@ def test_valid_transcript_resume_skips_download_and_asr(tmp_path):
     assert probes.maximum["download"] == 0
     assert probes.maximum["asr"] == 0
     assert probes.maximum["llm"] == 1
+
+
+def test_engine_preserves_dashboard_request_fields_when_initializing_state(tmp_path):
+    probes = StageProbes()
+    store = JobStateStore(tmp_path / "job_state.json")
+    store.save(
+        JobState(
+            job_id="job-1",
+            status="queued",
+            request={
+                "target": "https://fixture.invalid/creator",
+                "platform": "douyin",
+                "outputs": ("episodes", "skill"),
+                "rag_chunks": True,
+            },
+        )
+    )
+    request = DistillationRequest(
+        job_id="job-1",
+        creator=make_creator(),
+        items=make_items(1),
+        output_root=tmp_path / "output",
+        cleanup_media=False,
+    )
+    engine = DistillationEngine(
+        adapter=FakeAdapter(probes, tmp_path),
+        processor_factory=lambda: FakeProcessor(probes),
+        state_store=store,
+    )
+
+    asyncio.run(engine.run(request))
+
+    saved = store.load()
+    assert saved.request["target"] == "https://fixture.invalid/creator"
+    assert saved.request["outputs"] == ["episodes", "skill"]
+    assert saved.request["rag_chunks"] is True
+
+
+def test_item_update_merges_a_pause_revision_instead_of_failing(tmp_path):
+    probes = StageProbes()
+    item = make_items(1)[0]
+    store = JobStateStore(tmp_path / "job_state.json")
+    initial = store.save(
+        JobState(
+            job_id="job-1",
+            status="running",
+            items={item.source_id: ItemState(source_id=item.source_id)},
+        )
+    )
+    engine = DistillationEngine(
+        adapter=FakeAdapter(probes, tmp_path),
+        processor_factory=lambda: FakeProcessor(probes),
+        state_store=store,
+    )
+    engine.state = initial
+    paused = store.save(
+        JobState(
+            job_id=initial.job_id,
+            status="pause_requested",
+            items=initial.items,
+        ),
+        expected_revision=initial.revision,
+    )
+
+    asyncio.run(engine._update_item(item.source_id, processing_status=ProcessingStatus.DOWNLOADING))
+
+    saved = store.load()
+    assert saved.revision == paused.revision + 1
+    assert saved.status == "pause_requested"
+    assert saved.items[item.source_id].processing_status is ProcessingStatus.DOWNLOADING
+
+
+def test_engine_honors_a_pause_request_written_before_initialization(tmp_path):
+    probes = StageProbes()
+    store = JobStateStore(tmp_path / "job_state.json")
+    store.save(JobState(job_id="job-1", status="pause_requested"))
+    request = DistillationRequest(
+        job_id="job-1",
+        creator=make_creator(),
+        items=make_items(1),
+        output_root=tmp_path / "output",
+        cleanup_media=False,
+    )
+    engine = DistillationEngine(
+        adapter=FakeAdapter(probes, tmp_path),
+        processor_factory=lambda: FakeProcessor(probes),
+        state_store=store,
+    )
+
+    result = asyncio.run(engine.run(request))
+
+    assert result.paused is True
+    assert store.load().status == "paused"
+    assert probes.maximum["download"] == 0

@@ -8,6 +8,7 @@ import json
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
+from threading import Lock
 from typing import Any, Callable
 from urllib.parse import quote
 
@@ -150,6 +151,8 @@ class SourceDistillationRunner:
         self.engine_executor = engine_executor or self._execute_engine
         self.owner = owner
         self._preview_job_ids: dict[str, str] = {}
+        self._active_engines: dict[str, Any] = {}
+        self._active_engines_lock = Lock()
 
     @staticmethod
     def _execute_engine(engine, request, events: EventHub):
@@ -241,6 +244,16 @@ class SourceDistillationRunner:
             return self._preview_job_ids[preview.fingerprint]
         except KeyError as exc:
             raise RuntimeError("The requested preview is no longer available") from exc
+
+    def request_pause(self, job_id: str) -> bool:
+        """Ask an active local engine to stop after its current safe unit of work."""
+
+        with self._active_engines_lock:
+            engine = self._active_engines.get(job_id)
+        if engine is None:
+            return False
+        engine.request_pause()
+        return True
 
     @staticmethod
     def _checkpoint(state: JobState | None) -> EnumerationCheckpoint | None:
@@ -432,4 +445,10 @@ class SourceDistillationRunner:
             resume=request.resume,
             retry_failed=request.retry_failed,
         )
-        return self.engine_executor(engine, engine_request, context.events)
+        with self._active_engines_lock:
+            self._active_engines[context.job_id] = engine
+        try:
+            return self.engine_executor(engine, engine_request, context.events)
+        finally:
+            with self._active_engines_lock:
+                self._active_engines.pop(context.job_id, None)

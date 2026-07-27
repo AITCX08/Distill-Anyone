@@ -199,6 +199,19 @@ def test_preview_enumerates_without_writing_and_returns_stable_job_id(tmp_path):
     assert not list((tmp_path / "data").rglob("job_state.json"))
 
 
+def test_request_pause_forwards_only_to_the_matching_active_engine(tmp_path):
+    runner = SourceDistillationRunner(
+        config=make_config(tmp_path),
+        platform_manager=SimpleNamespace(),
+    )
+    engine = SimpleNamespace(request_pause=Mock())
+    runner._active_engines["job-1"] = engine
+
+    assert runner.request_pause("job-1") is True
+    assert runner.request_pause("other-job") is False
+    engine.request_pause.assert_called_once_with()
+
+
 def test_service_delegates_source_execution(tmp_path):
     from src.application.queries import JobRepository
     from src.application.service import DistillationService

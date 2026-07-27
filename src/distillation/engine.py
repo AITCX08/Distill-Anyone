@@ -27,6 +27,7 @@ from src.distillation.state import (
     ItemState,
     JobState,
     ProcessingStatus,
+    RevisionConflict,
     recover_item,
     utc_now_iso,
 )
@@ -200,6 +201,7 @@ class DistillationEngine:
 
     async def _initialize_state(self, request: DistillationRequest) -> None:
         existing = self.state_store.load() if self.state_store.path.exists() else None
+        pause_requested = existing is not None and existing.status == "pause_requested"
         items = dict(existing.items) if existing is not None else {}
         for item in request.items:
             prior = items.get(item.source_id)
@@ -219,8 +221,9 @@ class DistillationEngine:
         state = replace(
             base,
             job_id=request.job_id,
-            status="running",
+            status="pause_requested" if pause_requested else "running",
             request={
+                **dict(base.request),
                 "download_workers": request.download_workers,
                 "asr_workers": request.asr_workers,
                 "llm_workers": request.llm_workers,
@@ -233,6 +236,7 @@ class DistillationEngine:
             state,
             expected_revision=existing.revision if existing is not None else None,
         )
+        self._pause_requested = pause_requested
 
     async def _update_item(self, source_id: str, **changes) -> ItemState:
         async with self._state_lock:
@@ -240,10 +244,21 @@ class DistillationEngine:
             updated_item = replace(item, updated_at=utc_now_iso(), **changes)
             items = dict(self.state.items)
             items[source_id] = updated_item
-            self.state = self.state_store.save(
-                replace(self.state, items=items),
-                expected_revision=self.state.revision,
-            )
+            try:
+                self.state = self.state_store.save(
+                    replace(self.state, items=items),
+                    expected_revision=self.state.revision,
+                )
+            except RevisionConflict:
+                current = self.state_store.load()
+                current_item = current.items[source_id]
+                updated_item = replace(current_item, updated_at=utc_now_iso(), **changes)
+                current_items = dict(current.items)
+                current_items[source_id] = updated_item
+                self.state = self.state_store.save(
+                    replace(current, items=current_items),
+                    expected_revision=current.revision,
+                )
         self.events.publish(
             "job.item.updated",
             {

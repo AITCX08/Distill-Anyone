@@ -179,3 +179,52 @@ def test_create_starts_the_configured_source_runner_from_a_verified_preview(tmp_
     assert source_requests[0].platform == "douyin"
     assert source_requests[0].emit == ("episodes", "skill")
     assert source_requests[0].rag_chunks is True
+
+
+def test_pause_notifies_an_active_source_runner(tmp_path):
+    repository = JobRepository(tmp_path)
+    store = repository.register("job-1", platform="douyin", creator_id="creator-1")
+    saved = store.save(JobState(job_id="job-1", status="running"))
+    paused = []
+    runner = type("Runner", (), {"request_pause": lambda self, job_id: paused.append(job_id)})()
+    service = DistillationService(repository=repository, source_runner=runner)
+
+    result = service.pause("job-1", saved.revision)
+
+    assert result.status is JobStatus.PAUSE_REQUESTED
+    assert paused == ["job-1"]
+
+
+def test_resume_restarts_source_runner_from_persisted_request(tmp_path):
+    repository = JobRepository(tmp_path)
+    store = repository.register("job-1", platform="douyin", creator_id="creator-1")
+    saved = store.save(
+        JobState(
+            job_id="job-1",
+            status="paused",
+            request={
+                "target": "https://fixture.invalid/creator",
+                "platform": "douyin",
+                "outputs": ("episodes", "skill"),
+                "rag_chunks": True,
+            },
+            creator={"canonical_url": "https://fixture.invalid/creator"},
+        )
+    )
+    completed = Event()
+    source_requests = []
+
+    class Runner:
+        def run(self, request):
+            source_requests.append(request)
+            completed.set()
+
+    service = DistillationService(repository=repository, source_runner=Runner())
+
+    resumed = service.resume("job-1", saved.revision)
+
+    assert resumed.status is JobStatus.RUNNING
+    assert completed.wait(timeout=1)
+    assert source_requests[0].target == "https://fixture.invalid/creator"
+    assert source_requests[0].emit == ("episodes", "skill")
+    assert source_requests[0].rag_chunks is True
