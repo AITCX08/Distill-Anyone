@@ -2,6 +2,7 @@ import { MissionControlPage } from "../features/mission-control/MissionControlPa
 import { useMissionControl } from "../features/mission-control/useMissionControl";
 import { CreateJobPage } from "../features/create-job/CreateJobPage";
 import { PlatformsPage } from "../features/platforms/PlatformsPage";
+import { JobHistoryPage } from "../features/job-history/JobHistoryPage";
 import { AppShell } from "./AppShell";
 
 export function App() {
@@ -19,6 +20,7 @@ export function App() {
         : <section id="mission" aria-label="Mission Control"><p>Waiting for server snapshot...</p></section>}
       <CreateJobPage />
       <PlatformsPage />
+      <JobHistoryPage />
     </AppShell>
   );
 }
