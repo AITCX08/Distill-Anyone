@@ -33,6 +33,7 @@ from src.application import (
     SourceDistillationRunner,
 )
 from src.config import LLM_PROVIDERS
+from src.dashboard import run_dashboard
 
 console = Console()
 
@@ -187,6 +188,24 @@ def build_source_event_hub(config) -> EventHub:
     return EventHub(event_log=SanitizedEventLog(config.data_dir / "dashboard-events.jsonl"))
 
 
+def build_dashboard_service(config) -> DistillationService:
+    """Compose the loopback Dashboard with the same local application boundary."""
+
+    events = build_source_event_hub(config)
+    runner = SourceDistillationRunner(
+        config=config,
+        platform_manager=build_platform_manager(config),
+        events=events,
+        engine_executor=_run_engine_with_live,
+        owner="dashboard",
+    )
+    return DistillationService(
+        repository=JobRepository(config.data_dir / "jobs"),
+        events=events,
+        source_runner=runner,
+    )
+
+
 def execute_source_request(request: SourceCreatorRequest) -> int:
     """Execute through the same application service consumed by the Dashboard."""
     from src.config import load_config
@@ -224,6 +243,17 @@ def execute_source_request(request: SourceCreatorRequest) -> int:
             f"[yellow]不支持 {result.unsupported}[/yellow]"
         )
     return result.exit_code
+
+
+@cli.command("dashboard")
+@click.option("--port", type=click.IntRange(1, 65535), default=8765, show_default=True)
+@click.option("--open/--no-open", "open_browser", default=True, show_default=True)
+def dashboard(port: int, open_browser: bool):
+    """Run the Dashboard on the local loopback interface only."""
+
+    from src.config import load_config
+
+    run_dashboard(build_dashboard_service(load_config()), port=port, open_browser=open_browser)
 
 
 @cli.group()
