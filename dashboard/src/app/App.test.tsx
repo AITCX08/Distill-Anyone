@@ -67,4 +67,28 @@ describe("App", () => {
 
     expect(screen.getByText("Waiting for server snapshot...")).toBeVisible();
   });
+
+  it("shows controls only when the reconnect snapshot includes the matching server job state", () => {
+    render(<App />);
+
+    act(() => stream.callback?.({
+      eventType: "snapshot",
+      data: {
+        jobs: [{ job_id: "job-1", status: "running", revision: 2 }],
+        progress_snapshots: [{
+          job_id: "job-1",
+          revision: 2,
+          overall_progress: 0.5,
+          coverage: 0.25,
+          counts: { total: 4, active: 1, completed: 1, failed: 0, retry: 0, unsupported: 0, queued: 2, enumerated: 4 },
+          eta_total_seconds: 60,
+          eta_active_slowest_seconds: 30,
+          provisional_eta: false,
+          active_items: [],
+        }],
+      },
+    }));
+
+    expect(screen.getByRole("button", { name: "Pause job" })).toBeVisible();
+  });
 });

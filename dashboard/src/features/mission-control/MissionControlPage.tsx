@@ -1,5 +1,6 @@
 import { Card, ProgressBar, Text } from "@fluentui/react-components";
 import { ActiveItemRow, type ActiveItem } from "./ActiveItemRow";
+import { MissionControls, type MissionJob } from "./MissionControls";
 
 export type ProgressSnapshot = {
   job_id: string;
@@ -28,7 +29,15 @@ function formatDuration(value: number | null): string {
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export function MissionControlPage({ snapshot }: { snapshot: ProgressSnapshot }) {
+export function MissionControlPage({
+  snapshot,
+  job = null,
+  onJobUpdated = () => undefined,
+}: {
+  snapshot: ProgressSnapshot;
+  job?: MissionJob | null;
+  onJobUpdated?: (job: MissionJob) => void;
+}) {
   return (
     <section id="mission" aria-label="Mission Control">
       <Card>
@@ -39,6 +48,11 @@ export function MissionControlPage({ snapshot }: { snapshot: ProgressSnapshot })
         <Text className="metric">
           Overall ETA {formatDuration(snapshot.eta_total_seconds)} · Slowest active ETA {formatDuration(snapshot.eta_active_slowest_seconds)}
         </Text>
+        {job && <MissionControls
+          job={job}
+          retryableFailures={snapshot.counts.failed > 0 || snapshot.counts.retry > 0}
+          onJobUpdated={onJobUpdated}
+        />}
       </Card>
 
       <div>

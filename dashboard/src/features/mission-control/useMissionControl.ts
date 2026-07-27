@@ -1,9 +1,19 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { subscribeToEvents } from "../../api/events";
 import type { DashboardEvent } from "../../api/schema";
+import type { MissionJob } from "./MissionControls";
 import type { ProgressSnapshot } from "./MissionControlPage";
 
 const countKeys = ["total", "active", "completed", "failed", "retry", "unsupported", "queued", "enumerated"] as const;
+
+export type MissionControlState = {
+  snapshot: ProgressSnapshot;
+  job: MissionJob | null;
+};
+
+export type MissionControlModel = MissionControlState & {
+  updateJob: (job: MissionJob) => void;
+};
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
@@ -52,6 +62,19 @@ function isProgressSnapshot(value: unknown): value is ProgressSnapshot {
     && snapshot.active_items.every(isActiveItem);
 }
 
+function isMissionJob(value: unknown): value is MissionJob {
+  if (typeof value !== "object" || value === null) return false;
+  const job = value as Record<string, unknown>;
+  return typeof job.job_id === "string"
+    && typeof job.status === "string"
+    && isFiniteNumber(job.revision);
+}
+
+function jobFromSnapshot(data: Record<string, unknown>, jobId: string): MissionJob | null {
+  if (!Array.isArray(data.jobs)) return null;
+  return data.jobs.find((job): job is MissionJob => isMissionJob(job) && job.job_id === jobId) ?? null;
+}
+
 function snapshotFromEvent(event: DashboardEvent): ProgressSnapshot | null {
   if (event.eventType === "snapshot") {
     const snapshots = event.data.progress_snapshots;
@@ -65,16 +88,32 @@ function snapshotFromEvent(event: DashboardEvent): ProgressSnapshot | null {
   return isProgressSnapshot(snapshot) ? snapshot : null;
 }
 
-export function useMissionControl(): ProgressSnapshot | null {
-  const [snapshot, setSnapshot] = useState<ProgressSnapshot | null>(null);
+export function useMissionControl(): MissionControlModel | null {
+  const [state, setState] = useState<MissionControlState | null>(null);
 
   useEffect(() => {
     const subscription = subscribeToEvents((event) => {
       const nextSnapshot = snapshotFromEvent(event);
-      if (nextSnapshot) setSnapshot(nextSnapshot);
+      if (nextSnapshot) {
+        setState({
+          snapshot: nextSnapshot,
+          job: event.eventType === "snapshot" ? jobFromSnapshot(event.data, nextSnapshot.job_id) : null,
+        });
+        return;
+      }
+      const payload = event.data.payload;
+      if (event.eventType === "job.updated" && isMissionJob(payload)) {
+        setState((current) => current?.snapshot.job_id === payload.job_id
+          ? { ...current, job: payload }
+          : current);
+      }
     });
     return () => subscription.close();
   }, []);
 
-  return snapshot;
+  const updateJob = useCallback((job: MissionJob) => {
+    setState((current) => current?.snapshot.job_id === job.job_id ? { ...current, job } : current);
+  }, []);
+
+  return state ? { ...state, updateJob } : null;
 }
