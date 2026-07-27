@@ -251,7 +251,8 @@ class TextProcessor:
         Returns:
             清洗后的结构化文档
         """
-        bvid = transcript_data.get("bvid", "")
+        source_id = transcript_data.get("source_id") or transcript_data.get("bvid", "")
+        bvid = transcript_data.get("bvid") or source_id
         title = transcript_data.get("title", "")
         segments = transcript_data.get("segments", [])
 
@@ -274,12 +275,13 @@ class TextProcessor:
         # 构建清洗后的文档
         cleaned_doc = {
             "bvid": bvid,
+            "source_id": source_id,
             "title": title,
             "source": transcript_data.get("source", ""),
             "full_text": full_text,
             "topics": [
                 {
-                    "id": f"{bvid}_topic_{i:03d}",
+                    "id": f"{source_id}_topic_{i:03d}",
                     "title": t.get("title", ""),
                     "content": t.get("content", ""),
                     "tags": t.get("tags", []),
@@ -297,10 +299,12 @@ class TextProcessor:
 def save_cleaned(cleaned_doc: dict, output_dir: Path) -> Path:
     """保存清洗结果为JSON文件。"""
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"{cleaned_doc['bvid']}.json"
+    source_id = cleaned_doc.get("source_id") or cleaned_doc["bvid"]
+    output_path = output_dir / f"{source_id}.json"
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(cleaned_doc, f, ensure_ascii=False, indent=2)
+    from src.distillation.store import atomic_write_json
+
+    atomic_write_json(output_path, cleaned_doc)
 
     return output_path
 

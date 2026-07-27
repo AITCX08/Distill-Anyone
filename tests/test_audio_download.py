@@ -4,7 +4,10 @@ audio_download.py 单元测试
 覆盖：generate_cookies_file 函数
 """
 
+import io
 import sys
+import threading
+import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -12,6 +15,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from src.crawl import audio_download
 from src.crawl.audio_download import generate_cookies_file
 
 
@@ -79,3 +83,140 @@ class TestGenerateCookiesFile:
         cookie_lines = [l for l in lines if not l.startswith("#")]
         for line in cookie_lines:
             assert line.startswith(".bilibili.com")
+
+
+def test_callback_download_reports_ytdlp_transfer_before_completion(tmp_path, monkeypatch):
+    output = tmp_path / "BV1abc.wav"
+    updates = []
+
+    class FakeYtDlp:
+        stdout = io.StringIO("__distill_progress__\t1024\t4096\t512.5\n")
+
+        def wait(self, timeout):
+            assert 0 < timeout <= 300
+            assert updates == [(1024, 4096, 512.5)]
+            output.write_bytes(b"audio")
+            return 0
+
+    monkeypatch.setattr(audio_download.subprocess, "Popen", lambda *args, **kwargs: FakeYtDlp())
+
+    result = audio_download.download_audio_with_progress(
+        "BV1abc",
+        tmp_path,
+        progress_callback=lambda downloaded, total, speed: updates.append(
+            (downloaded, total, speed)
+        ),
+    )
+
+    assert result == output
+
+
+def test_callback_download_times_out_a_silent_stdout_and_kills_process(tmp_path, monkeypatch):
+    release_stdout = threading.Event()
+    completed = threading.Event()
+
+    class SilentStdout:
+        def readline(self):
+            release_stdout.wait()
+            return ""
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            line = self.readline()
+            if not line:
+                raise StopIteration
+            return line
+
+        def close(self):
+            release_stdout.set()
+
+    class FakeYtDlp:
+        def __init__(self):
+            self.stdout = SilentStdout()
+            self.killed = False
+
+        def kill(self):
+            self.killed = True
+            release_stdout.set()
+
+        def wait(self, timeout=None):
+            return 0
+
+    process = FakeYtDlp()
+    monkeypatch.setattr(audio_download, "_DOWNLOAD_TIMEOUT_SECONDS", 0.02, raising=False)
+    monkeypatch.setattr(audio_download.subprocess, "Popen", lambda *args, **kwargs: process)
+
+    def download():
+        try:
+            assert audio_download.download_audio_with_progress(
+                "BV1silent", tmp_path, progress_callback=lambda *_: None
+            ) is None
+        finally:
+            completed.set()
+
+    worker = threading.Thread(target=download)
+    worker.start()
+    try:
+        assert completed.wait(0.25)
+        assert process.killed
+    finally:
+        release_stdout.set()
+        worker.join(timeout=1)
+
+
+def test_callback_download_measures_throughput_when_ytdlp_speed_is_unavailable(tmp_path, monkeypatch):
+    output = tmp_path / "BV1speed.wav"
+    updates = []
+
+    class DelayedProgressStdout:
+        def __init__(self):
+            self.lines = iter(
+                (
+                    "__distill_progress__\t100\tNA\tNA\n",
+                    "__distill_progress__\t300\tNA\tNA\n",
+                )
+            )
+            self.first = True
+
+        def readline(self):
+            try:
+                line = next(self.lines)
+            except StopIteration:
+                return ""
+            if self.first:
+                self.first = False
+            else:
+                time.sleep(0.01)
+            return line
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            line = self.readline()
+            if not line:
+                raise StopIteration
+            return line
+
+    class FakeYtDlp:
+        stdout = DelayedProgressStdout()
+
+        def wait(self, timeout):
+            output.write_bytes(b"audio")
+            return 0
+
+    monkeypatch.setattr(audio_download.subprocess, "Popen", lambda *args, **kwargs: FakeYtDlp())
+
+    result = audio_download.download_audio_with_progress(
+        "BV1speed",
+        tmp_path,
+        progress_callback=lambda downloaded, total, speed: updates.append(
+            (downloaded, total, speed)
+        ),
+    )
+
+    assert result == output
+    assert updates
+    assert all(speed > 0 for _, _, speed in updates)

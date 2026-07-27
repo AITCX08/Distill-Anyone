@@ -91,6 +91,24 @@ Distill-Anyone/
 └── output/                            # 最终产物,.gitignore
 ```
 
+### 1.5 v0.4 跨平台架构
+
+新入口遵循固定分层，CLI 与本地 Dashboard 都不得绕过应用服务直接操作平台或状态文件：
+
+```text
+CLI / Dashboard
+  -> src/application/        命令、查询、revision、events、job lease
+  -> src/platforms/          Bilibili/Douyin Source Adapter 与显式 registry
+  -> src/distillation/       原子状态、artifact、3/1/3 engine、progress、双 ETA
+  -> src/outputs/            episodes / skill / rag 可组合输出目标
+```
+
+跨平台内部主键是 `<platform>_<item_id>`。`bvid` 只作为旧 B 站字段保留兼容；新代码必须优先使用 `source_id`。抖音枚举只信任页面产生的 `/aweme/post/` JSON，按 cursor 原子保存 checkpoint。运行态为 `pending -> enumerated -> downloading -> transcribing -> cleaning -> summarizing -> writing -> completed`，`failed/retry_wait/unsupported` 为旁路状态。
+
+所有状态和正式产物使用同目录临时文件、`flush + fsync`、重新打开校验、`os.replace`。读取损坏的 `job_state.json` 必须抛 `StateCorruptionError`。同一任务执行前必须获取 job lease，同一抖音 profile 也必须排他使用。
+
+默认并发是下载 3、ASR 1、LLM 3，且全局活跃作品不超过 3。FunASR 只能由单一 ASR worker 持有一份模型实例。Rich 与 Dashboard 只消费同一个不可变 `ProgressSnapshot`，前端不得自行重算百分比或 ETA。
+
 > ⚠️ `prompts/*.txt` 目前只是参考文档。**实际 Prompt 模板内嵌在 Python 源文件底部**(`TOPIC_SEGMENT_PROMPT`、`VIDEO_KNOWLEDGE_PROMPT`、`PROFILE_SYNTHESIS_PROMPT`)。修改 Prompt 时改 Python 文件,不要改 `prompts/` 目录。
 
 ---

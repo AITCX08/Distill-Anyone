@@ -15,10 +15,10 @@ def _knowledge_value(knowledge: Any, key: str, default):
 
 
 def _infer_source_type(source_id: str, metadata: dict) -> str:
-    source_type = metadata.get("source_type")
+    source_type = metadata.get("source_type") or metadata.get("item_type")
     if source_type:
         return source_type
-    if source_id.startswith("BV"):
+    if source_id.startswith("BV") or source_id.startswith(("bilibili_", "douyin_")):
         return "video"
     if source_id.startswith("BOOK_") and "_ch" in source_id:
         return "book_chapter"
@@ -59,7 +59,7 @@ def build_chunks(
     overlap: int = 100,
 ) -> dict:
     """按 topic 优先策略构建 RAG 友好知识块。"""
-    source_id = cleaned_doc.get("bvid", "")
+    source_id = cleaned_doc.get("source_id") or cleaned_doc.get("bvid", "")
     metadata = cleaned_doc.get("metadata", {})
     full_text = cleaned_doc.get("full_text", "")
     topics = cleaned_doc.get("topics", []) or [{
@@ -77,6 +77,7 @@ def build_chunks(
         "source_id": source_id,
         "source_type": source_type,
         "source_title": cleaned_doc.get("title", ""),
+        "source_url": metadata.get("source_url"),
         "parent_id": metadata.get("parent_book_id"),
         "chunks": [],
     }

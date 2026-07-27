@@ -275,7 +275,7 @@ description: |
 
 {% for src in sources[:20] %}
 {% if src.source_type == "video" %}
-- [视频] [{{ src.title }}](https://www.bilibili.com/video/{{ src.id }})
+- [视频] {% if src.url %}[{{ src.title }}]({{ src.url }}){% elif src.platform == "bilibili" or src.id.startswith("BV") %}[{{ src.title }}](https://www.bilibili.com/video/{{ src.id }}){% else %}{{ src.title }}{% endif %}
 {% elif src.source_type == "book_chapter" %}
 - [书章节] {{ src.title }}{% if src.parent_id %}（{{ src.parent_id }}）{% endif %}
 {% else %}

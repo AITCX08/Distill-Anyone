@@ -201,9 +201,11 @@ if TYPE_CHECKING:
 console = Console()
 
 
-def _infer_source_type(source_id: str) -> str:
+def _infer_source_type(source_id: str, declared_type: str = "") -> str:
     """根据 source_id 推断来源类型。"""
-    if source_id.startswith("BV"):
+    if declared_type:
+        return declared_type
+    if source_id.startswith("BV") or source_id.startswith(("bilibili_", "douyin_")):
         return "video"
     if source_id.startswith("BOOK_") and "_ch" in source_id:
         return "book_chapter"
@@ -215,19 +217,22 @@ def _build_source_entries(all_knowledge: list["VideoKnowledge"]) -> tuple[list[d
     sources = []
     video_sources = []
     for knowledge in all_knowledge:
-        source_type = _infer_source_type(knowledge.bvid)
+        source_id = knowledge.source_id or knowledge.bvid
+        source_type = _infer_source_type(source_id, knowledge.source_type)
         parent_id = None
-        if source_type == "book_chapter" and "_ch" in knowledge.bvid:
-            parent_id = knowledge.bvid.rsplit("_ch", 1)[0]
+        if source_type == "book_chapter" and "_ch" in source_id:
+            parent_id = source_id.rsplit("_ch", 1)[0]
 
         sources.append({
-            "id": knowledge.bvid,
+            "id": source_id,
             "title": knowledge.title,
             "source_type": source_type,
             "parent_id": parent_id,
+            "platform": knowledge.platform,
+            "url": knowledge.source_url,
         })
         video_sources.append({
-            "bvid": knowledge.bvid,
+            "bvid": knowledge.bvid or source_id,
             "title": knowledge.title,
         })
 
@@ -238,6 +243,10 @@ def _build_source_entries(all_knowledge: list["VideoKnowledge"]) -> tuple[list[d
 class VideoKnowledge:
     """单个视频的知识提取结果"""
     bvid: str = ""
+    source_id: str = ""
+    platform: str = ""
+    source_type: str = ""
+    source_url: str = ""
     title: str = ""
     summary: str = ""
     core_views: list[str] = field(default_factory=list)
@@ -248,6 +257,12 @@ class VideoKnowledge:
     mental_model_hints: list[dict] = field(default_factory=list)
     decision_examples: list[dict] = field(default_factory=list)
     expression_samples: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if not self.source_id:
+            self.source_id = self.bvid
+        if not self.bvid:
+            self.bvid = self.source_id
 
 
 @dataclass
@@ -354,7 +369,9 @@ class KnowledgeExtractor:
         Returns:
             VideoKnowledge 视频知识提取结果
         """
-        bvid = cleaned_doc.get("bvid", "")
+        source_id = cleaned_doc.get("source_id") or cleaned_doc.get("bvid", "")
+        bvid = cleaned_doc.get("bvid") or source_id
+        metadata = cleaned_doc.get("metadata", {})
         title = cleaned_doc.get("title", "")
         full_text = cleaned_doc.get("full_text", "")
 
@@ -376,6 +393,10 @@ class KnowledgeExtractor:
                 data = _safe_json_loads(json_str)
                 return VideoKnowledge(
                     bvid=bvid,
+                    source_id=source_id,
+                    platform=metadata.get("platform", ""),
+                    source_type=metadata.get("source_type") or metadata.get("item_type", ""),
+                    source_url=metadata.get("source_url") or cleaned_doc.get("canonical_url", ""),
                     title=title,
                     summary=data.get("summary", ""),
                     core_views=data.get("core_views", []),
@@ -392,7 +413,14 @@ class KnowledgeExtractor:
             console.print(f"[red]知识提取失败 {bvid}: {e}")
             _dump_llm_failure(bvid, content, prompt, type(e).__name__)
 
-        return VideoKnowledge(bvid=bvid, title=title)
+        return VideoKnowledge(
+            bvid=bvid,
+            source_id=source_id,
+            platform=metadata.get("platform", ""),
+            source_type=metadata.get("source_type") or metadata.get("item_type", ""),
+            source_url=metadata.get("source_url") or cleaned_doc.get("canonical_url", ""),
+            title=title,
+        )
 
     def merge_knowledge(self, all_knowledge: list[VideoKnowledge],
                         up_name: str = "", up_uid: int = 0) -> BloggerProfile:
@@ -412,7 +440,7 @@ class KnowledgeExtractor:
         # 汇总所有视频的知识摘要，包含 nuwa 新增字段
         summaries = []
         for k in all_knowledge:
-            source_type = _infer_source_type(k.bvid)
+            source_type = _infer_source_type(k.source_id or k.bvid, k.source_type)
             source_label = (
                 "[书章节]" if source_type == "book_chapter"
                 else "[视频]" if source_type == "video"
@@ -539,9 +567,10 @@ class KnowledgeExtractor:
 def save_video_knowledge(knowledge: VideoKnowledge, output_dir: Path) -> Path:
     """保存单个视频的知识提取结果。"""
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"{knowledge.bvid}.json"
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(asdict(knowledge), f, ensure_ascii=False, indent=2)
+    output_path = output_dir / f"{knowledge.source_id or knowledge.bvid}.json"
+    from src.distillation.store import atomic_write_json
+
+    atomic_write_json(output_path, asdict(knowledge))
     return output_path
 
 
