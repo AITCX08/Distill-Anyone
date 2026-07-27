@@ -64,3 +64,4 @@ input/
 
 # Dashboard development dependencies are reproducible from package-lock.json.
 dashboard/node_modules/
+dashboard/*.tsbuildinfo
