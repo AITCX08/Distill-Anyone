@@ -57,4 +57,3 @@ def test_rag_target_declares_cleaned_and_knowledge_dependencies(tmp_path):
     assert RagTarget(tmp_path).required_artifacts() == frozenset(
         {ArtifactKind.CLEANED, ArtifactKind.KNOWLEDGE}
     )
-
