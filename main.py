@@ -196,7 +196,6 @@ def build_dashboard_service(config) -> DistillationService:
         config=config,
         platform_manager=build_platform_manager(config),
         events=events,
-        engine_executor=_run_engine_with_live,
         owner="dashboard",
     )
     return DistillationService(
