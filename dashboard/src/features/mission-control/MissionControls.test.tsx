@@ -57,4 +57,11 @@ describe("MissionControls", () => {
     expect(await within(view.container).findByText("Action was not confirmed. Check the next server snapshot.")).toBeVisible();
     expect(onJobUpdated).not.toHaveBeenCalled();
   });
+
+  it.each(["pause_requested", "paused"])("announces the server %s state with a keyboard-labelled resume control", (status) => {
+    const view = render(<MissionControls job={{ ...serverJob, status }} retryableFailures={false} onJobUpdated={vi.fn()} />);
+
+    expect(within(view.container).getByText(`Job status: ${status}`)).toBeVisible();
+    expect(within(view.container).getByRole("button", { name: "Resume job" })).toBeVisible();
+  });
 });

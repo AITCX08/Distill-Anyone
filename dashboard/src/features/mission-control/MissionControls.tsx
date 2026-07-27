@@ -68,6 +68,7 @@ export function MissionControls({
 
   return (
     <div aria-label="Job controls">
+      <Text role="status">Job status: {job.status}</Text>
       {canPause && <Button onClick={() => run("pause")} disabled={busyAction !== null}>Pause job</Button>}
       {canResume && <Button onClick={() => run("resume")} disabled={busyAction !== null}>Resume job</Button>}
       {retryableFailures && <Button onClick={() => run("retry-failed")} disabled={busyAction !== null}>Retry failed items</Button>}
