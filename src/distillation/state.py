@@ -103,6 +103,7 @@ class JobState:
     request: Mapping[str, Any] = field(default_factory=dict)
     creator: Mapping[str, Any] = field(default_factory=dict)
     enumeration_checkpoint: Mapping[str, Any] = field(default_factory=dict)
+    catalog: Mapping[str, Any] = field(default_factory=dict)
     items: Mapping[str, ItemState] = field(default_factory=dict)
     outputs: Mapping[str, Any] = field(default_factory=dict)
     metrics: Mapping[str, Any] = field(default_factory=dict)
@@ -123,6 +124,7 @@ class JobState:
             request=dict(value.get("request", {})),
             creator=dict(value.get("creator", {})),
             enumeration_checkpoint=dict(value.get("enumeration_checkpoint", {})),
+            catalog=dict(value.get("catalog", {})),
             items=items,
             outputs=dict(value.get("outputs", {})),
             metrics=dict(value.get("metrics", {})),

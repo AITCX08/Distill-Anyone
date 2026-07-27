@@ -73,6 +73,7 @@ class TestSaveCredential:
         assert data["ac_time_value"] == "test_ac"
         assert "saved_at" in data
 
+    @pytest.mark.skipif(os.name == "nt", reason="POSIX mode bits are not enforced by Windows")
     def test_file_permission_is_600(self, tmp_path):
         cache = tmp_path / "cache.json"
         save_credential(make_credential(), "", cache)

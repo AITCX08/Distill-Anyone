@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Iterator, Protocol
+from collections.abc import Callable
+from typing import Iterator, Protocol
 
+from src.distillation.progress import TransferProgress
 from src.platforms.models import (
     AuthStatus,
     DownloadedAssets,
@@ -53,6 +55,6 @@ class PlatformAdapter(Protocol):
         item: SourceItem,
         destination: Path,
         *,
-        progress: Callable[[int, int | None], None],
+        progress: Callable[[TransferProgress], None],
     ) -> DownloadedAssets:
         """Download the assets required by the content processor."""

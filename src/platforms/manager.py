@@ -23,3 +23,6 @@ class PlatformManager:
 
     def list_descriptors(self) -> tuple[PlatformDescriptor, ...]:
         return self._registry.list_descriptors()
+
+    def get(self, platform: str) -> PlatformAdapter:
+        return self._registry.get(platform)

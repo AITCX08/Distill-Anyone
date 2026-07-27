@@ -4,6 +4,8 @@
 
 将B站UP主的视频内容或书籍/文档（PDF/DOCX/TXT），通过自动化流水线转化为可供AI助手使用的结构化知识文件（SKILL.md），并同时产出 RAG 友好的标准化知识块。
 
+> **v0.4 跨平台创作者蒸馏**：Bilibili 与抖音现在通过同一 Source Adapter 层接入。一个任务可以逐作品生成 Markdown、聚合为 Skill，也可以同时输出两者；抖音任务使用可恢复的 3/1/3 流水线、真实下载进度和原子状态账本。图文作品会明确标为 `unsupported_note`，当前版本不会伪装成已完成。
+
 > **v0.3 新能力**（2026-04）：
 > - 📚 **书籍章节模块化**：`distill` 默认按章节独立处理，每章一份 cleaned + knowledge
 > - 🔀 **视频 + 书籍融合**：新增 `fuse` 命令，对等合成统一的 SKILL.md
@@ -48,7 +50,7 @@ cleaned/{BOOK_*_chNN}.json ┘
 
 ## 环境要求
 
-- **Python** 3.9+(推荐 3.11+;macOS 系统自带 3.9 也可)
+- **Python** 3.10+(推荐 3.11)
 - **ffmpeg**(yt-dlp 音频提取 + FunASR 音频解码依赖)
 - **加速硬件**(可选):
   - NVIDIA GPU(CUDA)——Windows / Linux,最快
@@ -77,6 +79,9 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 
 # 安装项目依赖
 pip install -r requirements.txt
+
+# 抖音适配器还需要安装 Playwright Chromium（只需一次）
+playwright install chromium
 ```
 
 **方案 B:venv(推荐 macOS / 无 GPU)**
@@ -94,6 +99,9 @@ pip install -r requirements.txt
 
 # funasr 未在 requirements 中把 torch 列为硬依赖,需要手动补装
 pip install torch torchaudio
+
+# 安装抖音适配器使用的 Chromium（只需一次）
+playwright install chromium
 ```
 
 **安装 ffmpeg**(系统级依赖,不在虚拟环境内):
@@ -161,6 +169,40 @@ ollama pull qwen2.5:3b
 `space.bilibili.com/`**`12345678`** → UID 为 `12345678`
 
 ### 4. 运行
+
+#### 跨平台创作者蒸馏（推荐）
+
+```bash
+# 查看平台能力与登录状态
+python main.py source platforms
+python main.py source status douyin
+
+# 打开外部 Chromium，使用抖音 App 扫码；profile 保存在 data/browser/douyin
+python main.py source login douyin
+
+# 先预检：只解析/枚举，不下载、不调用 ASR/LLM、不创建任务
+python main.py source creator "https://v.douyin.com/分享链接/" --dry-run
+
+# 默认同时生成 episodes/*.md 与 SKILL.md，并采用下载/ASR/LLM = 3/1/3
+python main.py source creator "https://www.douyin.com/user/SEC_UID"
+
+# 只输出逐作品 Markdown，或附加 RAG chunks
+python main.py source creator "https://www.douyin.com/user/SEC_UID" --emit episodes
+python main.py source creator "https://www.douyin.com/user/SEC_UID" --rag-chunks
+
+# 恢复与清理控制
+python main.py source creator "https://www.douyin.com/user/SEC_UID" --resume --retry-failed
+python main.py source creator "https://www.douyin.com/user/SEC_UID" --keep-media
+
+# B 站也可以走同一入口；旧 run/crawl/asr/clean/model/generate 命令继续可用
+python main.py source creator "https://space.bilibili.com/12345678" --platform bilibili
+```
+
+状态位于 `data/jobs/<platform>/<creator-id>/job_state.json`。浏览器 profile、Cookie、临时媒体和任务状态均已加入 `.gitignore`。中断后再次运行默认读取有效 artifact 的哈希并从最近安全阶段继续；状态 JSON 损坏会明确报错，不会静默覆盖。
+
+当前抖音图文尚未启用 OCR，会计入 partial coverage。请只抓取你有权处理的公开内容，并遵守平台条款与当地法律。
+
+#### 旧版分阶段命令
 
 ```bash
 # 一键运行完整流水线（获取全部视频）

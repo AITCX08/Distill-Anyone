@@ -91,6 +91,7 @@ class DouyinSession:
         self,
         data_dir: Path,
         *,
+        profile_dir: Path | None = None,
         browser_factory: Callable[..., Any] = _playwright_browser,
         lease_manager: JobLeaseManager | None = None,
         login_timeout: float = 180.0,
@@ -98,10 +99,11 @@ class DouyinSession:
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.data_dir = data_dir
-        self.profile_dir = data_dir / "browser" / "douyin"
+        self.profile_dir = profile_dir or data_dir / "browser" / "douyin"
         self.state_dir = data_dir / "session" / "douyin"
         self.stale_flag = self.state_dir / "login-expired.flag"
         self.profile_marker = self.profile_dir / ".profile-initialized"
+        self.acquisition_headless = True
         self._browser_factory = browser_factory
         self._leases = lease_manager or JobLeaseManager(self.state_dir / "locks")
         self._login_timeout = login_timeout

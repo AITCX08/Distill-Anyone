@@ -7,7 +7,11 @@
 import subprocess
 import tempfile
 import wave
+from collections.abc import Callable
+from queue import Empty, Queue
 from pathlib import Path
+from threading import Thread
+from time import monotonic
 from typing import Optional
 
 from rich.console import Console
@@ -17,6 +21,23 @@ console = Console()
 
 # B站视频URL模板
 BILIBILI_VIDEO_URL = "https://www.bilibili.com/video/{bvid}"
+_PROGRESS_MARKER = "__distill_progress__"
+_DOWNLOAD_TIMEOUT_SECONDS = 300
+
+
+def _parse_progress_line(line: str) -> tuple[int, int | None, float | None] | None:
+    """Parse the machine-readable progress line emitted by yt-dlp."""
+
+    fields = line.strip().split("\t")
+    if len(fields) != 4 or fields[0] != _PROGRESS_MARKER:
+        return None
+    try:
+        downloaded = int(fields[1])
+        total = int(fields[2]) if fields[2] not in {"", "NA", "None"} else None
+        speed = float(fields[3]) if fields[3] not in {"", "NA", "None"} else None
+    except ValueError:
+        return None
+    return downloaded, total, speed
 
 
 def generate_cookies_file(credential, buvid3: str = "",
@@ -191,6 +212,125 @@ def download_audio(
     except FileNotFoundError:
         console.print("[red]未找到 yt-dlp，请先安装: pip install yt-dlp")
         return None
+
+
+def download_audio_with_progress(
+    bvid: str,
+    output_dir: Path,
+    audio_format: str = "wav",
+    cookies_file: Optional[Path] = None,
+    force: bool = False,
+    *,
+    progress_callback: Callable[[int, int | None, float], None],
+) -> Optional[Path]:
+    """Download audio while reporting yt-dlp byte-level transfer updates.
+
+    ``download_audio`` remains the legacy, non-streaming API. This variant
+    consumes yt-dlp's machine-readable progress stream as bytes arrive.
+    """
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_template = str(output_dir / f"{bvid}.%(ext)s")
+    expected_output = output_dir / f"{bvid}.{audio_format}"
+
+    if expected_output.exists() and not force:
+        return expected_output
+    if force and expected_output.exists():
+        expected_output.unlink()
+
+    cmd = [
+        "yt-dlp",
+        "-x",
+        "--audio-format", audio_format,
+        "-o", output_template,
+        "--no-playlist",
+        "--retries", "3",
+        "--no-warnings",
+        "--newline",
+        "--progress-template",
+        (
+            f"download:{_PROGRESS_MARKER}\t%(progress.downloaded_bytes)s"
+            "\t%(progress.total_bytes)s\t%(progress.speed)s"
+        ),
+    ]
+    if cookies_file and cookies_file.exists():
+        cmd.extend(["--cookies", str(cookies_file)])
+    cmd.append(BILIBILI_VIDEO_URL.format(bvid=bvid))
+
+    process = None
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        started_at = monotonic()
+        deadline = started_at + _DOWNLOAD_TIMEOUT_SECONDS
+        last_completed = 0
+        last_update_at = started_at
+        stdout_lines: Queue[str | None] = Queue()
+
+        def read_stdout() -> None:
+            try:
+                if process.stdout is not None:
+                    for line in iter(process.stdout.readline, ""):
+                        stdout_lines.put(line)
+            finally:
+                stdout_lines.put(None)
+
+        reader = Thread(target=read_stdout, daemon=True)
+        reader.start()
+        while True:
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(cmd, _DOWNLOAD_TIMEOUT_SECONDS)
+            try:
+                line = stdout_lines.get(timeout=remaining)
+            except Empty as error:
+                raise subprocess.TimeoutExpired(cmd, _DOWNLOAD_TIMEOUT_SECONDS) from error
+            if line is None:
+                break
+            update = _parse_progress_line(line)
+            if update is None:
+                continue
+            downloaded, total, reported_speed = update
+            now = monotonic()
+            elapsed = now - last_update_at
+            if reported_speed is not None and reported_speed > 0:
+                speed = reported_speed
+            elif downloaded > last_completed and elapsed > 0:
+                speed = (downloaded - last_completed) / elapsed
+            else:
+                speed = None
+            last_completed = downloaded
+            last_update_at = now
+            if speed is not None and speed > 0:
+                progress_callback(downloaded, total, speed)
+
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired(cmd, _DOWNLOAD_TIMEOUT_SECONDS)
+        if process.wait(timeout=remaining) != 0:
+            console.print(f"[red]Download failed: {bvid}")
+            return None
+    except subprocess.TimeoutExpired:
+        if process is not None:
+            process.kill()
+            process.wait()
+        console.print(f"[red]Download timed out: {bvid}")
+        return None
+    except FileNotFoundError:
+        console.print("[red]yt-dlp is not installed; run pip install yt-dlp")
+        return None
+
+    if expected_output.exists():
+        return expected_output
+    for path in output_dir.glob(f"{bvid}.*"):
+        if path.suffix != ".part":
+            return path
+    console.print(f"[red]Download completed without an audio file: {bvid}")
+    return None
 
 
 def batch_download(

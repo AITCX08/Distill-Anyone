@@ -15,13 +15,23 @@ Distill-Anyone: B站UP主知识蒸馏工具
 
 import sys
 import json
+import asyncio
+import queue
 from datetime import datetime
 from pathlib import Path
 
 import click
 from rich.console import Console
+from rich.live import Live
 from rich.panel import Panel
 
+from src.application import (
+    DistillationService,
+    EventHub,
+    JobRepository,
+    SourceCreatorRequest,
+    SourceDistillationRunner,
+)
 from src.config import LLM_PROVIDERS
 
 console = Console()
@@ -112,13 +122,205 @@ def cleanup_book_artifacts(config, book_id: str):
 
 
 @click.group()
-@click.version_option(version="0.2.0", prog_name="Distill-Anyone")
+@click.version_option(version="0.4.0", prog_name="Distill-Anyone")
 def cli():
     """Distill-Anyone: B站UP主知识蒸馏工具
 
     将B站知识区UP主的视频内容转化为结构化的SKILL.md知识文件。
     """
     pass
+
+
+def build_platform_manager(config):
+    from src.platforms.bilibili import BilibiliAdapter
+    from src.platforms.douyin import DouyinAdapter, DouyinSession
+    from src.platforms.manager import PlatformManager
+    from src.platforms.registry import PlatformRegistry
+
+    douyin = DouyinAdapter(
+        DouyinSession(
+            config.data_dir,
+            profile_dir=config.douyin.profile_dir,
+            login_timeout=config.douyin.login_timeout,
+        )
+    )
+    return PlatformManager(PlatformRegistry([BilibiliAdapter(config), douyin]))
+
+
+async def _run_engine_with_live_async(engine, request, events):
+    from src.distillation.progress import RichProgressView
+
+    subscription = events.subscribe(job_id=request.job_id)
+    task = asyncio.create_task(engine.run(request))
+    view = RichProgressView()
+    try:
+        with Live(console=console, refresh_per_second=8, transient=False) as live:
+            while not task.done():
+                try:
+                    event = await asyncio.to_thread(subscription.get, 0.1)
+                except queue.Empty:
+                    continue
+                if event.event_type == "progress.snapshot":
+                    live.update(view.render(event.payload["snapshot"]), refresh=True)
+            result = await task
+            snapshots = [
+                event
+                for event in events.snapshot(job_id=request.job_id)
+                if event.event_type == "progress.snapshot"
+            ]
+            if snapshots:
+                live.update(view.render(snapshots[-1].payload["snapshot"]), refresh=True)
+            return result
+    finally:
+        subscription.close()
+
+
+def _run_engine_with_live(engine, request, events):
+    return asyncio.run(_run_engine_with_live_async(engine, request, events))
+
+
+def execute_source_request(request: SourceCreatorRequest) -> int:
+    """Execute through the same application service consumed by the Dashboard."""
+    from src.config import load_config
+    from src.platforms.errors import PlatformError
+
+    config = load_config()
+    events = EventHub()
+    runner = SourceDistillationRunner(
+        config=config,
+        platform_manager=build_platform_manager(config),
+        events=events,
+        engine_executor=_run_engine_with_live,
+        owner="cli",
+    )
+    service = DistillationService(
+        repository=JobRepository(config.data_dir / "jobs"),
+        events=events,
+        source_runner=runner,
+    )
+    try:
+        result = service.run_source(request)
+    except PlatformError as exc:
+        raise click.ClickException(str(exc)) from exc
+    except RuntimeError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    console.print(
+        f"[cyan]平台[/cyan]: {result.platform}  [cyan]博主[/cyan]: {result.creator_name}\n"
+        f"[cyan]枚举[/cyan]: {result.total}  [yellow]unsupported[/yellow]: "
+        f"{result.unsupported}  [cyan]complete[/cyan]: {result.enumeration_complete}"
+    )
+    if not result.dry_run:
+        console.print(
+            f"[green]完成 {result.completed}[/green] / [red]失败 {result.failed}[/red] / "
+            f"[yellow]不支持 {result.unsupported}[/yellow]"
+        )
+    return result.exit_code
+
+
+@cli.group()
+def source():
+    """管理内容平台并蒸馏创作者作品。"""
+
+
+@source.command("platforms")
+def source_platforms():
+    """列出已注册平台和能力。"""
+    from src.config import load_config
+
+    for descriptor in build_platform_manager(load_config()).list_descriptors():
+        types = ",".join(sorted(item.value for item in descriptor.item_types))
+        console.print(
+            f"[cyan]{descriptor.name}[/cyan]  types={types}  "
+            f"browser={descriptor.requires_browser} auth={descriptor.requires_auth}"
+        )
+
+
+@source.command("status")
+@click.argument("platform", type=click.Choice(["bilibili", "douyin"]))
+def source_status(platform):
+    """检查平台登录状态。"""
+    from src.config import load_config
+
+    adapter = build_platform_manager(load_config()).get(platform)
+    status = adapter.auth_status()
+    console.print(f"{platform}: [cyan]{status.status}[/cyan] {status.message}")
+
+
+@source.command("login")
+@click.argument("platform", type=click.Choice(["bilibili", "douyin"]))
+@click.option("--headful/--headless", default=True, help="使用外部可见浏览器扫码")
+def source_login(platform, headful):
+    """打开平台扫码登录流程。"""
+    from src.config import load_config
+
+    adapter = build_platform_manager(load_config()).get(platform)
+    adapter.authenticate(headful=headful)
+
+
+@source.command("creator")
+@click.argument("target")
+@click.option("--platform", type=click.Choice(["auto", "bilibili", "douyin"]), default="auto")
+@click.option("--emit", type=click.Choice(["episodes", "skill", "both"]), default=None)
+@click.option("--rag-chunks/--no-rag-chunks", default=None)
+@click.option("--download-workers", type=click.IntRange(min=1), default=None)
+@click.option("--asr-workers", type=click.IntRange(min=1, max=1), default=None)
+@click.option("--llm-workers", type=click.IntRange(min=1), default=None)
+@click.option("--max-active", "max_active_items", type=click.IntRange(min=1), default=None)
+@click.option("--retry-limit", type=click.IntRange(min=0), default=None)
+@click.option("--resume/--no-resume", default=True)
+@click.option("--retry-failed", is_flag=True)
+@click.option("--keep-media/--cleanup-media", default=None)
+@click.option("--headful/--headless", default=False)
+@click.option("--dry-run", is_flag=True)
+@click.option("--llm", "llm_provider", type=LLM_CHOICES, default=None)
+def source_creator(
+    target,
+    platform,
+    emit,
+    rag_chunks,
+    download_workers,
+    asr_workers,
+    llm_workers,
+    max_active_items,
+    retry_limit,
+    resume,
+    retry_failed,
+    keep_media,
+    headful,
+    dry_run,
+    llm_provider,
+):
+    """枚举并蒸馏一个创作者的全部可见作品。"""
+    from src.config import load_config
+
+    defaults = load_config().distillation
+    if emit is None:
+        emit_targets = tuple(defaults.emit)
+    else:
+        emit_targets = ("episodes", "skill") if emit == "both" else (emit,)
+    request = SourceCreatorRequest(
+        target=target,
+        platform=platform,
+        emit=emit_targets,
+        rag_chunks=defaults.rag_chunks if rag_chunks is None else rag_chunks,
+        download_workers=defaults.download_workers if download_workers is None else download_workers,
+        asr_workers=defaults.asr_workers if asr_workers is None else asr_workers,
+        llm_workers=defaults.llm_workers if llm_workers is None else llm_workers,
+        max_active_items=(
+            defaults.max_active_items if max_active_items is None else max_active_items
+        ),
+        retry_limit=defaults.retry_limit if retry_limit is None else retry_limit,
+        resume=resume,
+        retry_failed=retry_failed,
+        keep_media=defaults.keep_media if keep_media is None else keep_media,
+        headful=headful,
+        dry_run=dry_run,
+        llm_provider=llm_provider,
+    )
+    exit_code = execute_source_request(request)
+    if exit_code:
+        raise click.exceptions.Exit(exit_code)
 
 
 @cli.command()
@@ -960,6 +1162,21 @@ def run(uid, max_videos, llm_provider, stages_str):
     if not stages:
         console.print("[red]错误: 未选择任何阶段")
         sys.exit(1)
+
+    # 旧的一键命令在完整流水线场景委托给统一 Bilibili Source Adapter；
+    # 分阶段和限量运行继续保留原行为，避免破坏已有脚本。
+    if stages == [1, 2, 3, 4, 5] and target_uid and max_videos == 0:
+        exit_code = execute_source_request(
+            SourceCreatorRequest(
+                target=f"https://space.bilibili.com/{target_uid}",
+                platform="bilibili",
+                emit=("skill",),
+                llm_provider=provider,
+            )
+        )
+        if exit_code:
+            raise click.exceptions.Exit(exit_code)
+        return
 
     # 阶段1需要UID
     if 1 in stages and not target_uid:

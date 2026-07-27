@@ -79,6 +79,26 @@ class FeishuConfig(BaseModel):
     app_id: str = Field(default="", description="飞书自建应用 App ID")
     app_secret: str = Field(default="", description="飞书自建应用 App Secret")
 
+class DouyinConfig(BaseModel):
+    """抖音持久浏览器会话配置。"""
+    profile_dir: Path = Field(
+        default=PROJECT_ROOT / "data" / "browser" / "douyin",
+        description="Playwright persistent profile directory",
+    )
+    login_timeout: int = Field(default=180, ge=30)
+
+
+class DistillationConfig(BaseModel):
+    """跨平台蒸馏的发布默认值。"""
+    emit: tuple[str, ...] = ("episodes", "skill")
+    rag_chunks: bool = False
+    download_workers: int = Field(default=3, ge=1)
+    asr_workers: int = Field(default=1, ge=1, le=1)
+    llm_workers: int = Field(default=3, ge=1)
+    max_active_items: int = Field(default=3, ge=1)
+    retry_limit: int = Field(default=2, ge=0)
+    keep_media: bool = False
+
 
 class AppConfig(BaseModel):
     """应用全局配置"""
@@ -95,6 +115,13 @@ class AppConfig(BaseModel):
     ollama: OllamaConfig = Field(default_factory=OllamaConfig)
     funasr: FunASRConfig = Field(default_factory=FunASRConfig)
     feishu: FeishuConfig = Field(default_factory=FeishuConfig)
+    douyin: DouyinConfig = Field(default_factory=DouyinConfig)
+    distillation: DistillationConfig = Field(default_factory=DistillationConfig)
+
+    def model_post_init(self, __context) -> None:
+        default_profile = PROJECT_ROOT / "data" / "browser" / "douyin"
+        if self.douyin.profile_dir == default_profile:
+            self.douyin.profile_dir = self.data_dir / "browser" / "douyin"
 
     @property
     def credentials_cache(self) -> Path:
@@ -141,10 +168,11 @@ class AppConfig(BaseModel):
 
 def load_config() -> AppConfig:
     """从环境变量加载配置"""
+    data_dir = Path(os.getenv("DATA_DIR", str(PROJECT_ROOT / "data")))
     config = AppConfig(
         up_uid=int(os.getenv("UP_UID", "0")),
         llm_provider=os.getenv("LLM_PROVIDER", "claude"),
-        data_dir=Path(os.getenv("DATA_DIR", str(PROJECT_ROOT / "data"))),
+        data_dir=data_dir,
         output_dir=Path(os.getenv("OUTPUT_DIR", str(PROJECT_ROOT / "output"))),
         ffmpeg_bin=os.getenv("FFMPEG_BIN", "ffmpeg"),
         bilibili=BilibiliConfig(
@@ -184,6 +212,18 @@ def load_config() -> AppConfig:
         feishu=FeishuConfig(
             app_id=os.getenv("FEISHU_APP_ID", ""),
             app_secret=os.getenv("FEISHU_APP_SECRET", ""),
+        ),
+        douyin=DouyinConfig(
+            profile_dir=Path(os.getenv("DOUYIN_PROFILE_DIR", str(data_dir / "browser" / "douyin"))),
+            login_timeout=int(os.getenv("DOUYIN_LOGIN_TIMEOUT", "180")),
+        ),
+        distillation=DistillationConfig(
+            download_workers=int(os.getenv("DISTILL_DOWNLOAD_WORKERS", "3")),
+            asr_workers=int(os.getenv("DISTILL_ASR_WORKERS", "1")),
+            llm_workers=int(os.getenv("DISTILL_LLM_WORKERS", "3")),
+            max_active_items=int(os.getenv("DISTILL_MAX_ACTIVE", "3")),
+            retry_limit=int(os.getenv("DISTILL_RETRY_LIMIT", "2")),
+            keep_media=os.getenv("DISTILL_KEEP_MEDIA", "0").lower() in {"1", "true", "yes"},
         ),
     )
     config.ensure_dirs()

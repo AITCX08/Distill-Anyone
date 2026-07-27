@@ -72,14 +72,20 @@ class DouyinAdapter:
         url = extract_target_url(target)
         if direct or (url and extract_sec_uid(url)):
             return self._resolver_factory(None).resolve_share_url(target)
-        with self.session.open_page(headless=True, task="resolve") as page:
+        with self.session.open_page(
+            headless=self.session.acquisition_headless,
+            task="resolve",
+        ) as page:
             return self._resolver_factory(page).resolve_share_url(target)
 
     def get_creator(self, target: ResolvedTarget) -> SourceCreator:
         if self._creator_loader is not None:
             return self._creator_loader(target)
         profile: dict[str, Any] = {}
-        with self.session.open_page(headless=True, task="creator-profile") as page:
+        with self.session.open_page(
+            headless=self.session.acquisition_headless,
+            task="creator-profile",
+        ) as page:
             def capture(response: Any) -> None:
                 if "/user/profile/other/" not in str(getattr(response, "url", "")):
                     return
@@ -124,7 +130,10 @@ class DouyinAdapter:
 
     def _refresh_from_browser(self, item: SourceItem) -> SourceItem:
         refreshed: list[SourceItem] = []
-        with self.session.open_page(headless=True, task="refresh-media") as page:
+        with self.session.open_page(
+            headless=self.session.acquisition_headless,
+            task="refresh-media",
+        ) as page:
             def capture(response: Any) -> None:
                 if "/aweme/detail/" not in str(getattr(response, "url", "")):
                     return

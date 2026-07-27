@@ -203,14 +203,18 @@ class DistillationEngine:
         items = dict(existing.items) if existing is not None else {}
         for item in request.items:
             prior = items.get(item.source_id)
-            items[item.source_id] = (
-                recover_item(prior)
-                if prior is not None
-                else ItemState(
+            if prior is None:
+                items[item.source_id] = ItemState(
                     source_id=item.source_id,
                     processing_status=ProcessingStatus.ENUMERATED,
                 )
-            )
+            elif (
+                prior.processing_status in {ProcessingStatus.FAILED, ProcessingStatus.RETRY_WAIT}
+                and not request.retry_failed
+            ):
+                items[item.source_id] = prior
+            else:
+                items[item.source_id] = recover_item(prior)
         base = existing or JobState(job_id=request.job_id)
         state = replace(
             base,
@@ -711,6 +715,11 @@ class DistillationEngine:
         for item in request.items:
             item_state = self.state.items[item.source_id]
             if item_state.processing_status is ProcessingStatus.COMPLETED:
+                continue
+            if (
+                item_state.processing_status in {ProcessingStatus.FAILED, ProcessingStatus.RETRY_WAIT}
+                and not request.retry_failed
+            ):
                 continue
             if item.item_type is not ItemType.VIDEO:
                 await self._update_item(

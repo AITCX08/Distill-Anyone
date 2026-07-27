@@ -1,17 +1,21 @@
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from typing import get_type_hints
+from unittest.mock import ANY, Mock
 
 import pytest
 
 from src.platforms.bilibili.adapter import BilibiliAdapter, legacy_source_id
+from src.distillation.progress import TransferProgress
 from src.platforms.errors import PlatformDownloadError, TargetResolutionError
 from src.platforms.models import ItemType, ResolvedTarget
 
 
 def make_config():
     return SimpleNamespace(
-        bilibili=SimpleNamespace(sessdata="session", bili_jct="csrf", buvid3="device")
+        bilibili=SimpleNamespace(sessdata="session", bili_jct="csrf", buvid3="device"),
+        credentials_cache=Path("credentials.json"),
     )
 
 
@@ -117,8 +121,43 @@ def test_download_assets_delegates_to_existing_audio_download(tmp_path):
         tmp_path,
         audio_format="wav",
         cookies_file=cookies.return_value,
+        progress_callback=ANY,
     )
-    progress.assert_called_with(5, 5)
+    transfer = progress.call_args.args[0]
+    assert isinstance(transfer, TransferProgress)
+    assert (transfer.completed_bytes, transfer.total_bytes) == (5, 5)
+
+
+def test_download_assets_progress_callback_accepts_transfer_progress():
+    annotation = get_type_hints(BilibiliAdapter.download_assets)["progress"]
+    assert annotation == Callable[[TransferProgress], None]
+
+
+def test_download_assets_forwards_live_transfer_progress(tmp_path):
+    output = tmp_path / "BV1abc.wav"
+    output.write_bytes(b"audio")
+    progress = Mock()
+
+    def download(*args, progress_callback, **kwargs):
+        progress_callback(3, 5, 1.5)
+        return output
+
+    adapter = make_adapter(
+        download_fn=download,
+        cookies_factory=Mock(return_value=tmp_path / "cookies.txt"),
+    )
+    item = adapter.map_video(
+        {"bvid": "BV1abc", "title": "Test", "duration": "00:01"},
+        creator_id="42",
+    )
+
+    adapter.download_assets(item, tmp_path, progress=progress)
+
+    transfer = progress.call_args_list[0].args[0]
+    assert isinstance(transfer, TransferProgress)
+    assert transfer.source_id == item.source_id
+    assert (transfer.completed_bytes, transfer.total_bytes) == (3, 5)
+    assert transfer.bytes_per_second == 1.5
 
 
 def test_download_failure_is_explicit(tmp_path):
@@ -130,3 +169,16 @@ def test_download_failure_is_explicit(tmp_path):
 
     with pytest.raises(PlatformDownloadError, match="BV1abc"):
         adapter.download_assets(item, tmp_path, progress=Mock())
+
+
+def test_authenticate_persists_qr_credentials(tmp_path):
+    credential = SimpleNamespace()
+    login = Mock(return_value=(credential, "device-id"))
+    saver = Mock()
+    config = make_config()
+    config.credentials_cache = tmp_path / "credentials.json"
+    adapter = make_adapter(config=config, login_fn=login, credential_saver=saver)
+
+    adapter.authenticate(headful=True)
+
+    saver.assert_called_once_with(credential, "device-id", config.credentials_cache)

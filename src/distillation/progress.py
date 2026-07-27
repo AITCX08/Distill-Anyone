@@ -268,10 +268,27 @@ class ProgressTracker:
 
 
 class RichProgressView:
+    @staticmethod
+    def _duration(seconds: float | None) -> str:
+        if seconds is None:
+            return "--:--"
+        rounded = max(0, int(round(seconds)))
+        hours, remainder = divmod(rounded, 3600)
+        minutes, secs = divmod(remainder, 60)
+        if hours:
+            return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+        return f"{minutes:02d}:{secs:02d}"
+
     def render(self, snapshot: ProgressSnapshot):
         from rich.table import Table
 
         table = Table(title=f"Distillation {snapshot.job_id}")
+        provisional = " · estimating" if snapshot.provisional_eta else ""
+        table.caption = (
+            f"Total ETA {self._duration(snapshot.eta_total_seconds)} · "
+            f"Active ETA {self._duration(snapshot.eta_active_slowest_seconds)} · "
+            f"Coverage {snapshot.coverage * 100:.1f}%{provisional}"
+        )
         table.add_column("Row", justify="right")
         table.add_column("Item")
         table.add_column("Stage")
@@ -290,4 +307,3 @@ class RichProgressView:
             )
             table.add_row(str(item.row_id), item.title or item.source_id, item.stage, percentage, transfer)
         return table
-

@@ -12,12 +12,13 @@ from pathlib import Path
 from typing import Any
 
 from src.crawl.audio_download import (
-    download_audio,
+    download_audio_with_progress,
     generate_cookies_file,
     parse_duration_str,
 )
-from src.crawl.auth import get_credential, run_qrcode_login
+from src.crawl.auth import get_credential, run_qrcode_login, save_credential
 from src.crawl.video_list import fetch_user_videos
+from src.distillation.progress import TransferProgress
 from src.platforms.errors import PlatformDownloadError, TargetResolutionError
 from src.platforms.models import (
     AuthStatus,
@@ -62,9 +63,10 @@ class BilibiliAdapter:
         *,
         credential_provider: Callable = get_credential,
         video_fetcher: Callable = fetch_user_videos,
-        download_fn: Callable = download_audio,
+        download_fn: Callable = download_audio_with_progress,
         cookies_factory: Callable = generate_cookies_file,
         login_fn: Callable = run_qrcode_login,
+        credential_saver: Callable = save_credential,
     ):
         self._config = config
         self._credential_provider = credential_provider
@@ -72,19 +74,30 @@ class BilibiliAdapter:
         self._download_fn = download_fn
         self._cookies_factory = cookies_factory
         self._login_fn = login_fn
+        self._credential_saver = credential_saver
 
     def matches(self, target: str) -> bool:
         return bool(_SPACE_URL_RE.match(target) or _EXPLICIT_UID_RE.match(target))
 
     def auth_status(self) -> AuthStatus:
         config = self._config.bilibili
-        if config.sessdata and config.bili_jct:
+        if config.sessdata:
             return AuthStatus("configured", "Bilibili credentials are configured")
+        cache = getattr(self._config, "credentials_cache", None)
+        if cache is not None and Path(cache).is_file() and Path(cache).stat().st_size > 0:
+            return AuthStatus("configured", "Bilibili cached credentials are available")
         return AuthStatus("missing", "Run the Bilibili login command")
 
     def authenticate(self, *, headful: bool) -> None:
         del headful  # The existing QR login owns its browser presentation.
-        self._login_fn()
+        result = self._login_fn()
+        if isinstance(result, tuple) and len(result) == 2:
+            credential, buvid3 = result
+            self._credential_saver(
+                credential,
+                buvid3,
+                self._config.credentials_cache,
+            )
 
     def resolve(self, target: str) -> ResolvedTarget:
         match = _SPACE_URL_RE.match(target) or _EXPLICIT_UID_RE.match(target)
@@ -143,10 +156,28 @@ class BilibiliAdapter:
         item: SourceItem,
         destination: Path,
         *,
-        progress: Callable[[int, int | None], None],
+        progress: Callable[[TransferProgress], None],
     ) -> DownloadedAssets:
         credential, buvid3 = self._credential_provider(self._config)
-        progress(0, None)
+        latest_speed = 0.0
+
+        def report_transfer(
+            completed_bytes: int,
+            total_bytes: int | None,
+            bytes_per_second: float,
+        ) -> None:
+            nonlocal latest_speed
+            latest_speed = max(0.0, bytes_per_second)
+            progress(
+                TransferProgress(
+                    source_id=item.source_id,
+                    completed_bytes=completed_bytes,
+                    total_bytes=total_bytes,
+                    bytes_per_second=latest_speed,
+                    timestamp=datetime.now(timezone.utc),
+                )
+            )
+
         with tempfile.TemporaryDirectory(prefix="distill_bilibili_") as temp_dir:
             cookie_path = self._cookies_factory(
                 credential,
@@ -158,6 +189,7 @@ class BilibiliAdapter:
                 destination,
                 audio_format="wav",
                 cookies_file=cookie_path,
+                progress_callback=report_transfer,
             )
 
         if audio_path is None:
@@ -166,7 +198,15 @@ class BilibiliAdapter:
             )
         audio_path = Path(audio_path)
         size = audio_path.stat().st_size if audio_path.exists() else 0
-        progress(size, size)
+        progress(
+            TransferProgress(
+                source_id=item.source_id,
+                completed_bytes=size,
+                total_bytes=size,
+                bytes_per_second=latest_speed,
+                timestamp=datetime.now(timezone.utc),
+            )
+        )
         return DownloadedAssets(audio_path=audio_path)
 
     def map_video(

@@ -52,3 +52,12 @@ plan/
 
 # 内部会议参考样本（含公司内部信息，仅本地开发参考）
 examples/feishu-miaoji-reference.md
+
+# 跨平台蒸馏运行状态与浏览器凭据
+data/browser/
+data/session/
+data/jobs/
+data/media/
+input/
+.local-reference/
+.local-artifacts/

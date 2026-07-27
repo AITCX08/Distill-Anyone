@@ -201,7 +201,10 @@ class DouyinBrowserRoute:
 
     def _open(self, creator: SourceCreator) -> None:
         self.close()
-        self._page_context = self.session.open_page(headless=True, task="enumerate")
+        self._page_context = self.session.open_page(
+            headless=self.session.acquisition_headless,
+            task="enumerate",
+        )
         self._page = self._page_context.__enter__()
         self._creator_id = creator.creator_id
         self._page.on("response", self._capture)

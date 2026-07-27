@@ -4,6 +4,7 @@ from src.distillation.progress import (
     ProgressCounts,
     ProgressSnapshot,
     ProgressTracker,
+    RichProgressView,
     TransferProgress,
 )
 
@@ -79,3 +80,22 @@ def test_transfer_and_terminal_counts_feed_immutable_snapshot():
     assert snapshot.active_items[0].download_eta_seconds == 2
     assert snapshot.provisional_eta is True
 
+
+def test_rich_view_displays_both_eta_values():
+    snapshot = ProgressSnapshot(
+        job_id="job-1",
+        revision=1,
+        overall_progress=0.5,
+        coverage=0.4,
+        active_items=(),
+        counts=ProgressCounts(total=10, completed=4, active=1),
+        eta_total_seconds=125,
+        eta_active_slowest_seconds=35,
+        provisional_eta=True,
+    )
+
+    table = RichProgressView().render(snapshot)
+
+    assert "Total ETA 02:05" in table.caption
+    assert "Active ETA 00:35" in table.caption
+    assert "estimating" in table.caption

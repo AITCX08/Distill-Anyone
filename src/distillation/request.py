@@ -20,6 +20,8 @@ class DistillationRequest:
     max_active_items: int = 3
     retry_limit: int = 2
     cleanup_media: bool = True
+    resume: bool = True
+    retry_failed: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "items", tuple(self.items))
@@ -31,4 +33,3 @@ class DistillationRequest:
             raise ValueError("max_active_items must be positive")
         if self.retry_limit < 0:
             raise ValueError("retry_limit cannot be negative")
-

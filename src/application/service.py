@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from typing import Any, Callable
 
 from src.application.commands import (
     CreateJobRequest,
@@ -22,11 +22,18 @@ class DistillationService:
         repository: JobRepository,
         events: EventHub | None = None,
         previewer: Callable[[PreviewRequest], PreviewResult] | None = None,
+        source_runner: Any | None = None,
     ) -> None:
         self.repository = repository
         self.events = events or EventHub()
         self.commands = JobCommands(repository, self.events, previewer=previewer)
         self.queries = JobQueries(repository)
+        self.source_runner = source_runner
+
+    def run_source(self, request):
+        if self.source_runner is None:
+            raise RuntimeError("No creator source runner is configured")
+        return self.source_runner.run(request)
 
     def preview(self, request: PreviewRequest) -> PreviewResult:
         return self.commands.preview(request)
