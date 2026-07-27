@@ -3,6 +3,7 @@ import { useMissionControl } from "../features/mission-control/useMissionControl
 import { CreateJobPage } from "../features/create-job/CreateJobPage";
 import { PlatformsPage } from "../features/platforms/PlatformsPage";
 import { JobHistoryPage } from "../features/job-history/JobHistoryPage";
+import { ArtifactsPage } from "../features/artifacts/ArtifactsPage";
 import { AppShell } from "./AppShell";
 
 export function App() {
@@ -21,6 +22,7 @@ export function App() {
       <CreateJobPage />
       <PlatformsPage />
       <JobHistoryPage />
+      <ArtifactsPage />
     </AppShell>
   );
 }
