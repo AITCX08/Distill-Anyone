@@ -5,12 +5,21 @@ const stream = vi.hoisted(() => ({
   callback: undefined as undefined | ((event: { eventType: string; data: Record<string, unknown> }) => void),
   close: vi.fn(),
 }));
+const api = vi.hoisted(() => ({
+  getJson: vi.fn(async () => []),
+  postJson: vi.fn(),
+}));
 
 vi.mock("../api/events", () => ({
   subscribeToEvents: vi.fn((callback) => {
     stream.callback = callback;
     return { close: stream.close };
   }),
+}));
+vi.mock("../api/client", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../api/client")>(),
+  getJson: api.getJson,
+  postJson: api.postJson,
 }));
 
 import { App } from "./App";
