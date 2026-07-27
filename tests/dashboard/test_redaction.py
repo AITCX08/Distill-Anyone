@@ -22,3 +22,14 @@ def test_sse_redacts_credentials_and_machine_paths_before_serialization():
     assert "sk-secret" not in serialized
     assert "event: trace.appended" in serialized
     assert "id: 4" in serialized
+
+
+def test_sse_normalizes_engine_item_updates_to_the_public_event_name():
+    event = ApplicationEvent(
+        event_id=5,
+        event_type="job.item.updated",
+        timestamp=datetime.now(timezone.utc),
+        payload={"job_id": "job-1"},
+    )
+
+    assert "event: item.updated" in serialize_sse(event)

@@ -10,6 +10,11 @@ from typing import AsyncIterator
 from src.application.events import ApplicationEvent
 from src.application.redaction import redact_value
 
+_PUBLIC_EVENT_NAMES = {
+    "job.item.updated": "item.updated",
+    "progress.snapshot": "snapshot",
+}
+
 
 def redact_event(event: ApplicationEvent) -> ApplicationEvent:
     return ApplicationEvent(
@@ -27,7 +32,8 @@ def serialize_sse(event: ApplicationEvent) -> str:
         "timestamp": safe.timestamp.isoformat(),
         "payload": dict(safe.payload),
     }
-    return f"id: {safe.event_id}\nevent: {safe.event_type}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+    event_name = _PUBLIC_EVENT_NAMES.get(safe.event_type, safe.event_type)
+    return f"id: {safe.event_id}\nevent: {event_name}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
 def _snapshot_message(service, job_id: str | None) -> str:
