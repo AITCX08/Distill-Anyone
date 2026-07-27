@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { MissionControlPage } from "./MissionControlPage";
 
@@ -36,5 +36,11 @@ describe("MissionControlPage", () => {
     expect(screen.getByText("12.0 KB/s")).toBeVisible();
     expect(screen.getByText(/Overall ETA 01:00/)).toBeVisible();
     expect(screen.getByText(/Slowest active ETA 00:30/)).toBeVisible();
+  });
+
+  it("renders the server supplied per-item download ETA", () => {
+    const view = render(<MissionControlPage snapshot={snapshot} />);
+
+    expect(within(view.container).getByText("Transfer ETA 00:01")).toBeVisible();
   });
 });
