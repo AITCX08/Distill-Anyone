@@ -302,8 +302,11 @@ def download_audio_with_progress(
             elapsed = received_at - last_update_at
             if reported_speed is not None and reported_speed > 0:
                 speed = reported_speed
-            elif downloaded > last_completed and elapsed > 0:
-                speed = (downloaded - last_completed) / elapsed
+            elif downloaded > last_completed:
+                # A fast local pipe can produce two timestamps in the same
+                # clock tick. Preserve the progress update with a bounded
+                # positive interval instead of silently dropping it.
+                speed = (downloaded - last_completed) / max(elapsed, 1e-6)
             else:
                 speed = None
             last_completed = downloaded
