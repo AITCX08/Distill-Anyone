@@ -8,7 +8,12 @@ export function App() {
   return (
     <AppShell>
       {mission
-        ? <MissionControlPage snapshot={mission.snapshot} job={mission.job} onJobUpdated={mission.updateJob} />
+        ? <MissionControlPage
+          snapshot={mission.snapshot}
+          job={mission.job}
+          traceEntries={mission.traceEntries}
+          onJobUpdated={mission.updateJob}
+        />
         : <section id="mission" aria-label="Mission Control"><p>Waiting for server snapshot...</p></section>}
     </AppShell>
   );

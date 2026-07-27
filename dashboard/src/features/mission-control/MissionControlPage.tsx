@@ -1,5 +1,6 @@
 import { Card, ProgressBar, Text } from "@fluentui/react-components";
 import { ActiveItemRow, type ActiveItem } from "./ActiveItemRow";
+import { LiveTrace } from "./LiveTrace";
 import { MissionControls, type MissionJob } from "./MissionControls";
 
 export type ProgressSnapshot = {
@@ -32,10 +33,12 @@ function formatDuration(value: number | null): string {
 export function MissionControlPage({
   snapshot,
   job = null,
+  traceEntries = [],
   onJobUpdated = () => undefined,
 }: {
   snapshot: ProgressSnapshot;
   job?: MissionJob | null;
+  traceEntries?: readonly string[];
   onJobUpdated?: (job: MissionJob) => void;
 }) {
   return (
@@ -60,6 +63,7 @@ export function MissionControlPage({
           <ActiveItemRow key={item.source_id} item={item} />
         ))}
       </div>
+      <LiveTrace entries={traceEntries} />
     </section>
   );
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { subscribeToEvents } from "../../api/events";
 import type { DashboardEvent } from "../../api/schema";
+import { MAX_TRACE_ENTRIES } from "./LiveTrace";
 import type { MissionJob } from "./MissionControls";
 import type { ProgressSnapshot } from "./MissionControlPage";
 
@@ -9,6 +10,7 @@ const countKeys = ["total", "active", "completed", "failed", "retry", "unsupport
 export type MissionControlState = {
   snapshot: ProgressSnapshot;
   job: MissionJob | null;
+  traceEntries: readonly string[];
 };
 
 export type MissionControlModel = MissionControlState & {
@@ -75,6 +77,16 @@ function jobFromSnapshot(data: Record<string, unknown>, jobId: string): MissionJ
   return data.jobs.find((job): job is MissionJob => isMissionJob(job) && job.job_id === jobId) ?? null;
 }
 
+function traceFromEvent(event: DashboardEvent): { jobId: string; line: string } | null {
+  if (event.eventType !== "trace.appended") return null;
+  const payload = event.data.payload;
+  if (typeof payload !== "object" || payload === null) return null;
+  const trace = payload as Record<string, unknown>;
+  return typeof trace.job_id === "string" && typeof trace.line === "string"
+    ? { jobId: trace.job_id, line: trace.line }
+    : null;
+}
+
 function snapshotFromEvent(event: DashboardEvent): ProgressSnapshot | null {
   if (event.eventType === "snapshot") {
     const snapshots = event.data.progress_snapshots;
@@ -95,16 +107,26 @@ export function useMissionControl(): MissionControlModel | null {
     const subscription = subscribeToEvents((event) => {
       const nextSnapshot = snapshotFromEvent(event);
       if (nextSnapshot) {
-        setState({
+        const isReconnectSnapshot = Array.isArray(event.data.progress_snapshots);
+        setState((current) => ({
           snapshot: nextSnapshot,
-          job: event.eventType === "snapshot" ? jobFromSnapshot(event.data, nextSnapshot.job_id) : null,
-        });
+          job: isReconnectSnapshot
+            ? jobFromSnapshot(event.data, nextSnapshot.job_id)
+            : current?.snapshot.job_id === nextSnapshot.job_id ? current.job : null,
+          traceEntries: current?.snapshot.job_id === nextSnapshot.job_id ? current.traceEntries : [],
+        }));
         return;
       }
       const payload = event.data.payload;
       if (event.eventType === "job.updated" && isMissionJob(payload)) {
         setState((current) => current?.snapshot.job_id === payload.job_id
           ? { ...current, job: payload }
+          : current);
+      }
+      const trace = traceFromEvent(event);
+      if (trace) {
+        setState((current) => current?.snapshot.job_id === trace.jobId
+          ? { ...current, traceEntries: [...current.traceEntries, trace.line].slice(-MAX_TRACE_ENTRIES) }
           : current);
       }
     });

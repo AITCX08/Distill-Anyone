@@ -91,4 +91,26 @@ describe("App", () => {
 
     expect(screen.getByRole("button", { name: "Pause job" })).toBeVisible();
   });
+
+  it("renders a server trace line only for the active mission job", () => {
+    render(<App />);
+
+    act(() => stream.callback?.({
+      eventType: "snapshot",
+      data: {
+        jobs: [],
+        progress_snapshots: [{
+          job_id: "job-1", revision: 2, overall_progress: 0.5, coverage: 0.25,
+          counts: { total: 4, active: 1, completed: 1, failed: 0, retry: 0, unsupported: 0, queued: 2, enumerated: 4 },
+          eta_total_seconds: 60, eta_active_slowest_seconds: 30, provisional_eta: false, active_items: [],
+        }],
+      },
+    }));
+    act(() => stream.callback?.({
+      eventType: "trace.appended",
+      data: { payload: { job_id: "job-1", line: "server trace: download started" } },
+    }));
+
+    expect(screen.getByText("server trace: download started")).toBeVisible();
+  });
 });
