@@ -13,6 +13,7 @@ import uvicorn
 
 from src.application.service import DistillationService
 from src.dashboard.app import create_dashboard_app
+from src.dashboard.series_bridge import SeriesTaskBridge, SeriesTaskMonitor
 from src.dashboard.security import validate_host
 
 
@@ -52,6 +53,11 @@ def run_dashboard(service: DistillationService, port: int, open_browser: bool) -
     host = validate_host("127.0.0.1")
     static_dir = Path(__file__).with_name("static")
     app = create_dashboard_app(service, static_dir, session_secret="process-local")
+    monitor = SeriesTaskMonitor(
+        SeriesTaskBridge(data_dir=service.repository.root.parent, events=service.events)
+    )
+    monitor.start()
+    app.state.series_task_monitor = monitor
     url = f"http://{host}:{port}"
     server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
     if open_browser:

@@ -41,7 +41,21 @@ def _snapshot_message(service, job_id: str | None) -> str:
     jobs = []
     for job in service.list_jobs():
         if job_id is None or job.job_id == job_id:
-            jobs.append({"job_id": job.job_id, "status": job.status.value, "revision": job.revision})
+            read_only = False
+            queries = getattr(service, "queries", None)
+            if queries is not None:
+                try:
+                    read_only = bool(queries.get(job.job_id).request.get("read_only", False))
+                except Exception:
+                    read_only = False
+            jobs.append(
+                {
+                    "job_id": job.job_id,
+                    "status": job.status.value,
+                    "revision": job.revision,
+                    "read_only": read_only,
+                }
+            )
     progress_snapshots = []
     seen_job_ids = set()
     for event in reversed(service.events.snapshot(job_id=job_id)):
