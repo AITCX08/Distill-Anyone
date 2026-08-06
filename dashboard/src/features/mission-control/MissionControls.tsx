@@ -6,6 +6,7 @@ export type MissionJob = {
   job_id: string;
   status: string;
   revision: number;
+  read_only?: boolean;
 };
 
 type Action = "pause" | "resume" | "retry-failed";
@@ -69,9 +70,10 @@ export function MissionControls({
   return (
     <div aria-label="Job controls">
       <Text role="status">Job status: {job.status}</Text>
-      {canPause && <Button onClick={() => run("pause")} disabled={busyAction !== null}>Pause job</Button>}
-      {canResume && <Button onClick={() => run("resume")} disabled={busyAction !== null}>Resume job</Button>}
-      {retryableFailures && <Button onClick={() => run("retry-failed")} disabled={busyAction !== null}>Retry failed items</Button>}
+      {job.read_only && <Text role="status">This externally monitored job is read-only.</Text>}
+      {!job.read_only && canPause && <Button onClick={() => run("pause")} disabled={busyAction !== null}>Pause job</Button>}
+      {!job.read_only && canResume && <Button onClick={() => run("resume")} disabled={busyAction !== null}>Resume job</Button>}
+      {!job.read_only && retryableFailures && <Button onClick={() => run("retry-failed")} disabled={busyAction !== null}>Retry failed items</Button>}
       {message && <Text role="status">{message}</Text>}
     </div>
   );
