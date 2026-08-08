@@ -27,11 +27,11 @@ describe("JobHistoryPage", () => {
     render(<JobHistoryPage />);
 
     expect(await screen.findByText("Running creator")).toBeVisible();
-    fireEvent.change(screen.getByLabelText("Status filter"), { target: { value: "failed" } });
+    fireEvent.change(screen.getByLabelText("状态筛选"), { target: { value: "failed" } });
 
     expect(screen.getByText("Failed creator")).toBeVisible();
     expect(screen.queryByText("Running creator")).not.toBeInTheDocument();
-    expect(screen.getByText("2 failed / 3 total")).toBeVisible();
+    expect(screen.getByText("失败 2 / 共 3 条")).toBeVisible();
   });
 
   it("shows item retry only when the server marks that item retryable", async () => {
@@ -52,12 +52,12 @@ describe("JobHistoryPage", () => {
     render(<JobHistoryPage />);
 
     await screen.findByText("Failed creator");
-    fireEvent.click(screen.getByRole("button", { name: "Review item actions for Failed creator" }));
+    fireEvent.click(screen.getByRole("button", { name: "查看 Failed creator 的项目操作" }));
 
-    expect(await screen.findByRole("button", { name: "Retry retry-this" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Retry do-not-retry" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "重试 retry-this" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "重试 do-not-retry" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Retry retry-this" }));
+    fireEvent.click(screen.getByRole("button", { name: "重试 retry-this" }));
     await waitFor(() => expect(postJson).toHaveBeenCalledWith("/api/v1/jobs/job-1/items/retry-this/retry", { expected_revision: 2 }));
   });
 });

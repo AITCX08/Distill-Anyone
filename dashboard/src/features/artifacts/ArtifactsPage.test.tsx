@@ -30,13 +30,13 @@ describe("ArtifactsPage", () => {
     render(<ArtifactsPage />);
 
     expect(await screen.findByText("episode.md")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Preview episode.md" }));
+    fireEvent.click(screen.getByRole("button", { name: "预览 episode.md" }));
     expect(await screen.findByText("# Safe episode")).toBeVisible();
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy preview" }));
+    fireEvent.click(screen.getByRole("button", { name: "复制预览内容" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("# Safe episode"));
 
-    fireEvent.click(screen.getByRole("button", { name: "Reveal episode.md" }));
+    fireEvent.click(screen.getByRole("button", { name: "打开所在文件夹 episode.md" }));
     await waitFor(() => expect(postJson).toHaveBeenCalledWith("/api/v1/jobs/job-1/artifacts/artifact-123/reveal", {}));
     expect(screen.queryByText(/C:\\|Users\\|AppData/)).not.toBeInTheDocument();
   });

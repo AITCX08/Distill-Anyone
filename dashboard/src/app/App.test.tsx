@@ -74,7 +74,7 @@ describe("App", () => {
       },
     }));
 
-    expect(screen.getByText("Waiting for server snapshot...")).toBeVisible();
+    expect(screen.getByText("正在等待服务端任务快照…")).toBeVisible();
   });
 
   it("shows controls only when the reconnect snapshot includes the matching server job state", () => {
@@ -98,7 +98,7 @@ describe("App", () => {
       },
     }));
 
-    expect(screen.getByRole("button", { name: "Pause job" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "暂停任务" })).toBeVisible();
   });
 
   it("renders a server trace line only for the active mission job", () => {

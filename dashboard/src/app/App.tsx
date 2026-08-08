@@ -18,7 +18,7 @@ export function App() {
           traceEntries={mission.traceEntries}
           onJobUpdated={mission.updateJob}
         />
-        : <section id="mission" aria-label="Mission Control"><p>Waiting for server snapshot...</p></section>}
+        : <section id="mission" aria-label="任务执行台"><p>正在等待服务端任务快照…</p></section>}
       <CreateJobPage />
       <PlatformsPage />
       <JobHistoryPage />

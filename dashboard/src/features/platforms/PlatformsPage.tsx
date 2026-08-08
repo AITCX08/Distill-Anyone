@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button, Card, Text } from "@fluentui/react-components";
 
 import { DashboardRequestError, getJson, postJson } from "../../api/client";
+import { authMessageLabel, authStatusLabel, itemTypeLabel, platformLabel } from "../../i18n/zh";
 
 type Platform = {
   name: string;
@@ -22,10 +23,6 @@ function isPlatform(value: unknown): value is Platform {
     && "auth_message" in value && typeof value.auth_message === "string";
 }
 
-function labelFor(name: string): string {
-  return name.charAt(0).toUpperCase() + name.slice(1);
-}
-
 export function PlatformsPage() {
   const [platforms, setPlatforms] = useState<Platform[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -42,7 +39,7 @@ export function PlatformsPage() {
       setPlatforms(result);
     } catch {
       setPlatforms(null);
-      setError("Platform status is unavailable. Refresh to retry the local engine request.");
+      setError("平台状态暂不可用，请刷新后重试连接本地引擎。");
     } finally {
       setLoading(false);
     }
@@ -62,36 +59,36 @@ export function PlatformsPage() {
       setOpeningPlatform(platform.name);
     } catch (reason) {
       setError(reason instanceof DashboardRequestError && reason.code === "offline"
-        ? "Local engine is offline. External login was not started."
-        : "External login was not confirmed by the local engine.");
+        ? "本地引擎离线，未能启动登录。"
+        : "本地引擎尚未确认登录请求。");
     } finally {
       setLoginPending(null);
     }
   }
 
   return (
-    <section id="platforms" aria-label="Platforms and login">
+    <section id="platforms" aria-label="平台与登录">
       <Card>
-        <Text as="h2" size={600}>Platforms and login</Text>
-        <Text>Scan the QR code in external Chromium. This dashboard never shows or stores QR or cookie data.</Text>
+        <Text as="h2" size={600}>平台与登录</Text>
+        <Text>登录状态由本地引擎管理；凭据始终仅保存在本机，不会显示在页面上。</Text>
         <Button appearance="secondary" onClick={refresh} disabled={loading}>
-          {loading ? "Refreshing..." : "Refresh status"}
+          {loading ? "正在刷新…" : "刷新状态"}
         </Button>
         {error && <Text role="alert">{error}</Text>}
-        {platforms?.length === 0 && <Text role="status">No platform adapters are configured.</Text>}
+        {platforms?.length === 0 && <Text role="status">暂无已配置的平台适配器。</Text>}
         {platforms?.map((platform) => (
           <Card key={platform.name}>
-            <Text as="h3" size={500}>{labelFor(platform.name)}</Text>
-            <Text className="metric">{platform.auth_status} · {platform.item_types.join(", ") || "no item types"}</Text>
-            <Text>{platform.auth_message}</Text>
+            <Text as="h3" size={500}>{platformLabel(platform.name)}</Text>
+            <Text className="metric">{authStatusLabel(platform.auth_status)} · {platform.item_types.map(itemTypeLabel).join("、") || "暂无支持类型"}</Text>
+            <Text>{authMessageLabel(platform.auth_message)}</Text>
             {platform.requires_auth && platform.requires_browser && <Button
               appearance="primary"
               onClick={() => void openLogin(platform)}
               disabled={loginPending !== null}
             >
-              {loginPending === platform.name ? "Opening external login..." : `Open ${labelFor(platform.name)} login`}
+              {loginPending === platform.name ? "正在启动登录…" : `登录 ${platformLabel(platform.name)}`}
             </Button>}
-            {openingPlatform === platform.name && <Text role="status">External Chromium is opening. Complete the scan there, then refresh platform status.</Text>}
+            {openingPlatform === platform.name && <Text role="status">登录流程已启动。完成扫码或确认后，刷新平台状态。</Text>}
           </Card>
         ))}
       </Card>

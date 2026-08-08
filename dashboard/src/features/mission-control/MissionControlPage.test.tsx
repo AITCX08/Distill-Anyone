@@ -33,15 +33,15 @@ describe("MissionControlPage", () => {
     render(<MissionControlPage snapshot={snapshot} />);
 
     expect(screen.getByText("1.0 KB / 2.0 KB")).toBeVisible();
-    expect(screen.getByText("12.0 KB/s")).toBeVisible();
-    expect(screen.getByText(/Overall ETA 01:00/)).toBeVisible();
-    expect(screen.getByText(/Slowest active ETA 00:30/)).toBeVisible();
+    expect(screen.getByText("12.0 KB/秒")).toBeVisible();
+    expect(screen.getByText(/预计总剩余时间 01:00/)).toBeVisible();
+    expect(screen.getByText(/当前任务预计 00:30/)).toBeVisible();
   });
 
   it("renders the server supplied per-item download ETA", () => {
     const view = render(<MissionControlPage snapshot={snapshot} />);
 
-    expect(within(view.container).getByText("Transfer ETA 00:01")).toBeVisible();
+    expect(within(view.container).getByText("下载预计 00:01")).toBeVisible();
   });
 
   it("renders the server supplied ASR duration and RTF", () => {
@@ -56,12 +56,12 @@ describe("MissionControlPage", () => {
       }],
     }} />);
 
-    expect(within(view.container).getByText("ASR 00:15 / 00:30 · RTF 0.75x")).toBeVisible();
+    expect(within(view.container).getByText(/语音转写 00:15/)).toBeVisible();
   });
 
   it("preserves a source row across a server stage transition", () => {
     const view = render(<MissionControlPage snapshot={snapshot} />);
-    const initialRow = within(view.container).getByRole("group", { name: "Work A · downloading" });
+    const initialRow = within(view.container).getByRole("group", { name: "Work A · 下载中" });
 
     view.rerender(<MissionControlPage snapshot={{
       ...snapshot,
@@ -69,7 +69,7 @@ describe("MissionControlPage", () => {
       active_items: [{ ...snapshot.active_items[0], stage: "transcribing" }],
     }} />);
 
-    expect(within(view.container).getByRole("group", { name: "Work A · transcribing" })).toBe(initialRow);
+    expect(within(view.container).getByRole("group", { name: "Work A · 转写中" })).toBe(initialRow);
   });
 
   it("uses an indeterminate transfer indicator when the server total is unknown", () => {
@@ -78,6 +78,6 @@ describe("MissionControlPage", () => {
       active_items: [{ ...snapshot.active_items[0], total_bytes: null, stage_progress: null }],
     }} />);
 
-    expect(within(view.container).getByRole("progressbar", { name: "Work A transfer progress" })).toBeVisible();
+    expect(within(view.container).getByRole("progressbar", { name: "Work A 传输进度" })).toBeVisible();
   });
 });

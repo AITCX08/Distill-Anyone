@@ -25,14 +25,14 @@ describe("CreateJobPage", () => {
 
     render(<CreateJobPage />);
 
-    const target = screen.getByLabelText("Creator URL");
-    const create = screen.getByRole("button", { name: "Create mission" });
+    const target = screen.getByLabelText("创作者链接");
+    const create = screen.getByRole("button", { name: "创建任务" });
     fireEvent.change(target, { target: { value: "https://space.bilibili.com/1" } });
 
     expect(create).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Inspect source" }));
-    await screen.findByText("Creator · 2 processable / 3 total");
+    fireEvent.click(screen.getByRole("button", { name: "预检来源" }));
+    await screen.findByText("Creator · 可处理 2 / 共 3 条");
     expect(create).toBeEnabled();
 
     fireEvent.click(create);
@@ -43,6 +43,6 @@ describe("CreateJobPage", () => {
       rag_chunks: false,
       preview_fingerprint: "preview-123",
     }));
-    expect(screen.getByText("Mission job-1 accepted by the local engine.")).toBeVisible();
+    expect(screen.getByText("任务 job-1 已由本地引擎接收。")).toBeVisible();
   });
 });

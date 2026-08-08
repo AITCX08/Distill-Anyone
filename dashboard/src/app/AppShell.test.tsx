@@ -8,7 +8,7 @@ describe("AppShell", () => {
     render(<AppShell><main>content</main></AppShell>);
 
     expect(screen.getByRole("navigation", { name: "主导航" })).toHaveTextContent("任务作战台");
-    expect(screen.getByText("LOCAL ENGINE ONLINE")).toBeVisible();
+    expect(screen.getByText("本地引擎在线")).toBeVisible();
     expect(screen.getByRole("link", { name: "新建任务" })).toBeVisible();
   });
 });
