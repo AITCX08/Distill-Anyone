@@ -33,8 +33,9 @@ describe("MissionControlPage", () => {
     render(<MissionControlPage snapshot={snapshot} />);
 
     expect(screen.getByText("1.0 KB / 2.0 KB")).toBeVisible();
-    expect(screen.getByText("12.0 KB/秒")).toBeVisible();
-    expect(screen.getByText(/预计总剩余时间 01:00/)).toBeVisible();
+    expect(screen.getAllByText("12.0 KB/秒")).toHaveLength(2);
+    expect(screen.getByText("预计总剩余时间")).toBeVisible();
+    expect(screen.getByText("01:00")).toBeVisible();
     expect(screen.getByText(/当前任务预计 00:30/)).toBeVisible();
   });
 
