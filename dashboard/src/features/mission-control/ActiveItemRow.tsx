@@ -1,4 +1,4 @@
-import { Card, ProgressBar, Text } from "@fluentui/react-components";
+import { Button, Card, ProgressBar, Text } from "@fluentui/react-components";
 import { memo } from "react";
 import { stageLabel } from "../../i18n/zh";
 
@@ -29,13 +29,12 @@ function formatDuration(value: number): string {
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export const ActiveItemRow = memo(function ActiveItemRow({ item }: { item: ActiveItem }) {
+export const ActiveItemRow = memo(function ActiveItemRow({ item, onInspect }: { item: ActiveItem; onInspect?: (item: ActiveItem) => void }) {
   return (
-    <Card aria-label={`${item.title || item.source_id} · ${stageLabel(item.stage)}`}>
-      <Text as="h3">#{item.row_id} {item.title || item.source_id}</Text>
-      <Text>{stageLabel(item.stage)}</Text>
+    <Card className="execution-row" aria-label={`${item.title || item.source_id} · ${stageLabel(item.stage)}`}>
+      <div className="execution-row__identity"><Text as="h3">#{item.row_id} {item.title || item.source_id}</Text><div><Text className="execution-row__stage">{stageLabel(item.stage)}</Text>{onInspect && <Button appearance="subtle" onClick={() => onInspect(item)}>查看详情</Button>}</div></div>
       {item.total_bytes === null
-        ? <Text>文件大小未知 · 已传输 {formatBytes(item.completed_bytes)} · {formatBytes(item.bytes_per_second)}/秒</Text>
+        ? <Text className="execution-row__transfer"><span>文件大小未知</span><span>已传输 {formatBytes(item.completed_bytes)}</span><span>{formatBytes(item.bytes_per_second)}/秒</span></Text>
         : <Text>{formatBytes(item.completed_bytes)} / {formatBytes(item.total_bytes)}</Text>}
       {item.total_bytes === null && <ProgressBar aria-label={`${item.title || item.source_id} 传输进度`} />}
       <Text className="metric">{formatBytes(item.bytes_per_second)}/秒</Text>

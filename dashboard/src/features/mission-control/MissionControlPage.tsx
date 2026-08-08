@@ -1,7 +1,11 @@
-import { Card, ProgressBar, Text } from "@fluentui/react-components";
+import { Text } from "@fluentui/react-components";
+import { useState } from "react";
 import { ActiveItemRow, type ActiveItem } from "./ActiveItemRow";
 import { LiveTrace } from "./LiveTrace";
 import { MissionControls, type MissionJob } from "./MissionControls";
+import { MissionOverview } from "./MissionOverview";
+import { SeriesRail } from "./SeriesRail";
+import { TaskDetailDrawer } from "./TaskDetailDrawer";
 
 export type ProgressSnapshot = {
   job_id: string;
@@ -41,29 +45,38 @@ export function MissionControlPage({
   traceEntries?: readonly string[];
   onJobUpdated?: (job: MissionJob) => void;
 }) {
+  const [selectedRowId, setSelectedRowId] = useState<number | null>(null);
+  const [detailItem, setDetailItem] = useState<ActiveItem | null>(null);
+  const activeRowId = snapshot.active_items[0]?.row_id ?? null;
+
   return (
-    <section id="mission" aria-label="任务执行台">
-      <Card>
-        <Text as="h2" size={600}>任务执行台</Text>
-        <Text className="metric">任务 {snapshot.job_id} · 进行中 {snapshot.counts.active}/{snapshot.counts.total}</Text>
-        <ProgressBar value={snapshot.overall_progress} aria-label="总体进度" />
-        <Text>已完成 {snapshot.counts.completed}/{snapshot.counts.total} · 失败 {snapshot.counts.failed} · 等待重试 {snapshot.counts.retry}</Text>
-        <Text className="metric">
-          预计总剩余时间 {formatDuration(snapshot.eta_total_seconds)} · 当前任务预计 {formatDuration(snapshot.eta_active_slowest_seconds)}
-        </Text>
+    <section id="mission" className="mission-control" aria-label="任务执行台">
+      <MissionOverview snapshot={snapshot} />
+      {job?.read_only && <SeriesRail
+        total={snapshot.counts.total}
+        completed={snapshot.counts.completed}
+        active={snapshot.counts.active}
+        failed={snapshot.counts.failed}
+        selectedRowId={selectedRowId ?? activeRowId}
+        onSelect={setSelectedRowId}
+      />}
+      <section className="mission-control__summary" aria-label="任务控制与状态">
+        <Text>失败 {snapshot.counts.failed} · 等待重试 {snapshot.counts.retry} · 当前任务预计 {formatDuration(snapshot.eta_active_slowest_seconds)}</Text>
         {job && <MissionControls
           job={job}
           retryableFailures={snapshot.counts.failed > 0 || snapshot.counts.retry > 0}
           onJobUpdated={onJobUpdated}
         />}
-      </Card>
-
-      <div>
+      </section>
+      <section className="execution-queue" aria-label="作品执行队列">
+        <div className="execution-queue__heading"><Text as="h2" size={500}>作品执行队列</Text><Text className="metric">活动 {snapshot.counts.active}</Text></div>
         {snapshot.active_items.map((item) => (
-          <ActiveItemRow key={item.source_id} item={item} />
+          <ActiveItemRow key={item.source_id} item={item} onInspect={setDetailItem} />
         ))}
-      </div>
+        {snapshot.active_items.length === 0 && <Text>当前没有正在执行的作品。</Text>}
+      </section>
       <LiveTrace entries={traceEntries} />
+      {detailItem && <TaskDetailDrawer item={detailItem} onClose={() => setDetailItem(null)} />}
     </section>
   );
 }
