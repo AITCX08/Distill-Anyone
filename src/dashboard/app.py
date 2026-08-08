@@ -24,7 +24,7 @@ from src.dashboard.api.events import router as events_router
 from src.dashboard.security import CSRF_COOKIE, SESSION_COOKIE, new_local_session
 from src.distillation.state import RevisionConflict
 
-_CSP = "default-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+_CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 
 
 def create_dashboard_app(
