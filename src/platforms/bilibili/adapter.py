@@ -53,6 +53,7 @@ class BilibiliAdapter:
         name="bilibili",
         url_patterns=(r"https?://space\.bilibili\.com/\d+",),
         item_types=frozenset({ItemType.VIDEO}),
+        requires_browser=True,
         requires_auth=True,
         commands=("status", "login", "creator"),
     )
@@ -98,6 +99,11 @@ class BilibiliAdapter:
                 buvid3,
                 self._config.credentials_cache,
             )
+
+    def save_dashboard_credential(self, credential: Any, buvid3: str) -> None:
+        """Persist a credential produced by Dashboard's local QR session."""
+
+        self._credential_saver(credential, buvid3, self._config.credentials_cache)
 
     def resolve(self, target: str) -> ResolvedTarget:
         match = _SPACE_URL_RE.match(target) or _EXPLICIT_UID_RE.match(target)

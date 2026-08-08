@@ -65,6 +65,10 @@ def test_legacy_source_id_qualifies_bvid():
     assert legacy_source_id("bilibili_BV1abc") == "bilibili_BV1abc"
 
 
+def test_bilibili_descriptor_declares_the_browser_backed_qr_login():
+    assert BilibiliAdapter.descriptor.requires_browser is True
+
+
 def test_resolve_accepts_space_url_and_rejects_video_url():
     adapter = make_adapter()
 
