@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import re
 import tempfile
 from collections.abc import Callable, Iterator, Mapping
@@ -85,7 +86,7 @@ class BilibiliAdapter:
         if config.sessdata:
             return AuthStatus("configured", "Bilibili credentials are configured")
         cache = getattr(self._config, "credentials_cache", None)
-        if cache is not None and Path(cache).is_file() and Path(cache).stat().st_size > 0:
+        if cache is not None and _has_usable_cached_credential(Path(cache)):
             return AuthStatus("configured", "Bilibili cached credentials are available")
         return AuthStatus("missing", "Run the Bilibili login command")
 
@@ -242,3 +243,11 @@ class BilibiliAdapter:
             },
             raw_metadata=dict(raw),
         )
+
+
+def _has_usable_cached_credential(path: Path) -> bool:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError, TypeError):
+        return False
+    return bool(data.get("sessdata") and data.get("bili_jct"))

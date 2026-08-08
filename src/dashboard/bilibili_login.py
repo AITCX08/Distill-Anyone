@@ -31,7 +31,9 @@ class _LoginOperation:
 def _default_qr_login_factory() -> tuple[Any, Any]:
     from bilibili_api.login_v2 import QrCodeLogin, QrCodeLoginChannel, QrCodeLoginEvents
 
-    return QrCodeLogin(QrCodeLoginChannel.WEB), QrCodeLoginEvents
+    # The upstream WEB flow can report DONE with an empty Credential on recent
+    # Bilibili responses.  The TV flow returns cookie fields directly.
+    return QrCodeLogin(QrCodeLoginChannel.TV), QrCodeLoginEvents
 
 
 async def _default_buvid_fetcher() -> str:
@@ -135,6 +137,13 @@ class BilibiliLoginCoordinator:
             state = await qr.check_state()
             if state == events.DONE:
                 credential = qr.get_credential()
+                if not getattr(credential, "sessdata", "") or not getattr(credential, "bili_jct", ""):
+                    self._update(
+                        operation_id,
+                        status="failed",
+                        message="登录结果缺少有效凭据，请重新发起二维码登录。",
+                    )
+                    return
                 buvid3 = await self._buvid_fetcher()
                 save_credential(credential, buvid3)
                 self._update(operation_id, status="succeeded", message="登录成功，凭据已安全保存到本机。")

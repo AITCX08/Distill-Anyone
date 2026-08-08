@@ -186,3 +186,14 @@ def test_authenticate_persists_qr_credentials(tmp_path):
     adapter.authenticate(headful=True)
 
     saver.assert_called_once_with(credential, "device-id", config.credentials_cache)
+
+
+def test_auth_status_rejects_an_empty_credential_cache(tmp_path):
+    config = make_config()
+    config.bilibili = SimpleNamespace(sessdata="", bili_jct="", buvid3="")
+    config.credentials_cache = tmp_path / "credentials.json"
+    config.credentials_cache.write_text(
+        '{"sessdata": "", "bili_jct": "", "buvid3": "device"}', encoding="utf-8"
+    )
+
+    assert make_adapter(config=config).auth_status().status == "missing"
