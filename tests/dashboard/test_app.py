@@ -33,6 +33,7 @@ def test_health_exposes_only_safe_dashboard_compatibility(tmp_path):
         "static_compatible": True,
     }
     assert "default-src 'self'" in response.headers["content-security-policy"]
+    assert "style-src 'self' 'unsafe-inline'" in response.headers["content-security-policy"]
     assert "test-session-secret" not in response.text
 
 
