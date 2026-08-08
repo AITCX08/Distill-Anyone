@@ -93,7 +93,7 @@ describe("App", () => {
       },
     }));
 
-    expect(screen.getByText("正在等待服务端任务快照…")).toBeVisible();
+    expect(screen.getByText("当前没有正在追踪的蒸馏任务")).toBeVisible();
   });
 
   it("shows controls only when the reconnect snapshot includes the matching server job state", () => {

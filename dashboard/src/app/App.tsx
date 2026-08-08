@@ -1,4 +1,5 @@
 import { MissionControlPage } from "../features/mission-control/MissionControlPage";
+import { MissionEmptyState } from "../features/mission-control/MissionEmptyState";
 import { useMissionControl } from "../features/mission-control/useMissionControl";
 import { CreateJobPage } from "../features/create-job/CreateJobPage";
 import { PlatformsPage } from "../features/platforms/PlatformsPage";
@@ -20,7 +21,7 @@ export function App() {
           traceEntries={mission.traceEntries}
           onJobUpdated={mission.updateJob}
         />
-        : <section id="mission" aria-label="任务执行台"><p>正在等待服务端任务快照…</p></section>)}
+        : <MissionEmptyState />)}
       {workspace === "create" && <CreateJobPage />}
       {workspace === "platforms" && <PlatformsPage />}
       {workspace === "history" && <JobHistoryPage />}
