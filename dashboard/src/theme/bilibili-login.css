@@ -1,0 +1,9 @@
+.bilibili-qr {
+  display: block;
+  width: min(100%, 272px);
+  margin: 18px auto;
+  border: 1px solid color-mix(in srgb, var(--colorBrandForeground1) 55%, transparent);
+  border-radius: 8px;
+  background: #fff;
+  image-rendering: pixelated;
+}

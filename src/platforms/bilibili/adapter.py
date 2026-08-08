@@ -100,6 +100,11 @@ class BilibiliAdapter:
                 self._config.credentials_cache,
             )
 
+    def save_dashboard_credential(self, credential: Any, buvid3: str) -> None:
+        """Persist a credential produced by Dashboard's local QR session."""
+
+        self._credential_saver(credential, buvid3, self._config.credentials_cache)
+
     def resolve(self, target: str) -> ResolvedTarget:
         match = _SPACE_URL_RE.match(target) or _EXPLICIT_UID_RE.match(target)
         if not match:

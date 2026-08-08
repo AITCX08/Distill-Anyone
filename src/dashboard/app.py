@@ -21,6 +21,7 @@ from src.dashboard.api.artifacts import reveal_directory, router as artifacts_ro
 from src.dashboard.api.jobs import router as jobs_router
 from src.dashboard.api.platforms import router as platforms_router
 from src.dashboard.api.events import router as events_router
+from src.dashboard.bilibili_login import BilibiliLoginCoordinator
 from src.dashboard.security import CSRF_COOKIE, SESSION_COOKIE, new_local_session
 from src.distillation.state import RevisionConflict
 
@@ -45,6 +46,7 @@ def create_dashboard_app(
     app.state.static_compatible = True
     app.state.local_session = new_local_session()
     app.state.reveal_directory = reveal_directory
+    app.state.bilibili_login = BilibiliLoginCoordinator()
     app.include_router(health_router)
     app.include_router(jobs_router)
     app.include_router(platforms_router)
