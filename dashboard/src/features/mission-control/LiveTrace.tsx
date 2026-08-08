@@ -7,12 +7,12 @@ export function LiveTrace({ entries }: { entries: readonly string[] }) {
   const visibleEntries = entries.slice(-MAX_TRACE_ENTRIES).map((entry) => entry.slice(0, MAX_TRACE_LINE_LENGTH));
 
   return (
-    <section aria-label="Live trace">
+    <section aria-label="实时日志">
       <Card>
-        <Text as="h2" size={400}>Live Trace</Text>
+        <Text as="h2" size={400}>实时日志</Text>
         {visibleEntries.length > 0
           ? <pre aria-live="polite">{visibleEntries.join("\n")}</pre>
-          : <Text>No server trace entries yet.</Text>}
+          : <Text>暂时没有任务日志。</Text>}
       </Card>
     </section>
   );

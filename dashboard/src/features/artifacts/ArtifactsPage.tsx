@@ -56,7 +56,7 @@ export function ArtifactsPage() {
       setSelectedJob((current) => result.some((job) => job.job_id === current) ? current : (result[0]?.job_id ?? null));
     } catch {
       setJobs(null);
-      setError("Artifacts are unavailable because job history could not be loaded.");
+      setError("无法加载任务历史，暂时不能浏览产物。");
     }
   }
 
@@ -71,7 +71,7 @@ export function ArtifactsPage() {
       setArtifacts(result);
     } catch {
       setArtifacts(null);
-      setError("Artifact list was not confirmed by the local engine.");
+      setError("本地引擎尚未确认产物列表。");
     }
   }
 
@@ -88,7 +88,7 @@ export function ArtifactsPage() {
       setContent(result);
     } catch {
       setContent(null);
-      setError("Text preview was not confirmed by the local engine.");
+      setError("本地引擎尚未确认文本预览。");
     }
   }
 
@@ -97,9 +97,9 @@ export function ArtifactsPage() {
     try {
       if (!navigator.clipboard?.writeText) throw new Error("clipboard unavailable");
       await navigator.clipboard.writeText(content.content);
-      setStatus("Preview copied to the local clipboard.");
+      setStatus("预览内容已复制到本地剪贴板。");
     } catch {
-      setError("Clipboard copy is unavailable in this browser.");
+      setError("当前浏览器无法使用剪贴板复制功能。");
     }
   }
 
@@ -109,36 +109,36 @@ export function ArtifactsPage() {
     setStatus(null);
     try {
       await postJson<unknown>(`/api/v1/jobs/${encodeURIComponent(selectedJob)}/artifacts/${encodeURIComponent(artifact.artifact_id)}/reveal`, {});
-      setStatus("Local folder reveal request sent.");
+      setStatus("已发送打开本地文件夹的请求。");
     } catch {
-      setError("Local folder reveal was not confirmed by the local engine.");
+      setError("本地引擎尚未确认打开文件夹的请求。");
     }
   }
 
   return (
-    <section id="artifacts" aria-label="Artifacts">
+    <section id="artifacts" aria-label="产物库">
       <Card>
-        <Text as="h2" size={600}>Artifacts</Text>
-        <Text>Text previews are read-only. Folder reveal uses an allowlisted artifact and never exposes its path.</Text>
-        {jobs?.length === 0 && <Text role="status">No jobs are available for artifact browsing.</Text>}
-        {jobs && jobs.length > 0 && <Select aria-label="Artifact job" value={selectedJob ?? ""} onChange={(_, data) => setSelectedJob(data.value)}>
+        <Text as="h2" size={600}>产物库</Text>
+        <Text>文本预览为只读；打开文件夹仅允许已列出的产物，页面不会显示实际路径。</Text>
+        {jobs?.length === 0 && <Text role="status">没有可浏览产物的任务。</Text>}
+        {jobs && jobs.length > 0 && <Select aria-label="产物所属任务" value={selectedJob ?? ""} onChange={(_, data) => setSelectedJob(data.value)}>
           {jobs.map((job) => <option key={job.job_id} value={job.job_id}>{job.creator_name} · {job.job_id}</option>)}
         </Select>}
         {error && <Text role="alert">{error}</Text>}
         {status && <Text role="status">{status}</Text>}
-        {artifacts?.length === 0 && <Text role="status">No safe text artifacts are available for this job.</Text>}
+        {artifacts?.length === 0 && <Text role="status">此任务暂无可安全预览的文本产物。</Text>}
         {artifacts?.map((artifact) => (
           <Card key={artifact.artifact_id}>
             <Text as="h3" size={500}>{artifact.display_name}</Text>
             <Text className="metric">{artifact.name} · {artifact.source_id}</Text>
-            <Button appearance="secondary" onClick={() => void previewArtifact(artifact)}>Preview {artifact.display_name}</Button>
-            <Button appearance="secondary" onClick={() => void revealArtifact(artifact)}>Reveal {artifact.display_name}</Button>
+            <Button appearance="secondary" onClick={() => void previewArtifact(artifact)}>预览 {artifact.display_name}</Button>
+            <Button appearance="secondary" onClick={() => void revealArtifact(artifact)}>打开所在文件夹 {artifact.display_name}</Button>
           </Card>
         ))}
         {content && <Card>
-          <Text as="h3" size={500}>Preview · {content.display_name}</Text>
+          <Text as="h3" size={500}>预览 · {content.display_name}</Text>
           <pre>{content.content}</pre>
-          <Button appearance="primary" onClick={() => void copyPreview()}>Copy preview</Button>
+          <Button appearance="primary" onClick={() => void copyPreview()}>复制预览内容</Button>
         </Card>}
       </Card>
     </section>

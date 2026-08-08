@@ -1,6 +1,7 @@
 import { Button, Text } from "@fluentui/react-components";
 import { useState } from "react";
 import { DashboardRequestError, postJson } from "../../api/client";
+import { jobStatusLabel } from "../../i18n/zh";
 
 export type MissionJob = {
   job_id: string;
@@ -30,12 +31,12 @@ function actionPath(jobId: string, action: Action): string {
 
 function errorMessage(error: unknown): string {
   if (error instanceof DashboardRequestError && error.status === 409 && error.code === "revision_conflict") {
-    return "Job changed on the server. Wait for the next snapshot before retrying.";
+    return "任务状态已变化，请等待下一次服务端刷新后再试。";
   }
   if (error instanceof DashboardRequestError && error.code === "offline") {
-    return "Connection lost. Action was not confirmed.";
+    return "连接已断开，操作尚未确认。";
   }
-  return "Action was not confirmed. Check the next server snapshot.";
+  return "操作尚未确认，请查看下一次服务端刷新。";
 }
 
 export function MissionControls({
@@ -68,12 +69,12 @@ export function MissionControls({
   const canResume = job.status === "pause_requested" || job.status === "paused" || job.status === "partial" || job.status === "failed";
 
   return (
-    <div aria-label="Job controls">
-      <Text role="status">Job status: {job.status}</Text>
-      {job.read_only && <Text role="status">This externally monitored job is read-only.</Text>}
-      {!job.read_only && canPause && <Button onClick={() => run("pause")} disabled={busyAction !== null}>Pause job</Button>}
-      {!job.read_only && canResume && <Button onClick={() => run("resume")} disabled={busyAction !== null}>Resume job</Button>}
-      {!job.read_only && retryableFailures && <Button onClick={() => run("retry-failed")} disabled={busyAction !== null}>Retry failed items</Button>}
+    <div aria-label="任务控制">
+      <Text role="status">任务状态：{jobStatusLabel(job.status)}</Text>
+      {job.read_only && <Text role="status">此任务由外部进程执行，仅供监控。</Text>}
+      {!job.read_only && canPause && <Button onClick={() => run("pause")} disabled={busyAction !== null}>暂停任务</Button>}
+      {!job.read_only && canResume && <Button onClick={() => run("resume")} disabled={busyAction !== null}>继续任务</Button>}
+      {!job.read_only && retryableFailures && <Button onClick={() => run("retry-failed")} disabled={busyAction !== null}>重试失败项目</Button>}
       {message && <Text role="status">{message}</Text>}
     </div>
   );

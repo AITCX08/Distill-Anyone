@@ -36,9 +36,9 @@ function isCreatedJob(value: unknown): value is CreatedJob {
 
 function failureMessage(action: "preview" | "creation", error: unknown): string {
   if (error instanceof DashboardRequestError && error.code === "offline") {
-    return `Local engine is offline. ${action === "preview" ? "Preview" : "Creation"} was not confirmed.`;
+    return `本地引擎离线，${action === "preview" ? "预检" : "创建"}尚未确认。`;
   }
-  return `${action === "preview" ? "Preview" : "Creation"} was not confirmed by the local engine.`;
+  return `本地引擎尚未确认${action === "preview" ? "预检" : "创建"}操作。`;
 }
 
 export function CreateJobPage() {
@@ -105,40 +105,40 @@ export function CreateJobPage() {
   }
 
   return (
-    <section id="create" aria-label="Create job">
+    <section id="create" aria-label="新建任务">
       <Card>
-        <Text as="h2" size={600}>Create mission</Text>
-        <Text>Inspect the source first. Creation stays locked to that exact server preview.</Text>
-        <Field label="Creator URL" required>
+        <Text as="h2" size={600}>新建任务</Text>
+        <Text>请先预检来源；创建操作将严格使用该次服务端预检结果。</Text>
+        <Field label="创作者链接" required>
           <Input
-            aria-label="Creator URL"
+            aria-label="创作者链接"
             value={target}
             onChange={(_, data) => { invalidatePreview(); setTarget(data.value); }}
             placeholder="https://space.bilibili.com/..."
           />
         </Field>
-        <Field label="Platform">
+        <Field label="平台">
           <Select value={platform} onChange={(_, data) => { invalidatePreview(); setPlatform(data.value); }}>
-            <option value="auto">Auto detect</option>
-            <option value="bilibili">Bilibili</option>
-            <option value="douyin">Douyin</option>
+            <option value="auto">自动识别</option>
+            <option value="bilibili">哔哩哔哩</option>
+            <option value="douyin">抖音</option>
           </Select>
         </Field>
-        <Checkbox label="Episode markdown" checked={outputs.includes("episodes")} onChange={(_, data) => updateOutput("episodes", !!data.checked)} />
-        <Checkbox label="Distilled skill" checked={outputs.includes("skill")} onChange={(_, data) => updateOutput("skill", !!data.checked)} />
-        <Checkbox label="Generate RAG chunks" checked={ragChunks} onChange={(_, data) => { invalidatePreview(); setRagChunks(!!data.checked); }} />
+        <Checkbox label="按作品生成 Markdown" checked={outputs.includes("episodes")} onChange={(_, data) => updateOutput("episodes", !!data.checked)} />
+        <Checkbox label="生成蒸馏 Skill" checked={outputs.includes("skill")} onChange={(_, data) => updateOutput("skill", !!data.checked)} />
+        <Checkbox label="生成 RAG 分块" checked={ragChunks} onChange={(_, data) => { invalidatePreview(); setRagChunks(!!data.checked); }} />
         <div>
           <Button appearance="secondary" onClick={inspectSource} disabled={!target.trim() || outputs.length === 0 || pending !== null}>
-            {pending === "preview" ? "Inspecting source..." : "Inspect source"}
+            {pending === "preview" ? "正在预检…" : "预检来源"}
           </Button>
           <Button appearance="primary" onClick={createMission} disabled={!preview || !!created || pending !== null}>
-            {pending === "create" ? "Creating mission..." : "Create mission"}
+            {pending === "create" ? "正在创建…" : "创建任务"}
           </Button>
         </div>
         {preview && <Text role="status" className="metric">
-          {preview.creator_name} · {preview.processable_items} processable / {preview.total_items} total
+          {preview.creator_name} · 可处理 {preview.processable_items} / 共 {preview.total_items} 条
         </Text>}
-        {created && <Text role="status">Mission {created.job_id} accepted by the local engine.</Text>}
+        {created && <Text role="status">任务 {created.job_id} 已由本地引擎接收。</Text>}
         {error && <Text role="alert">{error}</Text>}
       </Card>
     </section>

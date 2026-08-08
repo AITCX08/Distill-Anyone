@@ -42,14 +42,14 @@ export function MissionControlPage({
   onJobUpdated?: (job: MissionJob) => void;
 }) {
   return (
-    <section id="mission" aria-label="Mission Control">
+    <section id="mission" aria-label="任务执行台">
       <Card>
-        <Text as="h2" size={600}>Mission Control</Text>
-        <Text className="metric">Job {snapshot.job_id} · Active {snapshot.counts.active}/{snapshot.counts.total}</Text>
-        <ProgressBar value={snapshot.overall_progress} aria-label="Overall progress" />
-        <Text>Completed {snapshot.counts.completed}/{snapshot.counts.total} · Failed {snapshot.counts.failed} · Retry {snapshot.counts.retry}</Text>
+        <Text as="h2" size={600}>任务执行台</Text>
+        <Text className="metric">任务 {snapshot.job_id} · 进行中 {snapshot.counts.active}/{snapshot.counts.total}</Text>
+        <ProgressBar value={snapshot.overall_progress} aria-label="总体进度" />
+        <Text>已完成 {snapshot.counts.completed}/{snapshot.counts.total} · 失败 {snapshot.counts.failed} · 等待重试 {snapshot.counts.retry}</Text>
         <Text className="metric">
-          Overall ETA {formatDuration(snapshot.eta_total_seconds)} · Slowest active ETA {formatDuration(snapshot.eta_active_slowest_seconds)}
+          预计总剩余时间 {formatDuration(snapshot.eta_total_seconds)} · 当前任务预计 {formatDuration(snapshot.eta_active_slowest_seconds)}
         </Text>
         {job && <MissionControls
           job={job}

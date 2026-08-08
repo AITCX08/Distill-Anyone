@@ -3,6 +3,7 @@ import { Button, Card, Select, Text } from "@fluentui/react-components";
 
 import { DashboardRequestError, getJson, postJson } from "../../api/client";
 import type { JobItem, JobStatus, JobSummary } from "../../api/schema";
+import { jobStatusLabel, platformLabel, stageLabel } from "../../i18n/zh";
 
 const statuses: readonly JobStatus[] = ["queued", "running", "pause_requested", "paused", "partial", "completed", "failed"];
 type FilterStatus = "all" | JobStatus;
@@ -58,7 +59,7 @@ export function JobHistoryPage() {
       setJobs(result);
     } catch {
       setJobs(null);
-      setError("Job history is unavailable. Refresh to retry the local engine request.");
+      setError("任务历史暂不可用，请刷新后重试连接本地引擎。");
     } finally {
       setLoading(false);
     }
@@ -74,7 +75,7 @@ export function JobHistoryPage() {
       if (!Array.isArray(result) || !result.every(isJobItem)) throw new Error("invalid item response");
       setItemsByJob((current) => ({ ...current, [jobId]: result }));
     } catch {
-      setError("Item actions were not confirmed by the local engine.");
+      setError("本地引擎尚未确认项目操作。");
     } finally {
       setItemsLoading(null);
     }
@@ -94,12 +95,12 @@ export function JobHistoryPage() {
       setJobs((current) => current?.map((candidate) => candidate.job_id === result.job_id
         ? { ...candidate, status: result.status as JobStatus, revision: result.revision }
         : candidate) ?? null);
-      setStatus("Retry request confirmed by the local engine.");
+      setStatus("本地引擎已确认重试请求。");
       await loadItems(job.job_id);
     } catch (reason) {
       setError(reason instanceof DashboardRequestError && reason.code === "revision_conflict"
-        ? "Retry was not confirmed because the job changed. Refresh history."
-        : "Retry request was not confirmed by the local engine.");
+        ? "任务状态已经变化，重试未确认；请刷新任务历史。"
+        : "本地引擎尚未确认重试请求。");
     } finally {
       setRetryingItem(null);
     }
@@ -111,37 +112,37 @@ export function JobHistoryPage() {
   );
 
   return (
-    <section id="history" aria-label="Job history">
+    <section id="history" aria-label="任务历史">
       <Card>
-        <Text as="h2" size={600}>Job history</Text>
-        <Select aria-label="Status filter" value={filter} onChange={(_, data) => setFilter(data.value as FilterStatus)}>
-          <option value="all">All statuses</option>
-          {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
+        <Text as="h2" size={600}>任务历史</Text>
+        <Select aria-label="状态筛选" value={filter} onChange={(_, data) => setFilter(data.value as FilterStatus)}>
+          <option value="all">全部状态</option>
+          {statuses.map((status) => <option key={status} value={status}>{jobStatusLabel(status)}</option>)}
         </Select>
         <Button appearance="secondary" onClick={refresh} disabled={loading}>
-          {loading ? "Refreshing..." : "Refresh history"}
+          {loading ? "正在刷新…" : "刷新历史"}
         </Button>
         {error && <Text role="alert">{error}</Text>}
         {status && <Text role="status">{status}</Text>}
-        {jobs?.length === 0 && <Text role="status">No jobs have been created yet.</Text>}
-        {jobs !== null && jobs.length > 0 && visibleJobs.length === 0 && <Text role="status">No jobs match this status.</Text>}
+        {jobs?.length === 0 && <Text role="status">尚未创建任务。</Text>}
+        {jobs !== null && jobs.length > 0 && visibleJobs.length === 0 && <Text role="status">没有符合该状态的任务。</Text>}
         {visibleJobs.map((job) => (
           <Card key={job.job_id}>
             <Text as="h3" size={500}>{job.creator_name}</Text>
-            <Text className="metric">{job.status} · {job.platform} · revision {job.revision}</Text>
-            <Text>{job.failed_items} failed / {job.total_items} total</Text>
+            <Text className="metric">{jobStatusLabel(job.status)} · {platformLabel(job.platform)} · 版本 {job.revision}</Text>
+            <Text>失败 {job.failed_items} / 共 {job.total_items} 条</Text>
             <Button appearance="secondary" onClick={() => void loadItems(job.job_id)} disabled={itemsLoading === job.job_id}>
-              {itemsLoading === job.job_id ? "Loading item actions..." : `Review item actions for ${job.creator_name}`}
+              {itemsLoading === job.job_id ? "正在加载项目操作…" : `查看 ${job.creator_name} 的项目操作`}
             </Button>
             {itemsByJob[job.job_id]?.map((item) => (
               <div key={item.source_id}>
-                <Text className="metric">{item.source_id} · {item.processing_status}</Text>
+                <Text className="metric">{item.source_id} · {stageLabel(item.processing_status)}</Text>
                 {item.retryable && <Button
                   appearance="primary"
                   onClick={() => void retryItem(job, item)}
                   disabled={retryingItem !== null}
                 >
-                  {retryingItem === item.source_id ? `Retrying ${item.source_id}...` : `Retry ${item.source_id}`}
+                  {retryingItem === item.source_id ? `正在重试 ${item.source_id}…` : `重试 ${item.source_id}`}
                 </Button>}
               </div>
             ))}
