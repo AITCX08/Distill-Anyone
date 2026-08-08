@@ -1,5 +1,5 @@
-import { act, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const stream = vi.hoisted(() => ({
   callback: undefined as undefined | ((event: { eventType: string; data: Record<string, unknown> }) => void),
@@ -25,7 +25,26 @@ vi.mock("../api/client", async (importOriginal) => ({
 import { App } from "./App";
 import { subscribeToEvents } from "../api/events";
 
+afterEach(() => {
+  cleanup();
+  stream.callback = undefined;
+  stream.close.mockClear();
+  vi.mocked(subscribeToEvents).mockClear();
+  api.getJson.mockClear();
+  api.postJson.mockClear();
+  window.location.hash = "#mission";
+});
+
 describe("App", () => {
+  it("renders only the workspace selected by the URL hash", () => {
+    window.location.hash = "#create";
+
+    render(<App />);
+
+    expect(screen.getByRole("region", { name: "新建任务" })).toBeVisible();
+    expect(screen.queryByRole("region", { name: "任务执行台" })).not.toBeInTheDocument();
+  });
+
   it("renders the latest server progress snapshot after an SSE reconnect", () => {
     render(<App />);
 
