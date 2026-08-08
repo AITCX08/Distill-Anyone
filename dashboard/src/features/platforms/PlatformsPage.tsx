@@ -23,6 +23,13 @@ function isPlatform(value: unknown): value is Platform {
     && "auth_message" in value && typeof value.auth_message === "string";
 }
 
+function displayAuthMessage(platform: Platform): string {
+  if (platform.name === "bilibili" && platform.auth_message === "Run the Bilibili login command") {
+    return "点击「登录哔哩哔哩」后，会在本机浏览器中打开二维码。";
+  }
+  return authMessageLabel(platform.auth_message);
+}
+
 export function PlatformsPage() {
   const [platforms, setPlatforms] = useState<Platform[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -80,7 +87,7 @@ export function PlatformsPage() {
           <Card key={platform.name}>
             <Text as="h3" size={500}>{platformLabel(platform.name)}</Text>
             <Text className="metric">{authStatusLabel(platform.auth_status)} · {platform.item_types.map(itemTypeLabel).join("、") || "暂无支持类型"}</Text>
-            <Text>{authMessageLabel(platform.auth_message)}</Text>
+            <Text>{displayAuthMessage(platform)}</Text>
             {platform.requires_auth && platform.requires_browser && <Button
               appearance="primary"
               onClick={() => void openLogin(platform)}

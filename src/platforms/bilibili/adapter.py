@@ -53,6 +53,7 @@ class BilibiliAdapter:
         name="bilibili",
         url_patterns=(r"https?://space\.bilibili\.com/\d+",),
         item_types=frozenset({ItemType.VIDEO}),
+        requires_browser=True,
         requires_auth=True,
         commands=("status", "login", "creator"),
     )
