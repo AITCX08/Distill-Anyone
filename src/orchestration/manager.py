@@ -43,6 +43,8 @@ class TaskManager:
         return self.store.create_tasks(job_id, [source_id])[0]
 
     def tick(self) -> None:
+        for task_id in tuple(self._processes):
+            self._read_worker_events(task_id)
         capacity = max(0, self.max_pipeline_workers - len(self._processes))
         for task in self.store.list_tasks(status="pending")[:capacity]:
             self.start(task.task_id)

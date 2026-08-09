@@ -54,3 +54,21 @@ def test_tick_persists_valid_worker_jsonl_events(tmp_path):
     event = store.list_events(task.task_id)[0]
     assert event.kind == "stage"
     assert event.payload["stage"] == "downloading"
+
+
+def test_tick_reads_events_appended_after_worker_launch(tmp_path):
+    factory = FakeProcessFactory()
+    store = OrchestrationStore(tmp_path / "orchestration.sqlite3")
+    job = store.create_job(platform="bilibili", target="https://example.invalid/creator")
+    manager = TaskManager(store=store, worker_root=tmp_path / "workers", process_factory=factory)
+    task = manager.enqueue(job.job_id, "p01")
+    manager.tick()
+    events_path = tmp_path / "workers" / task.task_id / "events.jsonl"
+    events_path.write_text(
+        '{"v":1,"type":"stage","task_id":"' + task.task_id + '","stage":"transcribing"}\n',
+        "utf-8",
+    )
+
+    manager.tick()
+
+    assert store.get_task(task.task_id).stage == "transcribing"
