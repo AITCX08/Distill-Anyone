@@ -249,6 +249,17 @@ class TestGetCredential:
 
         assert buv == "login_buv"
 
+    def test_noninteractive_lookup_never_starts_a_qr_browser_login(self, tmp_path):
+        """Workers must return control to the Dashboard when credentials are absent."""
+        cache = tmp_path / "no_cache.json"
+        cfg = make_config(cache_path=cache)
+
+        with patch("src.crawl.auth.run_qrcode_login") as login:
+            with pytest.raises(RuntimeError, match="Dashboard login required"):
+                get_credential(cfg, allow_interactive=False)
+
+        login.assert_not_called()
+
     def test_all_strategies_fail_exits(self, tmp_path):
         """All strategies fail -> sys.exit(1)."""
         cache = tmp_path / "no_cache.json"

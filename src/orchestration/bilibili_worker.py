@@ -29,7 +29,9 @@ class BilibiliWorkPipeline:
             from src.crawl.audio_download import download_audio_with_progress, generate_cookies_file
             from src.crawl.auth import get_credential
 
-            credential_provider = credential_provider or get_credential
+            credential_provider = credential_provider or (
+                lambda config: get_credential(config, allow_interactive=False)
+            )
             cookies_factory = cookies_factory or generate_cookies_file
             download_fn = download_fn or download_audio_with_progress
         self.credential_provider = credential_provider
