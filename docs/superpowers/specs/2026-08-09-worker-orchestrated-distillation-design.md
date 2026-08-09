@@ -51,7 +51,7 @@ TaskManager ---- SQLite scheduler store ---- TaskEventStore
   |
   +--> Worker process per task
          download -> audio -> ASR -> clean -> summarize -> artifact commit
-         stdout: JSON Lines events only
+         private JSONL event file + manager resource permits
          task work directory: checkpoint + media + artifacts
 ```
 
@@ -76,6 +76,7 @@ until migration is complete. Each worker gets a deterministic work directory:
 data/workers/<task_id>/
   checkpoint.json
   events.jsonl
+  resource-request.json / resource-grant.json
   media/
   artifacts/
 ```
@@ -94,14 +95,14 @@ The scheduler has the following normalized records:
   and ownership state. Process command lines are never persisted or returned.
 - `task_events`: ordered redacted events with task id, sequence, timestamp, kind,
   and compact JSON payload.
-- `commands`: idempotency key, requested command, result, and revision used to
-  prevent double clicks from starting two workers.
 
 ## Worker Protocol
 
-The parent passes only a task id and an inherited, in-memory credential handle
-to a worker. Worker stdout is line-delimited UTF-8 JSON; any non-JSON output is
-captured as a sanitized diagnostic line. Required event shapes are:
+The parent passes only a task id, a private worker-directory reference, and a
+stable source descriptor to a worker. Credentials are resolved inside the
+worker's local platform adapter and never enter the payload. Worker events are
+appended as line-delimited UTF-8 JSON to its private `events.jsonl`; worker
+stdout and stderr are discarded. Required event shapes are:
 
 ```json
 {"v":1,"type":"stage","task_id":"tsk_...","stage":"transcribing"}
@@ -118,8 +119,9 @@ fail only their worker; they cannot corrupt another task.
 
 1. Dashboard creates or imports a job. The service enumerates works and creates
    one `pending` task per work in one transaction.
-2. TaskManager selects eligible tasks up to configured download, ASR, and LLM
-   limits, creates one hidden worker process for each, and records its lease.
+2. TaskManager creates at most two hidden worker processes and records a lease
+   for each. Before every constrained stage, a worker writes a private resource
+   request; TaskManager alone grants download (2), ASR (1), and LLM (1) permits.
 3. Download events update exact bytes, speed, and download ETA. Later stages
    report a named stage and checkpoint activity; they never pretend to have
    download speed.
@@ -132,8 +134,8 @@ fail only their worker; they cannot corrupt another task.
    leased child PID may be terminated. Its checkpoint and artifacts remain for
    inspection; it is never silently reported as completed.
 7. Service restart checks every lease against PID and start marker. A live worker
-   is reattached to stdout; a missing worker becomes `interrupted` and is
-   resumable from its checkpoint.
+   is reattached as an event-file observer and consumes later JSONL entries; a
+   missing worker becomes `interrupted` and is resumable from its checkpoint.
 
 ## Concurrency and Resource Policy
 
@@ -154,9 +156,9 @@ cannot perform that stage until granted. The UI shows `等待转写资源` or
 
 The browser uses revisioned APIs:
 
-- `POST /api/v1/jobs` creates an orchestration job after preview.
-- `GET /api/v1/jobs/{job_id}/tasks` returns sanitized task summaries.
-- `POST /api/v1/tasks/{task_id}/pause|resume|cancel|retry` accepts
+- `POST /api/v1/tasks/import/bilibili` imports a saved local Bilibili series.
+- `GET /api/v1/tasks` returns sanitized task summaries.
+- `POST /api/v1/tasks/{task_id}/pause|resume|cancel` accepts
   `{expected_revision, command_id}`.
 - `GET /api/v1/events?job_id=...` sends initial job, task, and bounded trace
   snapshots followed by incremental events.

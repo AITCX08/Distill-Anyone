@@ -5,9 +5,16 @@
 ## Dashboard worker workflow
 
 1. Open the loopback Dashboard and sign in with its local QR dialog.
-2. Create or import a source. A series becomes one job with one independently resumable task per part.
-3. Inspect the task card: download bytes and speed appear only while downloading; later pipeline stages show their true named stage.
-4. Pause, resume, or cancel one task without affecting its siblings. A service restart reconciles its own worker leases and preserves the last validated checkpoint.
+2. Create a source or import a local Bilibili series. An imported series becomes one job with one independently resumable task per part; already completed parts remain completed.
+3. The TaskManager starts at most two hidden workers. Each worker owns its full pipeline: download, audio extraction, transcription, cleaning, summarization, and Markdown artifact writing.
+4. Inspect each task card: byte totals and speed appear only while downloading. ASR and LLM stages show their true stage name instead of fabricated transfer values.
+5. Pause, resume, or cancel one task without affecting siblings. A worker stops at its next durable boundary; restart reconciliation observes a surviving lease or marks a missing lease as resumable.
+
+### Resource and privacy policy
+
+- Default limits are two pipeline workers, two downloads, one ASR stage, and one LLM stage. A worker waits for a TaskManager-issued stage permit before it consumes a constrained resource.
+- The Dashboard binds only to `127.0.0.1`. It never receives cookies, QR payloads, credentials, command lines, PIDs, absolute paths, or raw worker output.
+- Worker progress is private JSONL in the task directory. The server validates and redacts it before projecting a compact SSE snapshot to the browser.
 
 The Dashboard is intentionally local-only (`127.0.0.1`). It stores and streams redacted task state only; credentials, raw launch commands, and absolute artifact paths never enter the browser API.
 
