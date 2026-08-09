@@ -21,6 +21,10 @@ ProcessFactory = Callable[[TaskRecord, Path], Any]
 PidProbe = Callable[[int, str], bool]
 
 
+class TaskManagerOwnershipError(RuntimeError):
+    """Raised when another live Dashboard already owns this orchestration store."""
+
+
 class TaskManager:
     """Queue work, create one hidden child process per task, and own its lease."""
 
@@ -43,6 +47,38 @@ class TaskManager:
         self._processes: dict[str, Any] = {}
         self._attached_leases: dict[str, tuple[int, str]] = {}
         self._event_lines_read: dict[str, int] = {}
+        self._owner_id = uuid.uuid4().hex
+        self._owner_pid = os.getpid()
+        self._owner_start_marker = _start_marker(self._owner_pid)
+
+    def claim_ownership(self) -> None:
+        """Claim this data root before accepting Dashboard task control."""
+
+        existing = self.store.task_manager_owner()
+        if existing is None:
+            if self.store.claim_task_manager(
+                owner_id=self._owner_id,
+                pid=self._owner_pid,
+                start_marker=self._owner_start_marker,
+            ):
+                return
+        else:
+            _, pid, start_marker = existing
+            if pid == self._owner_pid:
+                raise TaskManagerOwnershipError(
+                    "another live Dashboard already owns this data directory"
+                )
+            if not self.pid_probe(pid, start_marker) and self.store.claim_task_manager(
+                owner_id=self._owner_id,
+                pid=self._owner_pid,
+                start_marker=self._owner_start_marker,
+                replacing_owner_id=existing[0],
+            ):
+                return
+        raise TaskManagerOwnershipError("another live Dashboard already owns this data directory")
+
+    def release_ownership(self) -> None:
+        self.store.release_task_manager(self._owner_id)
 
     def enqueue(self, job_id: str, source_id: str) -> TaskRecord:
         return self.store.create_tasks(job_id, [source_id])[0]

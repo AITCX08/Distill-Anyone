@@ -82,6 +82,7 @@ def run_dashboard(service: DistillationService, port: int, open_browser: bool) -
     static_dir = Path(__file__).with_name("static")
     app = create_dashboard_app(service, static_dir, session_secret="process-local")
     app.state.task_manager = _build_task_manager(service)
+    app.state.task_manager.claim_ownership()
     app.state.task_manager.reconcile()
     monitor = SeriesTaskMonitor(
         SeriesTaskBridge(
@@ -110,17 +111,21 @@ def run_dashboard(service: DistillationService, port: int, open_browser: bool) -
     app.state.series_controller = SeriesController(data_dir, launcher=launch_series)
     url = f"http://{host}:{port}"
     server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
-    Thread(
-        target=_run_task_manager_loop,
-        args=(app.state.task_manager, server),
-        daemon=True,
-        name="distill-task-manager",
-    ).start()
-    if open_browser:
+    try:
         Thread(
-            target=_open_browser_when_healthy,
-            args=(server, url),
+            target=_run_task_manager_loop,
+            args=(app.state.task_manager, server),
             daemon=True,
-            name="distill-dashboard-browser",
+            name="distill-task-manager",
         ).start()
-    server.run()
+        if open_browser:
+            Thread(
+                target=_open_browser_when_healthy,
+                args=(server, url),
+                daemon=True,
+                name="distill-dashboard-browser",
+            ).start()
+        server.run()
+    finally:
+        monitor.stop()
+        app.state.task_manager.release_ownership()

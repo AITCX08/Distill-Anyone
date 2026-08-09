@@ -68,6 +68,13 @@ class OrchestrationStore:
                     created_at TEXT NOT NULL,
                     PRIMARY KEY(task_id, command_id)
                 );
+                CREATE TABLE IF NOT EXISTS task_manager_ownership (
+                    singleton TEXT PRIMARY KEY CHECK(singleton = 'dashboard'),
+                    owner_id TEXT NOT NULL,
+                    pid INTEGER NOT NULL,
+                    start_marker TEXT NOT NULL,
+                    claimed_at TEXT NOT NULL
+                );
                 CREATE INDEX IF NOT EXISTS idx_tasks_job_id ON tasks(job_id);
                 CREATE INDEX IF NOT EXISTS idx_task_events_task_sequence
                     ON task_events(task_id, sequence);
@@ -289,6 +296,60 @@ class OrchestrationStore:
                 """INSERT INTO task_commands (task_id, command_id, action, created_at)
                    VALUES (?, ?, ?, ?)""",
                 (task_id, command_id, action, utc_now_iso()),
+            )
+
+    def task_manager_owner(self) -> tuple[str, int, str] | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT owner_id, pid, start_marker FROM task_manager_ownership "
+                "WHERE singleton = 'dashboard'"
+            ).fetchone()
+        if row is None:
+            return None
+        return str(row["owner_id"]), int(row["pid"]), str(row["start_marker"])
+
+    def claim_task_manager(
+        self,
+        *,
+        owner_id: str,
+        pid: int,
+        start_marker: str,
+        replacing_owner_id: str | None = None,
+    ) -> bool:
+        """Atomically claim the one Dashboard process slot for this data root."""
+
+        if not owner_id or pid <= 0 or not start_marker:
+            raise ValueError("task manager ownership fields are required")
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT owner_id FROM task_manager_ownership WHERE singleton = 'dashboard'"
+            ).fetchone()
+            if row is None:
+                connection.execute(
+                    """INSERT INTO task_manager_ownership
+                       (singleton, owner_id, pid, start_marker, claimed_at)
+                       VALUES ('dashboard', ?, ?, ?, ?)""",
+                    (owner_id, pid, start_marker, utc_now_iso()),
+                )
+                return True
+            if str(row["owner_id"]) == owner_id:
+                return True
+            if replacing_owner_id is None or str(row["owner_id"]) != replacing_owner_id:
+                return False
+            cursor = connection.execute(
+                """UPDATE task_manager_ownership
+                   SET owner_id = ?, pid = ?, start_marker = ?, claimed_at = ?
+                   WHERE singleton = 'dashboard' AND owner_id = ?""",
+                (owner_id, pid, start_marker, utc_now_iso(), replacing_owner_id),
+            )
+            return cursor.rowcount == 1
+
+    def release_task_manager(self, owner_id: str) -> None:
+        with self._connection() as connection:
+            connection.execute(
+                "DELETE FROM task_manager_ownership WHERE singleton = 'dashboard' AND owner_id = ?",
+                (owner_id,),
             )
 
     @contextmanager

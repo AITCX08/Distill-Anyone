@@ -1,6 +1,6 @@
 """Lifecycle tests for the process-owning task manager."""
 
-from src.orchestration.manager import TaskManager
+from src.orchestration.manager import TaskManager, TaskManagerOwnershipError
 from src.orchestration.store import OrchestrationStore
 import json
 
@@ -18,6 +18,20 @@ class FakeProcessFactory:
         self.task_id = task.task_id
         self.payload_path = payload_path
         return FakeProcess()
+
+
+def test_only_one_task_manager_can_claim_one_data_root(tmp_path):
+    store = OrchestrationStore(tmp_path / "orchestration.sqlite3")
+    first = TaskManager(store=store, worker_root=tmp_path / "workers")
+    second = TaskManager(store=store, worker_root=tmp_path / "workers")
+
+    first.claim_ownership()
+    try:
+        second.claim_ownership()
+    except TaskManagerOwnershipError:
+        pass
+    else:
+        raise AssertionError("a second task manager claimed the same data root")
 
 
 def test_start_records_one_lease_and_reads_worker_events(tmp_path):
