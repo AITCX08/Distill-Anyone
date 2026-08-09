@@ -107,7 +107,8 @@ class BilibiliWorkPipeline:
         return {"transcript": str(path.relative_to(context.work_dir)).replace("\\", "/")}
 
     def clean(self, context: WorkerContext) -> Mapping[str, str]:
-        from src.clean.text_processor import TextProcessor, create_llm_client, load_cleaned, load_transcript, save_cleaned
+        from src.asr.funasr_engine import load_transcript
+        from src.clean.text_processor import TextProcessor, create_llm_client, load_cleaned, save_cleaned
 
         del load_cleaned
         if self._processor is None:

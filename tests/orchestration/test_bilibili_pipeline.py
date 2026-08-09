@@ -45,3 +45,33 @@ def test_bilibili_download_stage_uses_part_url_and_forwards_real_progress(tmp_pa
 
     assert artifacts == {"audio": "media/audio.wav"}
     assert received == [(25, 100, 5)]
+
+
+def test_bilibili_clean_stage_loads_the_transcript_from_the_asr_boundary(tmp_path):
+    transcript = tmp_path / "artifacts" / "transcript.json"
+    transcript.parent.mkdir(parents=True)
+    transcript.write_text('{"text": "transcript"}', "utf-8")
+
+    class Processor:
+        def process_transcript(self, document):
+            assert document == {"text": "transcript"}
+            return {"source_id": "p07", "content": "cleaned"}
+
+    pipeline = BilibiliWorkPipeline(
+        config=object(),
+        credential_provider=lambda config: (object(), ""),
+        cookies_factory=lambda credential, buvid, destination: destination,
+        download_fn=lambda *args, **kwargs: None,
+        text_processor_factory=Processor,
+    )
+    context = WorkerContext(
+        task_id="task_1",
+        payload={"source": {"platform": "bilibili", "bvid": "BV18bLkztE7R", "part": 7}},
+        work_dir=tmp_path,
+        artifacts={"transcript": "artifacts/transcript.json"},
+        emit_transfer=lambda completed, total, speed: None,
+    )
+
+    artifacts = pipeline.clean(context)
+
+    assert artifacts == {"cleaned": "artifacts/p07.json"}
