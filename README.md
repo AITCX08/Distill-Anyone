@@ -1,5 +1,16 @@
 # Distill-Anyone
 
+> Worker orchestration migration: the Dashboard is moving to one complete, isolated child process per work. The browser only controls local tasks; it never receives cookies, command lines, or local filesystem paths. See `docs/superpowers/specs/2026-08-09-worker-orchestrated-distillation-design.md` for the release architecture.
+
+## Dashboard worker workflow
+
+1. Open the loopback Dashboard and sign in with its local QR dialog.
+2. Create or import a source. A series becomes one job with one independently resumable task per part.
+3. Inspect the task card: download bytes and speed appear only while downloading; later pipeline stages show their true named stage.
+4. Pause, resume, or cancel one task without affecting its siblings. A service restart reconciles its own worker leases and preserves the last validated checkpoint.
+
+The Dashboard is intentionally local-only (`127.0.0.1`). It stores and streams redacted task state only; credentials, raw launch commands, and absolute artifact paths never enter the browser API.
+
 > 将公开内容转化为可复用的结构化知识：逐作品 Markdown、聚合 Skill 与 RAG 知识块。
 
 Distill-Anyone 是一个本地优先的内容蒸馏工具。它可以从创作者主页枚举可见作品，完成下载、转写、清洗、知识提取与输出；也保留 PDF、DOCX、TXT 文档蒸馏和会议纪要能力。

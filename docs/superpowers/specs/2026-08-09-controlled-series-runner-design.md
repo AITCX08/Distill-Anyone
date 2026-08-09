@@ -1,5 +1,7 @@
 # Controlled Series Runner Design
 
+> **Superseded:** the release architecture is now [Worker-Orchestrated Distillation](2026-08-09-worker-orchestrated-distillation-design.md). This document remains as historical context for legacy `runtime.json` jobs only; new series are imported as ordinary isolated worker tasks.
+
 ## Goal
 
 Make imported Bilibili series first-class Dashboard jobs: live download progress,
