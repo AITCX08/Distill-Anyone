@@ -55,3 +55,22 @@ def test_initial_sse_snapshot_includes_latest_progress_for_reconnecting_browser(
 
     assert "event: snapshot" in message
     assert '"overall_progress": 0.5' in message
+
+
+def test_initial_sse_snapshot_includes_existing_trace_lines_for_reconnecting_browser():
+    hub = EventHub()
+    progress = ProgressSnapshot(
+        job_id="job-1", revision=2, overall_progress=0.5, coverage=0.25,
+        active_items=(), counts=ProgressCounts(total=4, active=0),
+        eta_total_seconds=None, eta_active_slowest_seconds=None, provisional_eta=True,
+    )
+    hub.publish("trace.appended", {"job_id": "job-1", "line": "Paused at checkpoint."})
+    hub.publish("progress.snapshot", {"job_id": "job-1", "snapshot": progress})
+    service = SimpleNamespace(events=hub, list_jobs=lambda: ())
+
+    async def next_message():
+        return await anext(event_stream(service, last_event_id=None, job_id="job-1"))
+
+    message = asyncio.run(next_message())
+
+    assert '"traces": {"job-1": ["Paused at checkpoint."]}' in message

@@ -58,7 +58,19 @@ def _snapshot_message(service, job_id: str | None) -> str:
             )
     progress_snapshots = []
     seen_job_ids = set()
-    for event in reversed(service.events.snapshot(job_id=job_id)):
+    traces: dict[str, list[str]] = {}
+    events = service.events.snapshot(job_id=job_id)
+    for event in events:
+        if event.event_type != "trace.appended":
+            continue
+        payload = redact_value(event.payload)
+        if not isinstance(payload, Mapping):
+            continue
+        trace_job_id = payload.get("job_id")
+        line = payload.get("line")
+        if isinstance(trace_job_id, str) and isinstance(line, str):
+            traces.setdefault(trace_job_id, []).append(line)
+    for event in reversed(events):
         if event.event_type != "progress.snapshot":
             continue
         payload = redact_value(event.payload)
@@ -72,7 +84,7 @@ def _snapshot_message(service, job_id: str | None) -> str:
             continue
         seen_job_ids.add(current_job_id)
         progress_snapshots.append(snapshot)
-    message = {"schema_version": 1, "jobs": jobs, "progress_snapshots": progress_snapshots}
+    message = {"schema_version": 1, "jobs": jobs, "progress_snapshots": progress_snapshots, "traces": traces}
     return f"event: snapshot\ndata: {json.dumps(message, ensure_ascii=False)}\n\n"
 
 

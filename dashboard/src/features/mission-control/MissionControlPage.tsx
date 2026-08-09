@@ -47,33 +47,37 @@ export function MissionControlPage({
 }) {
   const [selectedRowId, setSelectedRowId] = useState<number | null>(null);
   const [detailItem, setDetailItem] = useState<ActiveItem | null>(null);
-  const activeRowId = snapshot.active_items[0]?.row_id ?? null;
+  const paused = job?.status === "paused" || job?.status === "pause_requested";
+  const displayedSnapshot = paused
+    ? { ...snapshot, active_items: [], counts: { ...snapshot.counts, active: 0 } }
+    : snapshot;
+  const activeRowId = displayedSnapshot.active_items[0]?.row_id ?? null;
 
   return (
     <section id="mission" className="mission-control" aria-label="任务执行台">
-      <MissionOverview snapshot={snapshot} />
+      <MissionOverview snapshot={displayedSnapshot} jobStatus={job?.status} />
       {job && (job.read_only || job.job_id.startsWith("imported-series-")) && <SeriesRail
-        total={snapshot.counts.total}
-        completed={snapshot.counts.completed}
-        active={snapshot.counts.active}
-        failed={snapshot.counts.failed}
+        total={displayedSnapshot.counts.total}
+        completed={displayedSnapshot.counts.completed}
+        active={displayedSnapshot.counts.active}
+        failed={displayedSnapshot.counts.failed}
         selectedRowId={selectedRowId ?? activeRowId}
         onSelect={setSelectedRowId}
       />}
       <section className="mission-control__summary" aria-label="任务控制与状态">
-        <Text>失败 {snapshot.counts.failed} · 等待重试 {snapshot.counts.retry} · 当前任务预计 {formatDuration(snapshot.eta_active_slowest_seconds)}</Text>
+        <Text>{paused ? "任务已暂停，恢复后将从最近检查点继续。" : `失败 ${snapshot.counts.failed} · 等待重试 ${snapshot.counts.retry} · 当前任务预计 ${formatDuration(snapshot.eta_active_slowest_seconds)}`}</Text>
         {job && <MissionControls
           job={job}
-          retryableFailures={snapshot.counts.failed > 0 || snapshot.counts.retry > 0}
+          retryableFailures={displayedSnapshot.counts.failed > 0 || displayedSnapshot.counts.retry > 0}
           onJobUpdated={onJobUpdated}
         />}
       </section>
       <section className="execution-queue" aria-label="作品执行队列">
-        <div className="execution-queue__heading"><Text as="h2" size={500}>作品执行队列</Text><Text className="metric">活动 {snapshot.counts.active}</Text></div>
-        {snapshot.active_items.map((item) => (
+        <div className="execution-queue__heading"><Text as="h2" size={500}>作品执行队列</Text><Text className="metric">活动 {displayedSnapshot.counts.active}</Text></div>
+        {displayedSnapshot.active_items.map((item) => (
           <ActiveItemRow key={item.source_id} item={item} onInspect={setDetailItem} />
         ))}
-        {snapshot.active_items.length === 0 && <Text>当前没有正在执行的作品。</Text>}
+        {displayedSnapshot.active_items.length === 0 && <Text>{paused ? "任务已暂停；恢复后会在此显示执行进度。" : "当前没有正在执行的作品。"}</Text>}
       </section>
       <LiveTrace entries={traceEntries} />
       {detailItem && <TaskDetailDrawer item={detailItem} onClose={() => setDetailItem(null)} />}

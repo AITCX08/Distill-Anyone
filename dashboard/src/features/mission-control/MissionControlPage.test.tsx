@@ -79,6 +79,17 @@ describe("MissionControlPage", () => {
       active_items: [{ ...snapshot.active_items[0], total_bytes: null, stage_progress: null }],
     }} />);
 
-    expect(within(view.container).getByRole("progressbar", { name: "Work A 传输进度" })).toBeVisible();
+    expect(within(view.container).getByRole("progressbar", { name: "Work A 下载进度" })).toBeVisible();
+  });
+
+  it("explains paused telemetry instead of displaying unknown download values", () => {
+    render(<MissionControlPage
+      snapshot={{ ...snapshot, active_items: [], counts: { ...snapshot.counts, active: 0 } }}
+      job={{ job_id: "job-1", status: "paused", revision: 1 }}
+    />);
+
+    expect(screen.getByText("已暂停")).toBeVisible();
+    expect(screen.getByText("恢复后估算")).toBeVisible();
+    expect(screen.queryByText("未知")).not.toBeInTheDocument();
   });
 });

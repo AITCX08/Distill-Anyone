@@ -65,3 +65,31 @@ def test_series_bridge_projects_running_eight_part_series_as_read_only_dashboard
     assert snapshot.active_items[0].total_bytes == 100
     assert snapshot.active_items[0].bytes_per_second == 10.0
     assert snapshot.active_items[0].title == "四柱命卦 1"
+
+
+def test_series_bridge_hides_active_work_when_the_series_is_paused(tmp_path):
+    data_dir = tmp_path / "data"
+    source_state = data_dir / "series" / "BV18bLkztE7R" / "state.json"
+    source_state.parent.mkdir(parents=True)
+    source_state.write_text(
+        json.dumps(
+            {
+                "bvid": "BV18bLkztE7R",
+                "title": "八集系列",
+                "parts": {"7": {"stage": "extracting_knowledge"}},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (source_state.parent / "runtime.json").write_text(
+        json.dumps({"status": "paused", "active_part": 7, "stage": "extracting_knowledge"}),
+        encoding="utf-8",
+    )
+    events = EventHub()
+
+    assert SeriesTaskBridge(data_dir=data_dir, events=events).sync() == 1
+
+    snapshot = [event for event in events.snapshot() if event.event_type == "progress.snapshot"][0].payload["snapshot"]
+    assert snapshot.counts.active == 0
+    assert snapshot.active_items == ()

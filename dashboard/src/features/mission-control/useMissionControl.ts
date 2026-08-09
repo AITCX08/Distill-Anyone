@@ -77,6 +77,14 @@ function jobFromSnapshot(data: Record<string, unknown>, jobId: string): MissionJ
   return data.jobs.find((job): job is MissionJob => isMissionJob(job) && job.job_id === jobId) ?? null;
 }
 
+export function snapshotTraceEntries(data: Record<string, unknown>, jobId: string): readonly string[] {
+  if (typeof data.traces !== "object" || data.traces === null) return [];
+  const lines = (data.traces as Record<string, unknown>)[jobId];
+  return Array.isArray(lines) && lines.every((line) => typeof line === "string")
+    ? lines.slice(-MAX_TRACE_ENTRIES) as string[]
+    : [];
+}
+
 function traceFromEvent(event: DashboardEvent): { jobId: string; line: string } | null {
   if (event.eventType !== "trace.appended") return null;
   const payload = event.data.payload;
@@ -113,7 +121,9 @@ export function useMissionControl(): MissionControlModel | null {
           job: isReconnectSnapshot
             ? jobFromSnapshot(event.data, nextSnapshot.job_id)
             : current?.snapshot.job_id === nextSnapshot.job_id ? current.job : null,
-          traceEntries: current?.snapshot.job_id === nextSnapshot.job_id ? current.traceEntries : [],
+          traceEntries: isReconnectSnapshot
+            ? snapshotTraceEntries(event.data, nextSnapshot.job_id)
+            : current?.snapshot.job_id === nextSnapshot.job_id ? current.traceEntries : [],
         }));
         return;
       }

@@ -202,6 +202,7 @@ class SeriesTaskBridge:
     @staticmethod
     def _snapshot(state: JobState, titles: dict[str, str], transfer: dict[str, Any]) -> ProgressSnapshot:
         values = tuple(state.items.values())
+        is_running = state.status == "running"
         active = [
             ItemProgress(
                 source_id=item.source_id,
@@ -216,7 +217,7 @@ class SeriesTaskBridge:
                 bytes_per_second=float(transfer.get("bytes_per_second") or 0.0),
             )
             for index, item in enumerate(values, start=1)
-            if item.processing_status in _ACTIVE
+            if is_running and item.processing_status in _ACTIVE
         ]
         total = len(values)
         completed = sum(item.processing_status is ProcessingStatus.COMPLETED for item in values)
