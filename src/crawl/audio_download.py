@@ -265,6 +265,7 @@ def download_audio_with_progress(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         started_at = monotonic()
         deadline = started_at + _DOWNLOAD_TIMEOUT_SECONDS
