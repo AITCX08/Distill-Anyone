@@ -136,9 +136,10 @@ async def event_stream(
     job_id: str | None,
     *,
     heartbeat_seconds: float = 15,
+    worker_snapshot_seconds: float = 1,
     task_manager=None,
 ) -> AsyncIterator[str]:
-    """Replay safe events, then wait with a heartbeat and bounded subscription."""
+    """Replay safe events, then publish bounded local worker snapshots between heartbeats."""
 
     events = service.events.snapshot(job_id=job_id)
     oldest_id = events[0].event_id if events else None
@@ -154,9 +155,13 @@ async def event_stream(
                 yield _snapshot_message(service, job_id, task_manager)
                 continue
             try:
-                event = await to_thread(subscription.get, heartbeat_seconds)
+                timeout = min(heartbeat_seconds, worker_snapshot_seconds) if task_manager is not None else heartbeat_seconds
+                event = await to_thread(subscription.get, timeout)
             except Empty:
-                yield ": heartbeat\n\n"
+                if task_manager is not None:
+                    yield _snapshot_message(service, job_id, task_manager)
+                else:
+                    yield ": heartbeat\n\n"
                 continue
             yield serialize_sse(event)
     finally:

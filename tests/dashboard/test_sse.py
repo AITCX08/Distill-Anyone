@@ -118,3 +118,29 @@ def test_initial_sse_snapshot_projects_latest_worker_transfer_to_its_task(tmp_pa
 
     assert '"completed_bytes": 25' in message
     assert '"bytes_per_second": 5' in message
+
+
+def test_worker_sse_stream_refreshes_task_snapshot_after_manager_state_changes(tmp_path):
+    hub = EventHub()
+    store = OrchestrationStore(tmp_path / "orchestration.sqlite3")
+    job = store.create_job(platform="bilibili", target="https://example.invalid/creator")
+    task = store.create_tasks(job.job_id, ["p01"])[0]
+    service = SimpleNamespace(events=hub, list_jobs=lambda: ())
+    manager = SimpleNamespace(store=store)
+
+    async def changed_snapshot():
+        stream = event_stream(
+            service,
+            last_event_id=None,
+            job_id=None,
+            heartbeat_seconds=0.01,
+            task_manager=manager,
+        )
+        await anext(stream)
+        store.transition_task(task.task_id, task.revision, status="running", stage="downloading")
+        return await anext(stream)
+
+    message = asyncio.run(changed_snapshot())
+
+    assert '"status": "running"' in message
+    assert '"stage": "downloading"' in message
