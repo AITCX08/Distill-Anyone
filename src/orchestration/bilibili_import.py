@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -35,9 +36,12 @@ class BilibiliSeriesImporter:
         parts = legacy_state.get("parts")
         if not isinstance(parts, Mapping) or not parts:
             raise ValueError("legacy Bilibili series has no parts")
-        numbered = sorted((int(number), value) for number, value in parts.items() if str(number).isdigit())
-        if not numbered:
+        existing_parts = {int(number): value for number, value in parts.items() if str(number).isdigit()}
+        if not existing_parts:
             raise ValueError("legacy Bilibili series has no numbered parts")
+        declared_count = _declared_part_count(str(legacy_state.get("title") or ""))
+        part_count = max(max(existing_parts), declared_count or 0)
+        numbered = [(number, existing_parts.get(number, {})) for number in range(1, part_count + 1)]
         source_ids = [self._source_id(bvid, number) for number, _ in numbered]
         existing_job = next(
             (job for job in self.store.list_jobs() if job.platform == "bilibili" and job.target == source_url),
@@ -83,3 +87,10 @@ class BilibiliSeriesImporter:
             completed_tasks=completed,
             pending_tasks=sum(task.status == "pending" for task in tasks),
         )
+
+
+def _declared_part_count(title: str) -> int | None:
+    """Recover a missing trailing part only when the saved series title declares it."""
+
+    match = re.search(r"(\d+)\s*(?:集|episodes?)", title, flags=re.IGNORECASE)
+    return int(match.group(1)) if match is not None else None
