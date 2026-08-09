@@ -82,6 +82,7 @@ def test_initial_sse_snapshot_contains_worker_tasks_and_traces(tmp_path):
     store = OrchestrationStore(tmp_path / "orchestration.sqlite3")
     job = store.create_job(platform="bilibili", target="https://example.invalid/creator")
     task = store.create_tasks(job.job_id, ["p01"])[0]
+    store.transition_task(task.task_id, task.revision, status="running", stage="downloading")
     store.append_event(task.task_id, kind="log", payload={"line": "worker ready"})
     service = SimpleNamespace(events=hub, list_jobs=lambda: ())
     manager = SimpleNamespace(store=store)
@@ -94,3 +95,26 @@ def test_initial_sse_snapshot_contains_worker_tasks_and_traces(tmp_path):
     assert '"tasks"' in message
     assert '"traces"' in message
     assert "worker ready" in message
+
+
+def test_initial_sse_snapshot_projects_latest_worker_transfer_to_its_task(tmp_path):
+    hub = EventHub()
+    store = OrchestrationStore(tmp_path / "orchestration.sqlite3")
+    job = store.create_job(platform="bilibili", target="https://example.invalid/creator")
+    task = store.create_tasks(job.job_id, ["p01"])[0]
+    store.transition_task(task.task_id, task.revision, status="running", stage="downloading")
+    store.append_event(
+        task.task_id,
+        kind="transfer",
+        payload={"completed_bytes": 25, "total_bytes": 100, "bytes_per_second": 5},
+    )
+    service = SimpleNamespace(events=hub, list_jobs=lambda: ())
+    manager = SimpleNamespace(store=store)
+
+    async def next_message():
+        return await anext(event_stream(service, last_event_id=None, job_id=None, task_manager=manager))
+
+    message = asyncio.run(next_message())
+
+    assert '"completed_bytes": 25' in message
+    assert '"bytes_per_second": 5' in message

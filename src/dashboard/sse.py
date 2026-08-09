@@ -90,22 +90,31 @@ def _snapshot_message(service, job_id: str | None, task_manager=None) -> str:
         for task in task_manager.store.list_tasks():
             if job_id is not None and task.job_id != job_id:
                 continue
-            tasks.append(
-                {
-                    "task_id": task.task_id,
-                    "job_id": task.job_id,
-                    "source_id": task.source_id,
-                    "status": task.status,
-                    "stage": task.stage,
-                    "revision": task.revision,
-                    "attempt": task.attempt,
-                    "checkpoint_revision": task.checkpoint_revision,
-                    "updated_at": task.updated_at,
-                }
+            task_payload = {
+                "task_id": task.task_id,
+                "job_id": task.job_id,
+                "source_id": task.source_id,
+                "status": task.status,
+                "stage": task.stage,
+                "revision": task.revision,
+                "attempt": task.attempt,
+                "checkpoint_revision": task.checkpoint_revision,
+                "updated_at": task.updated_at,
+            }
+            events = task_manager.store.list_events(task.task_id)
+            latest_transfer = next(
+                (event.payload for event in reversed(events) if event.kind == "transfer"), None
             )
+            if task.stage == "downloading" and isinstance(latest_transfer, Mapping):
+                task_payload["transfer"] = {
+                    "completed_bytes": latest_transfer.get("completed_bytes"),
+                    "total_bytes": latest_transfer.get("total_bytes"),
+                    "bytes_per_second": latest_transfer.get("bytes_per_second"),
+                }
+            tasks.append(task_payload)
             lines = [
                 str(event.payload.get("line", ""))
-                for event in task_manager.store.list_events(task.task_id)[-50:]
+                for event in events[-50:]
                 if event.kind == "log" and isinstance(event.payload.get("line"), str)
             ]
             if lines:
