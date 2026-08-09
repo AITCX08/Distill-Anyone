@@ -87,3 +87,11 @@ def cancel(task_id: str, payload: TaskCommandInput, request: Request):
     _check_revision(manager, task_id, payload.expected_revision)
     manager.cancel(task_id)
     return _response(manager.store.get_task(task_id))
+
+
+@router.post("/{task_id}/retry", response_model=TaskResponse, dependencies=[Depends(require_mutation_security)])
+def retry(task_id: str, payload: TaskCommandInput, request: Request):
+    manager = _manager(request)
+    _check_revision(manager, task_id, payload.expected_revision)
+    manager.retry(task_id)
+    return _response(manager.store.get_task(task_id))

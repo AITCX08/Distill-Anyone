@@ -31,6 +31,7 @@ def test_start_records_one_lease_and_reads_worker_events(tmp_path):
 
     assert store.get_lease(task.task_id).pid == factory.pid
     assert store.get_task(task.task_id).status == "running"
+    assert store.get_task(task.task_id).attempt == 1
     assert factory.payload_path.exists()
 
 

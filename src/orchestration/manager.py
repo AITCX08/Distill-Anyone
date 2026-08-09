@@ -77,6 +77,7 @@ class TaskManager:
             task.revision,
             status="running",
             stage="pending",
+            increment_attempt=True,
         )
         self._processes[task.task_id] = process
         self._read_worker_events(task.task_id)
@@ -107,6 +108,16 @@ class TaskManager:
         self._write_control(task_id, "cancel")
         if task.status != "cancel_requested":
             self.store.transition_task(task_id, task.revision, status="cancel_requested")
+
+    def retry(self, task_id: str) -> None:
+        """Requeue one terminal task; its worker checkpoint decides which stage resumes."""
+
+        task = self.store.get_task(task_id)
+        if task.status not in {"failed", "interrupted", "cancelled"}:
+            raise ValueError("only failed, interrupted, or cancelled tasks can be retried")
+        self._clear_resource_files(task_id)
+        (self.worker_root / task_id / "control.json").unlink(missing_ok=True)
+        self.store.transition_task(task_id, task.revision, status="pending")
 
     def reconcile(self) -> None:
         """Mark absent lease-owned workers interrupted; never terminate by PID alone."""

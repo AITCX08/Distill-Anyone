@@ -214,6 +214,7 @@ class OrchestrationStore:
         *,
         status: str,
         stage: str | None = None,
+        increment_attempt: bool = False,
     ) -> TaskRecord:
         if not status.strip():
             raise ValueError("status is required")
@@ -228,10 +229,11 @@ class OrchestrationStore:
                 raise RevisionConflict(expected_revision, task.revision)
             next_stage = stage if stage is not None else task.stage
             next_revision = task.revision + 1
+            next_attempt = task.attempt + (1 if increment_attempt else 0)
             connection.execute(
-                """UPDATE tasks SET status = ?, stage = ?, revision = ?, updated_at = ?
+                """UPDATE tasks SET status = ?, stage = ?, revision = ?, attempt = ?, updated_at = ?
                    WHERE task_id = ?""",
-                (status, next_stage, next_revision, now, task_id),
+                (status, next_stage, next_revision, next_attempt, now, task_id),
             )
             row = connection.execute("SELECT * FROM tasks WHERE task_id = ?", (task_id,)).fetchone()
         return self._task_from_row(row)

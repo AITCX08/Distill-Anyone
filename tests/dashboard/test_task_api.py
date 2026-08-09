@@ -54,3 +54,24 @@ def test_import_bilibili_series_creates_independent_tasks_from_local_legacy_stat
     assert response.status_code == 200
     assert response.json()["created_tasks"] == 2
     assert response.json()["completed_tasks"] == 1
+
+
+def test_retry_interrupted_task_requeues_the_same_task_id(tmp_path):
+    client = make_client(tmp_path)
+    store = OrchestrationStore(tmp_path / "orchestration.sqlite3")
+    manager = TaskManager(store=store, worker_root=tmp_path / "workers")
+    client.app.state.task_manager = manager
+    job = store.create_job(platform="bilibili", target="https://example.invalid")
+    task = store.create_tasks(job.job_id, ["p01"])[0]
+    task = store.transition_task(task.task_id, task.revision, status="interrupted", stage="transcribing")
+    client.get("/api/v1/health")
+
+    response = client.post(
+        f"/api/v1/tasks/{task.task_id}/retry",
+        json={"expected_revision": task.revision, "command_id": "retry_task_1"},
+        headers={"Origin": "http://testserver", "X-Distill-CSRF": client.cookies.get("distill_csrf")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["task_id"] == task.task_id
+    assert response.json()["status"] == "pending"

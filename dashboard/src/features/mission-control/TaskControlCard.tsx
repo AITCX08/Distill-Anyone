@@ -7,7 +7,7 @@ import { stageLabel } from "../../i18n/zh";
 
 export type { WorkerTask } from "../../api/schema";
 
-type Action = "pause" | "resume" | "cancel";
+type Action = "pause" | "resume" | "cancel" | "retry";
 
 function formatBytes(value: number): string {
   return value >= 1024 * 1024 ? `${(value / (1024 * 1024)).toFixed(1)} MB` : `${(value / 1024).toFixed(1)} KB`;
@@ -30,6 +30,7 @@ export function TaskControlCard({ task, onTaskUpdated }: { task: WorkerTask; onT
   const canPause = task.status === "running";
   const canResume = task.status === "paused" || task.status === "interrupted";
   const canCancel = task.status === "running" || task.status === "pause_requested";
+  const canRetry = task.status === "failed" || task.status === "interrupted" || task.status === "cancelled";
 
   async function command(action: Action) {
     setBusy(action);
@@ -65,6 +66,7 @@ export function TaskControlCard({ task, onTaskUpdated }: { task: WorkerTask; onT
         {canPause && <Button onClick={() => command("pause")} disabled={busy !== null}>暂停任务</Button>}
         {canResume && <Button onClick={() => command("resume")} disabled={busy !== null}>继续任务</Button>}
         {canCancel && <Button onClick={() => command("cancel")} disabled={busy !== null}>取消任务</Button>}
+        {canRetry && <Button onClick={() => command("retry")} disabled={busy !== null}>重试任务</Button>}
       </div>
       {message && <Text role="status">{message}</Text>}
     </Card>
