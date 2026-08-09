@@ -144,6 +144,11 @@ class OrchestrationStore:
             )
         return tasks
 
+    def list_jobs(self) -> tuple[JobRecord, ...]:
+        with self._connection() as connection:
+            rows = connection.execute("SELECT * FROM jobs ORDER BY created_at, job_id").fetchall()
+        return tuple(self._job_from_row(row) for row in rows)
+
     def get_task(self, task_id: str) -> TaskRecord:
         with self._connection() as connection:
             row = connection.execute("SELECT * FROM tasks WHERE task_id = ?", (task_id,)).fetchone()
@@ -154,10 +159,10 @@ class OrchestrationStore:
     def list_tasks(self, *, status: str | None = None) -> tuple[TaskRecord, ...]:
         with self._connection() as connection:
             if status is None:
-                rows = connection.execute("SELECT * FROM tasks ORDER BY created_at, task_id").fetchall()
+                rows = connection.execute("SELECT * FROM tasks ORDER BY job_id, source_id").fetchall()
             else:
                 rows = connection.execute(
-                    "SELECT * FROM tasks WHERE status = ? ORDER BY created_at, task_id", (status,)
+                    "SELECT * FROM tasks WHERE status = ? ORDER BY job_id, source_id", (status,)
                 ).fetchall()
         return tuple(self._task_from_row(row) for row in rows)
 
@@ -279,6 +284,18 @@ class OrchestrationStore:
             revision=row["revision"],
             attempt=row["attempt"],
             checkpoint_revision=row["checkpoint_revision"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
+
+    @staticmethod
+    def _job_from_row(row: sqlite3.Row) -> JobRecord:
+        return JobRecord(
+            job_id=row["job_id"],
+            platform=row["platform"],
+            target=row["target"],
+            status=row["status"],
+            revision=row["revision"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
