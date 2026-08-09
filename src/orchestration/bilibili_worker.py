@@ -10,6 +10,26 @@ from typing import Any, Callable, Mapping
 from src.orchestration.worker import WorkerContext
 
 
+def select_available_llm_provider(config: Any) -> str:
+    """Preserve the preference when configured, otherwise use an available remote key."""
+
+    configured = str(getattr(config, "llm_provider", ""))
+    key_fields = {
+        "claude": "anthropic",
+        "openai": "openai",
+        "qwen": "qwen",
+        "deepseek": "deepseek",
+    }
+    preferred_settings = getattr(config, key_fields.get(configured, ""), None)
+    if preferred_settings is not None and bool(getattr(preferred_settings, "api_key", "")):
+        return configured
+    for provider in ("deepseek", "qwen", "openai", "claude"):
+        settings = getattr(config, key_fields[provider], None)
+        if settings is not None and bool(getattr(settings, "api_key", "")):
+            return provider
+    return configured
+
+
 class BilibiliWorkPipeline:
     """Execute download, ASR, clean, knowledge extraction, and episode output locally."""
 
@@ -115,7 +135,7 @@ class BilibiliWorkPipeline:
             if self.text_processor_factory is not None:
                 self._processor = self.text_processor_factory()
             else:
-                client = create_llm_client(self.config.llm_provider, self.config)
+                client = create_llm_client(select_available_llm_provider(self.config), self.config)
                 if client is None:
                     raise RuntimeError("no local LLM provider is configured")
                 self._processor = TextProcessor(llm_client=client)
@@ -131,7 +151,7 @@ class BilibiliWorkPipeline:
             if self.knowledge_extractor_factory is not None:
                 self._extractor = self.knowledge_extractor_factory()
             else:
-                client = create_llm_client(self.config.llm_provider, self.config)
+                client = create_llm_client(select_available_llm_provider(self.config), self.config)
                 if client is None:
                     raise RuntimeError("no local LLM provider is configured")
                 self._extractor = KnowledgeExtractor(client)

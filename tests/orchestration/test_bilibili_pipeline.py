@@ -1,8 +1,9 @@
 """Isolated Bilibili worker stages without real network or credentials."""
 
 from pathlib import Path
+from types import SimpleNamespace
 
-from src.orchestration.bilibili_worker import BilibiliWorkPipeline
+from src.orchestration.bilibili_worker import BilibiliWorkPipeline, select_available_llm_provider
 from src.orchestration.worker import WorkerContext
 
 
@@ -75,3 +76,15 @@ def test_bilibili_clean_stage_loads_the_transcript_from_the_asr_boundary(tmp_pat
     artifacts = pipeline.clean(context)
 
     assert artifacts == {"cleaned": "artifacts/p07.json"}
+
+
+def test_bilibili_worker_falls_back_to_an_available_configured_llm_provider():
+    config = SimpleNamespace(
+        llm_provider="claude",
+        anthropic=SimpleNamespace(api_key=""),
+        openai=SimpleNamespace(api_key=""),
+        qwen=SimpleNamespace(api_key=""),
+        deepseek=SimpleNamespace(api_key="configured"),
+    )
+
+    assert select_available_llm_provider(config) == "deepseek"
