@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol
@@ -54,6 +55,7 @@ def run_worker(
         work_dir.mkdir(parents=True, exist_ok=True)
         checkpoint = _load_checkpoint(work_dir, task_id)
         artifacts = dict(checkpoint.get("artifacts", {}))
+        resource_control = payload.get("resource_control") is True
         if pipeline is None:
             pipeline = (pipeline_factory or create_pipeline)(payload)
 
@@ -84,6 +86,24 @@ def run_worker(
 
             event_stage = "downloading" if method_name == "download" else checkpoint["stage"]
             _append_event(work_dir, task_id, "stage", {"stage": event_stage})
+            if resource_control:
+                _request_stage_resource(work_dir, event_stage)
+                action = _wait_for_stage_grant(work_dir, event_stage)
+                if action is not None:
+                    _clear_stage_resource(work_dir)
+                    checkpoint = _write_checkpoint(
+                        work_dir,
+                        task_id,
+                        stage="paused" if action == "pause" else "cancelled",
+                        previous=checkpoint,
+                        artifacts=artifacts,
+                    )
+                    _append_event(work_dir, task_id, "checkpoint", {
+                        "stage": checkpoint["stage"],
+                        "checkpoint_revision": checkpoint["checkpoint_revision"],
+                    })
+                    _append_event(work_dir, task_id, "terminal", {"status": checkpoint["stage"]})
+                    return 0
             context = WorkerContext(
                 task_id,
                 payload,
@@ -92,6 +112,8 @@ def run_worker(
                 _transfer_emitter(work_dir, task_id, stage=event_stage),
             )
             produced = stage_method(context)
+            if resource_control:
+                _clear_stage_resource(work_dir)
             if produced is not None:
                 if not isinstance(produced, Mapping):
                     raise RuntimeError(f"{method_name} must return artifact mapping")
@@ -109,10 +131,12 @@ def run_worker(
             })
 
         _append_event(work_dir, task_id, "terminal", {"status": checkpoint["stage"]})
+        _clear_stage_resource(work_dir)
         return 0
     except (OSError, ValueError, KeyError, RuntimeError) as error:
         work_dir = _work_dir_or_none(payload_path)
         if work_dir is not None:
+            _clear_stage_resource(work_dir)
             _append_event(work_dir, task_id, "terminal", {"status": "failed", "reason": str(error)})
         return 1
 
@@ -181,6 +205,34 @@ def _requested_action(work_dir: Path) -> str | None:
         return None
     action = value.get("action") if isinstance(value, dict) else None
     return action if action in {"pause", "cancel"} else None
+
+
+def _request_stage_resource(work_dir: Path, stage: str) -> None:
+    temporary = work_dir / "resource-request.tmp"
+    destination = work_dir / "resource-request.json"
+    temporary.write_text(json.dumps({"stage": stage}), "utf-8")
+    os.replace(temporary, destination)
+
+
+def _wait_for_stage_grant(work_dir: Path, stage: str, *, poll_seconds: float = 0.05) -> str | None:
+    """Wait for the manager permit, remaining cooperatively cancellable."""
+
+    while True:
+        action = _requested_action(work_dir)
+        if action is not None:
+            return action
+        try:
+            grant = json.loads((work_dir / "resource-grant.json").read_text("utf-8"))
+        except (OSError, ValueError, UnicodeError):
+            grant = None
+        if isinstance(grant, dict) and grant.get("stage") == stage:
+            return None
+        time.sleep(poll_seconds)
+
+
+def _clear_stage_resource(work_dir: Path) -> None:
+    (work_dir / "resource-request.json").unlink(missing_ok=True)
+    (work_dir / "resource-grant.json").unlink(missing_ok=True)
 
 
 def _write_checkpoint(

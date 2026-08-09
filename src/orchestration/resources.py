@@ -25,6 +25,11 @@ class ResourceSlots:
     llm: int = 1
     _holders: dict[str, set[str]] = field(default_factory=dict, init=False)
 
+    def clear(self) -> None:
+        """Rebuild grants from durable worker requests on each manager tick."""
+
+        self._holders.clear()
+
     def acquire(self, task_id: str, stage: str) -> bool:
         resource = _RESOURCE_BY_STAGE.get(stage)
         if resource is None:

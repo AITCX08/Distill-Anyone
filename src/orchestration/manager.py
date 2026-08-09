@@ -13,6 +13,7 @@ from typing import Any, Callable
 
 from src.orchestration.models import TaskRecord
 from src.orchestration.protocol import ProtocolError, parse_worker_event
+from src.orchestration.resources import ResourceSlots
 from src.orchestration.store import OrchestrationStore
 
 
@@ -31,12 +32,14 @@ class TaskManager:
         process_factory: ProcessFactory | None = None,
         max_pipeline_workers: int = 2,
         pid_probe: PidProbe | None = None,
+        resource_slots: ResourceSlots | None = None,
     ) -> None:
         self.store = store
         self.worker_root = Path(worker_root)
         self.process_factory = process_factory or self._launch_worker
         self.max_pipeline_workers = max_pipeline_workers
         self.pid_probe = pid_probe or _default_pid_probe
+        self.resource_slots = resource_slots or ResourceSlots()
         self._processes: dict[str, Any] = {}
         self._event_lines_read: dict[str, int] = {}
 
@@ -48,9 +51,11 @@ class TaskManager:
             self._read_worker_events(task_id)
             if process.poll() is not None:
                 self._finalize_exited_process(task_id)
+        self._allocate_stage_resources()
         capacity = max(0, self.max_pipeline_workers - len(self._processes))
         for task in self.store.list_tasks(status="pending")[:capacity]:
             self.start(task.task_id)
+        self._allocate_stage_resources()
 
     def start(self, task_id: str) -> TaskRecord:
         if task_id in self._processes:
@@ -114,6 +119,7 @@ class TaskManager:
                     payload={"line": "worker lease ended before a terminal checkpoint"},
                 )
             self.store.remove_lease(lease.task_id)
+            self._clear_resource_files(lease.task_id)
 
     def _write_payload(self, task: TaskRecord) -> Path:
         work_dir = self.worker_root / task.task_id
@@ -126,6 +132,7 @@ class TaskManager:
                     "task_id": task.task_id,
                     "work_dir": str(work_dir),
                     "source": _source_descriptor(job.platform, task.source_id),
+                    "resource_control": True,
                 },
                 ensure_ascii=False,
             ),
@@ -177,7 +184,58 @@ class TaskManager:
                 payload={"line": "worker process exited before terminal checkpoint"},
             )
         self.store.remove_lease(task_id)
+        self._clear_resource_files(task_id)
         self._processes.pop(task_id, None)
+
+    def _allocate_stage_resources(self) -> None:
+        """Grant stage permits from durable requests; workers never self-authorize."""
+
+        requests: list[tuple[TaskRecord, str]] = []
+        for task in self.store.list_tasks():
+            if task.status not in {"running", "pause_requested"}:
+                continue
+            request_path = self.worker_root / task.task_id / "resource-request.json"
+            try:
+                request = json.loads(request_path.read_text("utf-8"))
+            except (OSError, UnicodeError, ValueError):
+                continue
+            stage = request.get("stage") if isinstance(request, dict) else None
+            if isinstance(stage, str):
+                requests.append((task, stage))
+
+        self.resource_slots.clear()
+        granted: set[str] = set()
+        # Retain matching permits first so a later waiter cannot steal a live stage.
+        for task, stage in sorted(requests, key=lambda item: item[0].task_id):
+            if self._has_matching_grant(task.task_id, stage) and self.resource_slots.acquire(task.task_id, stage):
+                granted.add(task.task_id)
+        for task, stage in sorted(requests, key=lambda item: item[0].task_id):
+            if task.task_id in granted:
+                continue
+            if self.resource_slots.acquire(task.task_id, stage):
+                self._write_resource_grant(task.task_id, stage)
+                granted.add(task.task_id)
+            else:
+                (self.worker_root / task.task_id / "resource-grant.json").unlink(missing_ok=True)
+
+    def _has_matching_grant(self, task_id: str, stage: str) -> bool:
+        try:
+            grant = json.loads((self.worker_root / task_id / "resource-grant.json").read_text("utf-8"))
+        except (OSError, UnicodeError, ValueError):
+            return False
+        return isinstance(grant, dict) and grant.get("stage") == stage
+
+    def _write_resource_grant(self, task_id: str, stage: str) -> None:
+        work_dir = self.worker_root / task_id
+        temporary = work_dir / "resource-grant.tmp"
+        destination = work_dir / "resource-grant.json"
+        temporary.write_text(json.dumps({"stage": stage}), "utf-8")
+        os.replace(temporary, destination)
+
+    def _clear_resource_files(self, task_id: str) -> None:
+        work_dir = self.worker_root / task_id
+        (work_dir / "resource-request.json").unlink(missing_ok=True)
+        (work_dir / "resource-grant.json").unlink(missing_ok=True)
 
     @staticmethod
     def _launch_worker(task: TaskRecord, payload_path: Path) -> subprocess.Popen[str]:
@@ -185,9 +243,8 @@ class TaskManager:
         return subprocess.Popen(
             [sys.executable, "-m", "src.orchestration.worker", str(payload_path)],
             stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
 

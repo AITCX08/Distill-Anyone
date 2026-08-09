@@ -120,3 +120,25 @@ def test_tick_releases_a_completed_worker_slot_after_its_terminal_event(tmp_path
         pass
     else:
         raise AssertionError("completed worker lease was not released")
+
+
+def test_manager_grants_only_one_asr_stage_to_two_worker_processes(tmp_path):
+    factory = FakeProcessFactory()
+    store = OrchestrationStore(tmp_path / "orchestration.sqlite3")
+    job = store.create_job(platform="bilibili", target="https://example.invalid/creator")
+    first, second = store.create_tasks(job.job_id, ["p01", "p02"])
+    manager = TaskManager(store=store, worker_root=tmp_path / "workers", process_factory=factory)
+    manager.start(first.task_id)
+    manager.start(second.task_id)
+    for task in (first, second):
+        (tmp_path / "workers" / task.task_id / "resource-request.json").write_text(
+            '{"stage":"transcribing"}', "utf-8"
+        )
+
+    manager.tick()
+
+    grants = [
+        (tmp_path / "workers" / task.task_id / "resource-grant.json").exists()
+        for task in (first, second)
+    ]
+    assert grants.count(True) == 1
