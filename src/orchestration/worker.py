@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol
@@ -38,7 +39,13 @@ _NEXT_STAGE = {
 _TERMINAL_STAGES = frozenset({"completed", "paused", "cancelled"})
 
 
-def run_worker(task_id: str, payload_path: Path, *, pipeline: Pipeline | None = None) -> int:
+def run_worker(
+    task_id: str,
+    payload_path: Path,
+    *,
+    pipeline: Pipeline | None = None,
+    pipeline_factory: Callable[[Mapping[str, Any]], Pipeline] | None = None,
+) -> int:
     """Run or resume one work without creating or controlling sibling processes."""
 
     try:
@@ -47,6 +54,8 @@ def run_worker(task_id: str, payload_path: Path, *, pipeline: Pipeline | None = 
         work_dir.mkdir(parents=True, exist_ok=True)
         checkpoint = _load_checkpoint(work_dir, task_id)
         artifacts = dict(checkpoint.get("artifacts", {}))
+        if pipeline is None:
+            pipeline = (pipeline_factory or create_pipeline)(payload)
 
         while checkpoint["stage"] not in _TERMINAL_STAGES:
             action = _requested_action(work_dir)
@@ -69,8 +78,6 @@ def run_worker(task_id: str, payload_path: Path, *, pipeline: Pipeline | None = 
             if step is None:
                 raise RuntimeError("checkpoint has an unsupported stage")
             method_name, next_stage = step
-            if pipeline is None:
-                raise RuntimeError("worker pipeline implementation is unavailable")
             stage_method = getattr(pipeline, method_name, None)
             if stage_method is None:
                 raise RuntimeError(f"worker pipeline cannot execute {method_name}")
@@ -189,7 +196,7 @@ def _write_checkpoint(
         "stage": stage,
         "checkpoint_revision": int(previous["checkpoint_revision"]) + 1,
         "artifacts": dict(artifacts),
-        "transcript_verified": bool(previous.get("transcript_verified", False)),
+        "transcript_verified": bool(previous.get("transcript_verified", False) or "transcript" in artifacts),
         "updated_at": utc_now_iso(),
     }
     destination = work_dir / "checkpoint.json"
@@ -241,3 +248,31 @@ def _transfer_emitter(
         )
 
     return emit
+
+
+def create_pipeline(payload: Mapping[str, Any]) -> Pipeline:
+    """Create the local, platform-specific pipeline inside the worker process."""
+
+    source = payload.get("source")
+    if isinstance(source, Mapping) and source.get("platform") == "bilibili":
+        from src.orchestration.bilibili_worker import BilibiliWorkPipeline
+
+        return BilibiliWorkPipeline.from_local_config()
+    raise RuntimeError("worker payload has no supported platform pipeline")
+
+
+def main(argv: list[str] | None = None) -> int:
+    values = list(sys.argv[1:] if argv is None else argv)
+    if len(values) != 1:
+        return 2
+    payload_path = Path(values[0])
+    try:
+        payload = json.loads(payload_path.read_text("utf-8"))
+        task_id = payload.get("task_id") if isinstance(payload, Mapping) else None
+    except (OSError, ValueError):
+        return 2
+    return run_worker(task_id, payload_path) if isinstance(task_id, str) else 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

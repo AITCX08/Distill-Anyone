@@ -222,6 +222,7 @@ def download_audio_with_progress(
     force: bool = False,
     *,
     progress_callback: Callable[[int, int | None, float], None],
+    source_url: str | None = None,
 ) -> Optional[Path]:
     """Download audio while reporting yt-dlp byte-level transfer updates.
 
@@ -255,7 +256,7 @@ def download_audio_with_progress(
     ]
     if cookies_file and cookies_file.exists():
         cmd.extend(["--cookies", str(cookies_file)])
-    cmd.append(BILIBILI_VIDEO_URL.format(bvid=bvid))
+    cmd.append(source_url or BILIBILI_VIDEO_URL.format(bvid=bvid))
 
     process = None
     try:

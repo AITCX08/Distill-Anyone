@@ -83,3 +83,25 @@ def test_worker_honors_parent_pause_between_stages(tmp_path):
     assert checkpoint["stage"] == "paused"
     events = (work_dir / "events.jsonl").read_text("utf-8")
     assert '"status": "paused"' in events
+
+
+def test_worker_builds_one_pipeline_from_its_payload_when_not_injected(tmp_path):
+    payload, _ = _write_payload(tmp_path, task_id="tsk_factory")
+    class FullPipeline(FakePipeline):
+        def extract_audio(self, context):
+            return {}
+
+        def transcribe(self, context):
+            return {"transcript": "artifacts/transcript.json"}
+
+    pipeline = FullPipeline()
+    built_for = []
+
+    assert run_worker(
+        "tsk_factory",
+        payload,
+        pipeline_factory=lambda value: built_for.append(value["task_id"]) or pipeline,
+    ) == 0
+
+    assert built_for == ["tsk_factory"]
+    assert pipeline.download_calls == 1
