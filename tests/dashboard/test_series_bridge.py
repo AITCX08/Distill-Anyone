@@ -3,6 +3,7 @@ import json
 from src.application.events import EventHub
 from src.dashboard.series_bridge import SeriesTaskBridge
 from src.distillation.store import JobStateStore
+from src.orchestration.store import OrchestrationStore
 
 
 def test_series_bridge_projects_running_eight_part_series_as_read_only_dashboard_job(tmp_path):
@@ -93,3 +94,21 @@ def test_series_bridge_hides_active_work_when_the_series_is_paused(tmp_path):
     snapshot = [event for event in events.snapshot() if event.event_type == "progress.snapshot"][0].payload["snapshot"]
     assert snapshot.counts.active == 0
     assert snapshot.active_items == ()
+
+
+def test_series_bridge_skips_a_series_already_migrated_to_worker_tasks(tmp_path):
+    data_dir = tmp_path / "data"
+    source_state = data_dir / "series" / "BV18bLkztE7R" / "state.json"
+    source_state.parent.mkdir(parents=True)
+    source_state.write_text(
+        json.dumps({"bvid": "BV18bLkztE7R", "parts": {"1": {"stage": "pending"}}}),
+        encoding="utf-8",
+    )
+    store = OrchestrationStore(data_dir / "orchestration.sqlite3")
+    job = store.create_job(platform="bilibili", target="https://www.bilibili.com/video/BV18bLkztE7R")
+    store.create_tasks(job.job_id, ["bilibili_BV18bLkztE7R_p01"])
+
+    bridge = SeriesTaskBridge(data_dir=data_dir, events=EventHub(), orchestration_store=store)
+
+    assert bridge.sync() == 0
+    assert not (data_dir / "jobs" / "imported-series" / "BV18bLkztE7R" / "job_state.json").exists()

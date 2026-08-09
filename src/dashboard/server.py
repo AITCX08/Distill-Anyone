@@ -84,7 +84,11 @@ def run_dashboard(service: DistillationService, port: int, open_browser: bool) -
     app.state.task_manager = _build_task_manager(service)
     app.state.task_manager.reconcile()
     monitor = SeriesTaskMonitor(
-        SeriesTaskBridge(data_dir=service.repository.root.parent, events=service.events)
+        SeriesTaskBridge(
+            data_dir=service.repository.root.parent,
+            events=service.events,
+            orchestration_store=app.state.task_manager.store,
+        )
     )
     monitor.start()
     app.state.series_task_monitor = monitor

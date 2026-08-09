@@ -12,6 +12,7 @@ from src.application.events import EventHub
 from src.distillation.progress import ItemProgress, ProgressCounts, ProgressSnapshot
 from src.distillation.state import ItemState, JobState, ProcessingStatus, utc_now_iso
 from src.distillation.store import JobStateStore
+from src.orchestration.store import OrchestrationStore
 
 _PART_COUNT = re.compile(r"(\d+)\s*集")
 _STAGES = {
@@ -79,9 +80,16 @@ def _job_status(raw: dict[str, Any], items: dict[str, ItemState], runtime: dict[
 class SeriesTaskBridge:
     """Mirror `data/series/*/state.json` into standard, read-only job states."""
 
-    def __init__(self, *, data_dir: Path, events: EventHub) -> None:
+    def __init__(
+        self,
+        *,
+        data_dir: Path,
+        events: EventHub,
+        orchestration_store: OrchestrationStore | None = None,
+    ) -> None:
         self.data_dir = data_dir
         self.events = events
+        self.orchestration_store = orchestration_store
         self._seen_fingerprints: dict[Path, str] = {}
         self._seen_trace_entries: dict[str, tuple[str, ...]] = {}
 
@@ -97,6 +105,9 @@ class SeriesTaskBridge:
             if raw is None:
                 continue
             bvid = str(raw.get("bvid") or "").strip()
+            if bvid and self._is_migrated(bvid):
+                self._seen_fingerprints[state_path] = "migrated"
+                continue
             runtime = _read_json(self.data_dir / "series" / bvid / "runtime.json") if bvid else None
             fingerprint = json.dumps({"state": raw, "runtime": runtime}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
             if self._seen_fingerprints.get(state_path) == fingerprint:
@@ -105,6 +116,12 @@ class SeriesTaskBridge:
                 changed += 1
                 self._seen_fingerprints[state_path] = fingerprint
         return changed
+
+    def _is_migrated(self, bvid: str) -> bool:
+        if self.orchestration_store is None:
+            return False
+        prefix = f"bilibili_{bvid}_p"
+        return any(task.source_id.startswith(prefix) for task in self.orchestration_store.list_tasks())
 
     def _project(self, raw: dict[str, Any], runtime: dict[str, Any]) -> bool:
         bvid = str(raw.get("bvid") or "").strip()
