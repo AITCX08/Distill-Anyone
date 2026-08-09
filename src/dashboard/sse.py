@@ -37,7 +37,7 @@ def serialize_sse(event: ApplicationEvent) -> str:
     return f"id: {safe.event_id}\nevent: {event_name}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-def _snapshot_message(service, job_id: str | None) -> str:
+def _snapshot_message(service, job_id: str | None, task_manager=None) -> str:
     jobs = []
     for job in service.list_jobs():
         if job_id is None or job.job_id == job_id:
@@ -84,7 +84,40 @@ def _snapshot_message(service, job_id: str | None) -> str:
             continue
         seen_job_ids.add(current_job_id)
         progress_snapshots.append(snapshot)
-    message = {"schema_version": 1, "jobs": jobs, "progress_snapshots": progress_snapshots, "traces": traces}
+    tasks = []
+    task_traces: dict[str, list[str]] = {}
+    if task_manager is not None:
+        for task in task_manager.store.list_tasks():
+            if job_id is not None and task.job_id != job_id:
+                continue
+            tasks.append(
+                {
+                    "task_id": task.task_id,
+                    "job_id": task.job_id,
+                    "source_id": task.source_id,
+                    "status": task.status,
+                    "stage": task.stage,
+                    "revision": task.revision,
+                    "attempt": task.attempt,
+                    "checkpoint_revision": task.checkpoint_revision,
+                    "updated_at": task.updated_at,
+                }
+            )
+            lines = [
+                str(event.payload.get("line", ""))
+                for event in task_manager.store.list_events(task.task_id)[-50:]
+                if event.kind == "log" and isinstance(event.payload.get("line"), str)
+            ]
+            if lines:
+                task_traces[task.task_id] = lines
+    message = {
+        "schema_version": 1,
+        "jobs": jobs,
+        "progress_snapshots": progress_snapshots,
+        "traces": traces,
+        "tasks": tasks,
+        "task_traces": task_traces,
+    }
     return f"event: snapshot\ndata: {json.dumps(message, ensure_ascii=False)}\n\n"
 
 
@@ -94,13 +127,14 @@ async def event_stream(
     job_id: str | None,
     *,
     heartbeat_seconds: float = 15,
+    task_manager=None,
 ) -> AsyncIterator[str]:
     """Replay safe events, then wait with a heartbeat and bounded subscription."""
 
     events = service.events.snapshot(job_id=job_id)
     oldest_id = events[0].event_id if events else None
     if last_event_id is None or (oldest_id is not None and last_event_id < oldest_id - 1):
-        yield _snapshot_message(service, job_id)
+        yield _snapshot_message(service, job_id, task_manager)
         last_event_id = events[-1].event_id if events else 0
 
     subscription = service.events.subscribe(after_id=last_event_id, job_id=job_id, queue_size=100)
@@ -108,7 +142,7 @@ async def event_stream(
         while True:
             if subscription.needs_snapshot:
                 subscription.needs_snapshot = False
-                yield _snapshot_message(service, job_id)
+                yield _snapshot_message(service, job_id, task_manager)
                 continue
             try:
                 event = await to_thread(subscription.get, heartbeat_seconds)

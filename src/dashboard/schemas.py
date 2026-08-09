@@ -26,6 +26,22 @@ class RevisionInput(BaseModel):
     expected_revision: int = Field(ge=0)
 
 
+class TaskCommandInput(RevisionInput):
+    command_id: str = Field(min_length=8, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+class TaskResponse(BaseModel):
+    task_id: str
+    job_id: str
+    source_id: str
+    status: str
+    stage: str
+    revision: int
+    attempt: int
+    checkpoint_revision: int
+    updated_at: str
+
+
 class PreviewResponse(BaseModel):
     fingerprint: str
     platform: str

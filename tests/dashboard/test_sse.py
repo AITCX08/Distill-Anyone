@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 from src.application.events import EventHub
 from src.dashboard.sse import event_stream
+from src.orchestration.store import OrchestrationStore
 from src.distillation.progress import ProgressCounts, ProgressSnapshot
 
 
@@ -74,3 +75,22 @@ def test_initial_sse_snapshot_includes_existing_trace_lines_for_reconnecting_bro
     message = asyncio.run(next_message())
 
     assert '"traces": {"job-1": ["Paused at checkpoint."]}' in message
+
+
+def test_initial_sse_snapshot_contains_worker_tasks_and_traces(tmp_path):
+    hub = EventHub()
+    store = OrchestrationStore(tmp_path / "orchestration.sqlite3")
+    job = store.create_job(platform="bilibili", target="https://example.invalid/creator")
+    task = store.create_tasks(job.job_id, ["p01"])[0]
+    store.append_event(task.task_id, kind="log", payload={"line": "worker ready"})
+    service = SimpleNamespace(events=hub, list_jobs=lambda: ())
+    manager = SimpleNamespace(store=store)
+
+    async def next_message():
+        return await anext(event_stream(service, last_event_id=None, job_id=None, task_manager=manager))
+
+    message = asyncio.run(next_message())
+
+    assert '"tasks"' in message
+    assert '"traces"' in message
+    assert "worker ready" in message
