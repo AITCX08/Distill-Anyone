@@ -53,6 +53,26 @@ def _run_task_manager_loop(
         sleep(interval_seconds)
 
 
+def build_dashboard_server(app: object, *, host: str, port: int) -> uvicorn.Server:
+    """Build a server that remains valid when launched by ``pythonw``.
+
+    Uvicorn's default color formatter reads ``sys.stdout.isatty()`` during
+    configuration.  ``pythonw`` deliberately exposes no stdout/stderr, so the
+    Dashboard must opt out of Uvicorn's console log configuration.
+    """
+
+    return uvicorn.Server(
+        uvicorn.Config(
+            app,
+            host=host,
+            port=port,
+            log_level="warning",
+            log_config=None,
+            access_log=False,
+        )
+    )
+
+
 def _open_browser_when_healthy(
     server: uvicorn.Server,
     url: str,
@@ -110,7 +130,7 @@ def run_dashboard(service: DistillationService, port: int, open_browser: bool) -
 
     app.state.series_controller = SeriesController(data_dir, launcher=launch_series)
     url = f"http://{host}:{port}"
-    server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
+    server = build_dashboard_server(app, host=host, port=port)
     try:
         Thread(
             target=_run_task_manager_loop,

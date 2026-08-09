@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from pathlib import Path
 
+from fastapi import FastAPI
+
 from src.dashboard import server
 
 
@@ -59,3 +61,12 @@ def test_task_manager_loop_ticks_until_the_dashboard_server_stops():
     server._run_task_manager_loop(Manager(), server_state, interval_seconds=0)
 
     assert calls == ["tick"]
+
+
+def test_dashboard_server_does_not_require_console_streams() -> None:
+    """The local Dashboard must also launch through pythonw without stdout/stderr."""
+
+    dashboard_server = server.build_dashboard_server(FastAPI(), host="127.0.0.1", port=8765)
+
+    assert dashboard_server.config.log_config is None
+    assert dashboard_server.config.access_log is False
