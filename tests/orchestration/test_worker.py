@@ -90,6 +90,20 @@ def test_worker_honors_parent_pause_between_stages(tmp_path):
     assert '"status": "paused"' in events
 
 
+def test_worker_records_unexpected_pipeline_errors_as_failed_terminal_events(tmp_path):
+    payload, work_dir = _write_payload(tmp_path, task_id="tsk_unexpected")
+    _write_checkpoint(work_dir, task_id="tsk_unexpected", stage="cleaning", transcript_verified=True)
+
+    class BrokenPipeline:
+        def clean(self, context):
+            raise TypeError("unexpected local pipeline failure")
+
+    assert run_worker("tsk_unexpected", payload, pipeline=BrokenPipeline()) == 1
+    events = (work_dir / "events.jsonl").read_text("utf-8")
+    assert '"status": "failed"' in events
+    assert "unexpected local pipeline failure" in events
+
+
 def test_worker_builds_one_pipeline_from_its_payload_when_not_injected(tmp_path):
     payload, _ = _write_payload(tmp_path, task_id="tsk_factory")
     class FullPipeline(FakePipeline):

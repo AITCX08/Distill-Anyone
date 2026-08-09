@@ -135,7 +135,7 @@ def run_worker(
         _append_event(work_dir, task_id, "terminal", {"status": checkpoint["stage"]})
         _clear_stage_resource(work_dir)
         return 0
-    except (OSError, ValueError, KeyError, RuntimeError) as error:
+    except Exception as error:
         work_dir = _work_dir_or_none(payload_path)
         if work_dir is not None:
             _clear_stage_resource(work_dir)
