@@ -132,6 +132,7 @@ class TaskManager:
         task = self.store.get_task(task_id)
         if task.status not in {"paused", "interrupted"}:
             raise ValueError("only a paused or interrupted task can be resumed")
+        self._acknowledge_existing_worker_events(task_id)
         self._restore_paused_checkpoint(task_id)
         control_path = self.worker_root / task_id / "control.json"
         control_path.unlink(missing_ok=True)
@@ -152,6 +153,7 @@ class TaskManager:
         task = self.store.get_task(task_id)
         if task.status not in {"failed", "interrupted", "cancelled"}:
             raise ValueError("only failed, interrupted, or cancelled tasks can be retried")
+        self._acknowledge_existing_worker_events(task_id)
         self._clear_resource_files(task_id)
         (self.worker_root / task_id / "control.json").unlink(missing_ok=True)
         self.store.transition_task(task_id, task.revision, status="pending")
@@ -199,7 +201,7 @@ class TaskManager:
         if not events_path.exists():
             return
         lines = events_path.read_text("utf-8").splitlines()
-        start = self._event_lines_read.get(task_id, 0)
+        start = self._event_cursor_for(task_id, lines)
         for line in lines[start:]:
             try:
                 event = parse_worker_event(line, task_id)
@@ -225,6 +227,32 @@ class TaskManager:
                     status=str(event.payload["status"]),
                 )
         self._event_lines_read[task_id] = len(lines)
+        self.store.set_worker_event_cursor(task_id, len(lines))
+
+    def _event_cursor_for(self, task_id: str, lines: list[str]) -> int:
+        known = self._event_lines_read.get(task_id)
+        if known is not None:
+            return min(known, len(lines))
+        persisted = self.store.worker_event_cursor(task_id)
+        if persisted is None:
+            # Existing installations predate durable cursors. Keep their
+            # already-recorded JSONL lines from being replayed after a restart.
+            persisted = min(len(self.store.list_events(task_id)), len(lines))
+        cursor = min(persisted, len(lines))
+        self._event_lines_read[task_id] = cursor
+        self.store.set_worker_event_cursor(task_id, cursor)
+        return cursor
+
+    def _acknowledge_existing_worker_events(self, task_id: str) -> None:
+        """Start a new attempt after, rather than inside, prior worker JSONL."""
+
+        events_path = self.worker_root / task_id / "events.jsonl"
+        try:
+            line_count = len(events_path.read_text("utf-8").splitlines())
+        except OSError:
+            line_count = 0
+        self._event_lines_read[task_id] = line_count
+        self.store.set_worker_event_cursor(task_id, line_count)
 
     def _finalize_exited_process(self, task_id: str) -> None:
         """Release only this manager's finished lease after consuming its terminal JSONL."""

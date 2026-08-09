@@ -75,6 +75,11 @@ class OrchestrationStore:
                     start_marker TEXT NOT NULL,
                     claimed_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS worker_event_cursors (
+                    task_id TEXT PRIMARY KEY REFERENCES tasks(task_id),
+                    line_count INTEGER NOT NULL CHECK(line_count >= 0),
+                    updated_at TEXT NOT NULL
+                );
                 CREATE INDEX IF NOT EXISTS idx_tasks_job_id ON tasks(job_id);
                 CREATE INDEX IF NOT EXISTS idx_task_events_task_sequence
                     ON task_events(task_id, sequence);
@@ -350,6 +355,26 @@ class OrchestrationStore:
             connection.execute(
                 "DELETE FROM task_manager_ownership WHERE singleton = 'dashboard' AND owner_id = ?",
                 (owner_id,),
+            )
+
+    def worker_event_cursor(self, task_id: str) -> int | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT line_count FROM worker_event_cursors WHERE task_id = ?", (task_id,)
+            ).fetchone()
+        return int(row["line_count"]) if row is not None else None
+
+    def set_worker_event_cursor(self, task_id: str, line_count: int) -> None:
+        if line_count < 0:
+            raise ValueError("worker event line count cannot be negative")
+        with self._connection() as connection:
+            connection.execute(
+                """INSERT INTO worker_event_cursors (task_id, line_count, updated_at)
+                   VALUES (?, ?, ?)
+                   ON CONFLICT(task_id) DO UPDATE SET
+                       line_count = excluded.line_count,
+                       updated_at = excluded.updated_at""",
+                (task_id, line_count, utc_now_iso()),
             )
 
     @contextmanager

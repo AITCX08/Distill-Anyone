@@ -70,6 +70,42 @@ def test_resume_restores_the_saved_worker_checkpoint_stage(tmp_path):
     assert "resume_stage" not in restored
 
 
+def test_retry_after_lease_cleanup_does_not_replay_prior_terminal_jsonl(tmp_path):
+    class Process:
+        pid = 4242
+
+        def poll(self):
+            return None
+
+    store = OrchestrationStore(tmp_path / "orchestration.sqlite3")
+    job = store.create_job(platform="bilibili", target="https://example.invalid/creator")
+    task = store.create_tasks(job.job_id, ["p01"])[0]
+    first_manager = TaskManager(
+        store=store,
+        worker_root=tmp_path / "workers",
+        process_factory=lambda task, payload: Process(),
+    )
+    first_manager.start(task.task_id)
+    events_path = tmp_path / "workers" / task.task_id / "events.jsonl"
+    events_path.write_text(
+        '{"v":1,"type":"terminal","task_id":"' + task.task_id + '","status":"failed"}\n',
+        "utf-8",
+    )
+    first_manager.tick()
+    assert store.get_task(task.task_id).status == "failed"
+    store.remove_lease(task.task_id)
+
+    restarted_manager = TaskManager(
+        store=store,
+        worker_root=tmp_path / "workers",
+        process_factory=lambda task, payload: Process(),
+    )
+    restarted_manager.retry(task.task_id)
+    restarted_manager.tick()
+
+    assert store.get_task(task.task_id).status == "running"
+
+
 def test_restart_reattaches_live_lease_and_consumes_new_worker_jsonl(tmp_path):
     store, task = _running_task(tmp_path)
     probes = [True, False]
