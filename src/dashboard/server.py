@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import webbrowser
+import subprocess
+import sys
 from pathlib import Path
 from threading import Thread
 from time import monotonic, sleep
@@ -14,6 +16,7 @@ import uvicorn
 from src.application.service import DistillationService
 from src.dashboard.app import create_dashboard_app
 from src.dashboard.series_bridge import SeriesTaskBridge, SeriesTaskMonitor
+from src.dashboard.series_control import SeriesController
 from src.dashboard.security import validate_host
 
 
@@ -58,6 +61,22 @@ def run_dashboard(service: DistillationService, port: int, open_browser: bool) -
     )
     monitor.start()
     app.state.series_task_monitor = monitor
+    data_dir = service.repository.root.parent
+
+    def launch_series(bvid: str) -> None:
+        if bvid != "BV18bLkztE7R":
+            raise LookupError("the requested series has no registered local runner")
+        runner = data_dir.parent / ".local-artifacts" / "bilibili-series" / "resume_with_dashboard_credential.py"
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        subprocess.Popen(
+            [sys.executable, str(runner)],
+            cwd=data_dir.parent,
+            creationflags=flags,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+    app.state.series_controller = SeriesController(data_dir, launcher=launch_series)
     url = f"http://{host}:{port}"
     server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
     if open_browser:

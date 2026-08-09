@@ -47,6 +47,7 @@ def create_dashboard_app(
     app.state.local_session = new_local_session()
     app.state.reveal_directory = reveal_directory
     app.state.bilibili_login = BilibiliLoginCoordinator()
+    app.state.series_controller = None
     app.include_router(health_router)
     app.include_router(jobs_router)
     app.include_router(platforms_router)

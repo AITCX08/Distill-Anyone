@@ -52,7 +52,7 @@ export function MissionControlPage({
   return (
     <section id="mission" className="mission-control" aria-label="任务执行台">
       <MissionOverview snapshot={snapshot} />
-      {job?.read_only && <SeriesRail
+      {job && (job.read_only || job.job_id.startsWith("imported-series-")) && <SeriesRail
         total={snapshot.counts.total}
         completed={snapshot.counts.completed}
         active={snapshot.counts.active}

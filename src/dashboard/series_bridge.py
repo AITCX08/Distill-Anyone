@@ -58,7 +58,10 @@ def _expected_parts(raw: dict[str, Any]) -> int:
     return 1
 
 
-def _job_status(raw: dict[str, Any], items: dict[str, ItemState]) -> str:
+def _job_status(raw: dict[str, Any], items: dict[str, ItemState], runtime: dict[str, Any]) -> str:
+    runtime_status = str(runtime.get("status") or "").lower()
+    if runtime_status in {"pause_requested", "paused", "completed", "failed"}:
+        return runtime_status
     stage = str(raw.get("stage") or "").lower()
     if stage == "completed":
         return "completed"
@@ -80,6 +83,7 @@ class SeriesTaskBridge:
         self.data_dir = data_dir
         self.events = events
         self._seen_fingerprints: dict[Path, str] = {}
+        self._seen_trace_entries: dict[str, tuple[str, ...]] = {}
 
     def sync(self) -> int:
         """Synchronize changed external series states and return their count."""
@@ -92,15 +96,17 @@ class SeriesTaskBridge:
             raw = _read_json(state_path)
             if raw is None:
                 continue
-            fingerprint = json.dumps(raw, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            bvid = str(raw.get("bvid") or "").strip()
+            runtime = _read_json(self.data_dir / "series" / bvid / "runtime.json") if bvid else None
+            fingerprint = json.dumps({"state": raw, "runtime": runtime}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
             if self._seen_fingerprints.get(state_path) == fingerprint:
                 continue
-            if self._project(raw):
+            if self._project(raw, runtime or {}):
                 changed += 1
                 self._seen_fingerprints[state_path] = fingerprint
         return changed
 
-    def _project(self, raw: dict[str, Any]) -> bool:
+    def _project(self, raw: dict[str, Any], runtime: dict[str, Any]) -> bool:
         bvid = str(raw.get("bvid") or "").strip()
         if not bvid:
             return False
@@ -109,6 +115,9 @@ class SeriesTaskBridge:
         source_url = str(raw.get("source_url") or f"https://www.bilibili.com/video/{bvid}")
         parts = raw.get("parts") if isinstance(raw.get("parts"), dict) else {}
         count = _expected_parts(raw)
+        active_part = int(runtime.get("active_part") or 0)
+        runtime_stage = str(runtime.get("stage") or "").lower()
+        transfer = runtime.get("transfer") if isinstance(runtime.get("transfer"), dict) else {}
         items: dict[str, ItemState] = {}
         titles: dict[str, str] = {}
         for part in range(1, count + 1):
@@ -116,6 +125,8 @@ class SeriesTaskBridge:
             value = value if isinstance(value, dict) else {}
             source_id = str(value.get("source_id") or f"bilibili_{bvid}_p{part:02d}")
             stage = str(value.get("stage") or "enumerated").lower()
+            if part == active_part and runtime_stage:
+                stage = runtime_stage
             status, progress = _STAGES.get(stage, (ProcessingStatus.ENUMERATED, 0.0))
             items[source_id] = ItemState(
                 source_id=source_id,
@@ -134,12 +145,12 @@ class SeriesTaskBridge:
         existing = store.load() if store.path.exists() else None
         state = JobState(
             job_id=job_id,
-            status=_job_status(raw, items),
+            status=_job_status(raw, items, runtime),
             request={
                 "target": source_url,
                 "platform": "bilibili",
                 "outputs": ("skill",),
-                "read_only": True,
+                "controlled_series": True,
                 "external_state": str((self.data_dir / "series" / bvid / "state.json")),
             },
             creator={
@@ -150,7 +161,7 @@ class SeriesTaskBridge:
                 "canonical_url": source_url,
             },
             items=items,
-            metrics={"external": True, "part_count": count},
+            metrics={"external": True, "controlled_series": True, "part_count": count, "runtime": runtime},
             created_at=str(raw.get("started_at") or utc_now_iso()),
         )
         saved = store.save(state, expected_revision=existing.revision if existing else None)
@@ -160,17 +171,36 @@ class SeriesTaskBridge:
                 "job_id": saved.job_id,
                 "status": saved.status,
                 "revision": saved.revision,
-                "read_only": True,
+                "read_only": False,
             },
         )
         self.events.publish(
             "progress.snapshot",
-            {"job_id": saved.job_id, "snapshot": self._snapshot(saved, titles)},
+            {"job_id": saved.job_id, "snapshot": self._snapshot(saved, titles, transfer)},
         )
+        trace_entries = tuple(
+            json.dumps(entry, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            for entry in runtime.get("trace", ())
+            if isinstance(entry, dict) and str(entry.get("message") or "")
+        )
+        previous_trace_entries = self._seen_trace_entries.get(bvid, ())
+        new_trace_entries = (
+            trace_entries[len(previous_trace_entries) :]
+            if trace_entries[: len(previous_trace_entries)] == previous_trace_entries
+            else trace_entries
+        )
+        self._seen_trace_entries[bvid] = trace_entries
+        for serialized in new_trace_entries:
+            entry = json.loads(serialized)
+            if isinstance(entry, dict) and str(entry.get("message") or ""):
+                self.events.publish(
+                    "trace.appended",
+                    {"job_id": saved.job_id, "line": str(entry["message"])},
+                )
         return True
 
     @staticmethod
-    def _snapshot(state: JobState, titles: dict[str, str]) -> ProgressSnapshot:
+    def _snapshot(state: JobState, titles: dict[str, str], transfer: dict[str, Any]) -> ProgressSnapshot:
         values = tuple(state.items.values())
         active = [
             ItemProgress(
@@ -181,6 +211,9 @@ class SeriesTaskBridge:
                 stage_progress=item.stage_progress,
                 overall_progress=item.overall_progress,
                 status_text=item.last_error or "",
+                completed_bytes=int(transfer.get("completed_bytes") or 0),
+                total_bytes=(int(transfer["total_bytes"]) if transfer.get("total_bytes") is not None else None),
+                bytes_per_second=float(transfer.get("bytes_per_second") or 0.0),
             )
             for index, item in enumerate(values, start=1)
             if item.processing_status in _ACTIVE

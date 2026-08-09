@@ -29,6 +29,19 @@ def test_series_bridge_projects_running_eight_part_series_as_read_only_dashboard
         ),
         encoding="utf-8",
     )
+    (source_state.parent / "runtime.json").write_text(
+        json.dumps(
+            {
+                "status": "running",
+                "revision": 4,
+                "active_part": 1,
+                "stage": "downloading",
+                "transfer": {"completed_bytes": 50, "total_bytes": 100, "bytes_per_second": 10.0},
+                "trace": [{"level": "info", "message": "Downloading part 1."}],
+            }
+        ),
+        encoding="utf-8",
+    )
     events = EventHub()
 
     bridge = SeriesTaskBridge(data_dir=data_dir, events=events)
@@ -38,9 +51,9 @@ def test_series_bridge_projects_running_eight_part_series_as_read_only_dashboard
     store = JobStateStore(data_dir / "jobs" / "imported-series" / "BV18bLkztE7R" / "job_state.json")
     state = store.load()
     assert state.status == "running"
-    assert state.request["read_only"] is True
+    assert state.request["controlled_series"] is True
     assert len(state.items) == 8
-    assert state.items["bilibili_BV18bLkztE7R_p01"].processing_status.value == "transcribing"
+    assert state.items["bilibili_BV18bLkztE7R_p01"].processing_status.value == "downloading"
     assert state.items["bilibili_BV18bLkztE7R_p08"].processing_status.value == "enumerated"
 
     snapshots = [event for event in events.snapshot() if event.event_type == "progress.snapshot"]
@@ -48,4 +61,7 @@ def test_series_bridge_projects_running_eight_part_series_as_read_only_dashboard
     snapshot = snapshots[0].payload["snapshot"]
     assert snapshot.counts.total == 8
     assert snapshot.counts.active == 1
+    assert snapshot.active_items[0].completed_bytes == 50
+    assert snapshot.active_items[0].total_bytes == 100
+    assert snapshot.active_items[0].bytes_per_second == 10.0
     assert snapshot.active_items[0].title == "四柱命卦 1"

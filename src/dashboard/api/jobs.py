@@ -13,7 +13,7 @@ from src.dashboard.schemas import (
     RevisionInput,
 )
 from src.dashboard.security import require_mutation_security
-from src.distillation.state import ProcessingStatus
+from src.distillation.state import ProcessingStatus, RevisionConflict
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
 
@@ -83,12 +83,33 @@ def list_items(job_id: str, request: Request):
 
 @router.post("/{job_id}/pause", response_model=JobResponse, dependencies=[Depends(require_mutation_security)])
 def pause(job_id: str, payload: RevisionInput, request: Request):
+    controlled = _controlled_series(job_id, payload.expected_revision, request)
+    if controlled is not None:
+        request.app.state.series_controller.pause(controlled)
+        request.app.state.series_task_monitor.bridge.sync()
+        return _job_response(request.app.state.service.get_job(job_id))
     return _job_response(request.app.state.service.pause(job_id, payload.expected_revision))
 
 
 @router.post("/{job_id}/resume", response_model=JobResponse, dependencies=[Depends(require_mutation_security)])
 def resume(job_id: str, payload: RevisionInput, request: Request):
+    controlled = _controlled_series(job_id, payload.expected_revision, request)
+    if controlled is not None:
+        request.app.state.series_controller.resume(controlled)
+        request.app.state.series_task_monitor.bridge.sync()
+        return _job_response(request.app.state.service.get_job(job_id))
     return _job_response(request.app.state.service.resume(job_id, payload.expected_revision))
+
+
+def _controlled_series(job_id: str, expected_revision: int, request: Request) -> str | None:
+    state = request.app.state.service.queries.get(job_id)
+    if state.revision != expected_revision:
+        raise RevisionConflict(expected_revision, state.revision)
+    if not state.request.get("controlled_series"):
+        return None
+    if request.app.state.series_controller is None:
+        raise RuntimeError("local series control is unavailable")
+    return str(state.creator.get("creator_id") or "")
 
 
 @router.post("/{job_id}/retry-failed", response_model=JobResponse, dependencies=[Depends(require_mutation_security)])
