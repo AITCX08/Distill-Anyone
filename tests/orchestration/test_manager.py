@@ -2,6 +2,7 @@
 
 from src.orchestration.manager import TaskManager
 from src.orchestration.store import OrchestrationStore
+import json
 
 
 class FakeProcess:
@@ -72,3 +73,18 @@ def test_tick_reads_events_appended_after_worker_launch(tmp_path):
     manager.tick()
 
     assert store.get_task(task.task_id).stage == "transcribing"
+
+
+def test_bilibili_task_payload_keeps_only_stable_video_and_part_identifiers(tmp_path):
+    factory = FakeProcessFactory()
+    store = OrchestrationStore(tmp_path / "orchestration.sqlite3")
+    job = store.create_job(platform="bilibili", target="https://www.bilibili.com/video/BV18bLkztE7R")
+    task = store.create_tasks(job.job_id, ["bilibili_BV18bLkztE7R_p07"])[0]
+    manager = TaskManager(store=store, worker_root=tmp_path / "workers", process_factory=factory)
+
+    manager.start(task.task_id)
+
+    payload = json.loads(factory.payload_path.read_text("utf-8"))
+    assert payload["source"] == {"platform": "bilibili", "bvid": "BV18bLkztE7R", "part": 7}
+    assert "command" not in payload
+    assert "cookie" not in json.dumps(payload).lower()

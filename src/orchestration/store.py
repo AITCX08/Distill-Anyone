@@ -149,6 +149,13 @@ class OrchestrationStore:
             rows = connection.execute("SELECT * FROM jobs ORDER BY created_at, job_id").fetchall()
         return tuple(self._job_from_row(row) for row in rows)
 
+    def get_job(self, job_id: str) -> JobRecord:
+        with self._connection() as connection:
+            row = connection.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
+        if row is None:
+            raise KeyError(f"unknown job: {job_id}")
+        return self._job_from_row(row)
+
     def get_task(self, task_id: str) -> TaskRecord:
         with self._connection() as connection:
             row = connection.execute("SELECT * FROM tasks WHERE task_id = ?", (task_id,)).fetchone()

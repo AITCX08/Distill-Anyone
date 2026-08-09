@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import uuid
@@ -116,9 +117,14 @@ class TaskManager:
         work_dir = self.worker_root / task.task_id
         work_dir.mkdir(parents=True, exist_ok=True)
         payload_path = work_dir / "payload.json"
+        job = self.store.get_job(task.job_id)
         payload_path.write_text(
             json.dumps(
-                {"task_id": task.task_id, "work_dir": str(work_dir), "source": {"id": task.source_id}},
+                {
+                    "task_id": task.task_id,
+                    "work_dir": str(work_dir),
+                    "source": _source_descriptor(job.platform, task.source_id),
+                },
                 ensure_ascii=False,
             ),
             "utf-8",
@@ -194,3 +200,10 @@ def _default_pid_probe(pid: int, start_marker: str) -> bool:
         return str(psutil.Process(pid).create_time()) == start_marker
     except (ImportError, OSError):
         return False
+
+
+def _source_descriptor(platform: str, source_id: str) -> dict[str, Any]:
+    match = re.fullmatch(r"bilibili_(BV[\w]+)_p(\d+)", source_id)
+    if platform == "bilibili" and match is not None:
+        return {"platform": "bilibili", "bvid": match.group(1), "part": int(match.group(2))}
+    return {"platform": platform, "id": source_id}
