@@ -41,6 +41,7 @@ class TaskManager:
         self.pid_probe = pid_probe or _default_pid_probe
         self.resource_slots = resource_slots or ResourceSlots()
         self._processes: dict[str, Any] = {}
+        self._attached_leases: dict[str, tuple[int, str]] = {}
         self._event_lines_read: dict[str, int] = {}
 
     def enqueue(self, job_id: str, source_id: str) -> TaskRecord:
@@ -51,8 +52,12 @@ class TaskManager:
             self._read_worker_events(task_id)
             if process.poll() is not None:
                 self._finalize_exited_process(task_id)
+        for task_id, (pid, start_marker) in tuple(self._attached_leases.items()):
+            self._read_worker_events(task_id)
+            if not self.pid_probe(pid, start_marker):
+                self._finalize_exited_process(task_id)
         self._allocate_stage_resources()
-        capacity = max(0, self.max_pipeline_workers - len(self._processes))
+        capacity = max(0, self.max_pipeline_workers - len(self._processes) - len(self._attached_leases))
         for task in self.store.list_tasks(status="pending")[:capacity]:
             self.start(task.task_id)
         self._allocate_stage_resources()
@@ -109,6 +114,7 @@ class TaskManager:
         for lease in self.store.list_leases():
             self._read_worker_events(lease.task_id)
             if self.pid_probe(lease.pid, lease.start_marker):
+                self._attached_leases[lease.task_id] = (lease.pid, lease.start_marker)
                 continue
             task = self.store.get_task(lease.task_id)
             if task.status in {"running", "pause_requested", "cancel_requested"}:
@@ -186,6 +192,7 @@ class TaskManager:
         self.store.remove_lease(task_id)
         self._clear_resource_files(task_id)
         self._processes.pop(task_id, None)
+        self._attached_leases.pop(task_id, None)
 
     def _allocate_stage_resources(self) -> None:
         """Grant stage permits from durable requests; workers never self-authorize."""
