@@ -11,7 +11,7 @@ from typing import Any, Iterator, Mapping, Sequence
 
 from src.application.redaction import redact_value
 from src.distillation.state import RevisionConflict, utc_now_iso
-from src.orchestration.models import JobRecord, TaskEventRecord, TaskRecord
+from src.orchestration.models import JobRecord, TaskEventRecord, TaskRecord, WorkerLeaseRecord
 
 
 class OrchestrationStore:
@@ -53,6 +53,13 @@ class OrchestrationStore:
                     payload_json TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     UNIQUE(task_id, sequence)
+                );
+                CREATE TABLE IF NOT EXISTS worker_leases (
+                    task_id TEXT PRIMARY KEY REFERENCES tasks(task_id),
+                    pid INTEGER NOT NULL,
+                    start_marker TEXT NOT NULL,
+                    launched_at TEXT NOT NULL,
+                    heartbeat_at TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS idx_tasks_job_id ON tasks(job_id);
                 CREATE INDEX IF NOT EXISTS idx_task_events_task_sequence
@@ -143,6 +150,41 @@ class OrchestrationStore:
         if row is None:
             raise KeyError(f"unknown task: {task_id}")
         return self._task_from_row(row)
+
+    def list_tasks(self, *, status: str | None = None) -> tuple[TaskRecord, ...]:
+        with self._connection() as connection:
+            if status is None:
+                rows = connection.execute("SELECT * FROM tasks ORDER BY created_at, task_id").fetchall()
+            else:
+                rows = connection.execute(
+                    "SELECT * FROM tasks WHERE status = ? ORDER BY created_at, task_id", (status,)
+                ).fetchall()
+        return tuple(self._task_from_row(row) for row in rows)
+
+    def create_lease(self, task_id: str, *, pid: int, start_marker: str) -> WorkerLeaseRecord:
+        if pid <= 0 or not start_marker:
+            raise ValueError("lease pid and start marker are required")
+        now = utc_now_iso()
+        lease = WorkerLeaseRecord(task_id, pid, start_marker, now, now)
+        with self._connection() as connection:
+            if connection.execute("SELECT 1 FROM tasks WHERE task_id = ?", (task_id,)).fetchone() is None:
+                raise KeyError(f"unknown task: {task_id}")
+            connection.execute(
+                """INSERT INTO worker_leases
+                   (task_id, pid, start_marker, launched_at, heartbeat_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (lease.task_id, lease.pid, lease.start_marker, lease.launched_at, lease.heartbeat_at),
+            )
+        return lease
+
+    def get_lease(self, task_id: str) -> WorkerLeaseRecord:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM worker_leases WHERE task_id = ?", (task_id,)
+            ).fetchone()
+        if row is None:
+            raise KeyError(f"unknown worker lease: {task_id}")
+        return self._lease_from_row(row)
 
     def transition_task(
         self,
@@ -241,4 +283,14 @@ class OrchestrationStore:
             kind=row["kind"],
             payload=json.loads(row["payload_json"]),
             created_at=row["created_at"],
+        )
+
+    @staticmethod
+    def _lease_from_row(row: sqlite3.Row) -> WorkerLeaseRecord:
+        return WorkerLeaseRecord(
+            task_id=row["task_id"],
+            pid=row["pid"],
+            start_marker=row["start_marker"],
+            launched_at=row["launched_at"],
+            heartbeat_at=row["heartbeat_at"],
         )

@@ -40,3 +40,11 @@ class TaskEventRecord:
     payload: Mapping[str, Any]
     created_at: str
 
+
+@dataclass(frozen=True)
+class WorkerLeaseRecord:
+    task_id: str
+    pid: int
+    start_marker: str
+    launched_at: str
+    heartbeat_at: str
