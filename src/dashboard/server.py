@@ -18,6 +18,8 @@ from src.dashboard.app import create_dashboard_app
 from src.dashboard.series_bridge import SeriesTaskBridge, SeriesTaskMonitor
 from src.dashboard.series_control import SeriesController
 from src.dashboard.security import validate_host
+from src.orchestration.manager import TaskManager
+from src.orchestration.store import OrchestrationStore
 
 
 def _probe_health(url: str) -> bool:
@@ -26,6 +28,16 @@ def _probe_health(url: str) -> bool:
             return response.status == 200
     except (OSError, URLError):
         return False
+
+
+def _build_task_manager(service: DistillationService) -> TaskManager:
+    """Build the private process owner from the same local data root as Dashboard."""
+
+    data_dir = service.repository.root.parent
+    return TaskManager(
+        store=OrchestrationStore(data_dir / "orchestration.sqlite3"),
+        worker_root=data_dir / "workers",
+    )
 
 
 def _open_browser_when_healthy(
@@ -56,6 +68,8 @@ def run_dashboard(service: DistillationService, port: int, open_browser: bool) -
     host = validate_host("127.0.0.1")
     static_dir = Path(__file__).with_name("static")
     app = create_dashboard_app(service, static_dir, session_secret="process-local")
+    app.state.task_manager = _build_task_manager(service)
+    app.state.task_manager.reconcile()
     monitor = SeriesTaskMonitor(
         SeriesTaskBridge(data_dir=service.repository.root.parent, events=service.events)
     )

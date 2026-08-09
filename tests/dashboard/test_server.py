@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from pathlib import Path
 
 from src.dashboard import server
 
@@ -35,3 +36,12 @@ def test_browser_is_not_opened_when_the_health_probe_fails(monkeypatch):
 
     assert opened_after_health is False
     assert opened == []
+
+
+def test_dashboard_builds_a_local_task_manager_alongside_its_service(tmp_path):
+    service = SimpleNamespace(repository=SimpleNamespace(root=tmp_path / "jobs"))
+
+    manager = server._build_task_manager(service)
+
+    assert manager.worker_root == tmp_path / "workers"
+    assert manager.store.database_path == tmp_path / "orchestration.sqlite3"
