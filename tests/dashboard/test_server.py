@@ -45,3 +45,17 @@ def test_dashboard_builds_a_local_task_manager_alongside_its_service(tmp_path):
 
     assert manager.worker_root == tmp_path / "workers"
     assert manager.store.database_path == tmp_path / "orchestration.sqlite3"
+
+
+def test_task_manager_loop_ticks_until_the_dashboard_server_stops():
+    calls = []
+    server_state = SimpleNamespace(should_exit=False)
+
+    class Manager:
+        def tick(self):
+            calls.append("tick")
+            server_state.should_exit = True
+
+    server._run_task_manager_loop(Manager(), server_state, interval_seconds=0)
+
+    assert calls == ["tick"]

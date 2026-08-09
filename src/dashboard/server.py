@@ -40,6 +40,19 @@ def _build_task_manager(service: DistillationService) -> TaskManager:
     )
 
 
+def _run_task_manager_loop(
+    task_manager: TaskManager,
+    server: uvicorn.Server,
+    *,
+    interval_seconds: float = 0.25,
+) -> None:
+    """Continuously harvest worker JSONL and launch queued work without a console window."""
+
+    while not server.should_exit:
+        task_manager.tick()
+        sleep(interval_seconds)
+
+
 def _open_browser_when_healthy(
     server: uvicorn.Server,
     url: str,
@@ -93,6 +106,12 @@ def run_dashboard(service: DistillationService, port: int, open_browser: bool) -
     app.state.series_controller = SeriesController(data_dir, launcher=launch_series)
     url = f"http://{host}:{port}"
     server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
+    Thread(
+        target=_run_task_manager_loop,
+        args=(app.state.task_manager, server),
+        daemon=True,
+        name="distill-task-manager",
+    ).start()
     if open_browser:
         Thread(
             target=_open_browser_when_healthy,
