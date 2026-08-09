@@ -61,6 +61,13 @@ class OrchestrationStore:
                     launched_at TEXT NOT NULL,
                     heartbeat_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS task_commands (
+                    task_id TEXT NOT NULL REFERENCES tasks(task_id),
+                    command_id TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY(task_id, command_id)
+                );
                 CREATE INDEX IF NOT EXISTS idx_tasks_job_id ON tasks(job_id);
                 CREATE INDEX IF NOT EXISTS idx_task_events_task_sequence
                     ON task_events(task_id, sequence);
@@ -265,6 +272,24 @@ class OrchestrationStore:
                 (task_id,),
             ).fetchall()
         return tuple(self._event_from_row(row) for row in rows)
+
+    def command_action(self, task_id: str, command_id: str) -> str | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT action FROM task_commands WHERE task_id = ? AND command_id = ?",
+                (task_id, command_id),
+            ).fetchone()
+        return str(row["action"]) if row is not None else None
+
+    def record_command(self, task_id: str, command_id: str, action: str) -> None:
+        if not command_id or not action:
+            raise ValueError("command id and action are required")
+        with self._connection() as connection:
+            connection.execute(
+                """INSERT INTO task_commands (task_id, command_id, action, created_at)
+                   VALUES (?, ?, ?, ?)""",
+                (task_id, command_id, action, utc_now_iso()),
+            )
 
     @contextmanager
     def _connection(self) -> Iterator[sqlite3.Connection]:

@@ -75,3 +75,12 @@ def test_retry_interrupted_task_requeues_the_same_task_id(tmp_path):
     assert response.status_code == 200
     assert response.json()["task_id"] == task.task_id
     assert response.json()["status"] == "pending"
+
+    duplicate = client.post(
+        f"/api/v1/tasks/{task.task_id}/retry",
+        json={"expected_revision": task.revision, "command_id": "retry_task_1"},
+        headers={"Origin": "http://testserver", "X-Distill-CSRF": client.cookies.get("distill_csrf")},
+    )
+
+    assert duplicate.status_code == 200
+    assert duplicate.json()["status"] == "pending"
