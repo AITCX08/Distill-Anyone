@@ -144,3 +144,21 @@ def test_worker_sse_stream_refreshes_task_snapshot_after_manager_state_changes(t
 
     assert '"status": "running"' in message
     assert '"stage": "downloading"' in message
+
+
+def test_worker_sse_snapshot_projects_a_redacted_terminal_failure_reason(tmp_path):
+    hub = EventHub()
+    store = OrchestrationStore(tmp_path / "orchestration.sqlite3")
+    job = store.create_job(platform="bilibili", target="https://example.invalid/creator")
+    task = store.create_tasks(job.job_id, ["p01"])[0]
+    task = store.transition_task(task.task_id, task.revision, status="failed", stage="downloading")
+    store.append_event(task.task_id, kind="terminal", payload={"status": "failed", "reason": "Dashboard login required"})
+    service = SimpleNamespace(events=hub, list_jobs=lambda: ())
+    manager = SimpleNamespace(store=store)
+
+    async def next_message():
+        return await anext(event_stream(service, last_event_id=None, job_id=None, task_manager=manager))
+
+    message = asyncio.run(next_message())
+
+    assert '"error": "Dashboard login required"' in message

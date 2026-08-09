@@ -13,5 +13,6 @@ export interface WorkerTask {
   checkpoint_revision: number;
   updated_at: string;
   transfer?: WorkerTransfer;
+  error?: string;
 }
 export interface DashboardEvent { eventType: "snapshot" | "job.updated" | "item.updated" | "trace.appended"; data: Record<string, unknown>; }

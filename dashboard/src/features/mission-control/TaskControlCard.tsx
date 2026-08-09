@@ -62,6 +62,7 @@ export function TaskControlCard({ task, onTaskUpdated }: { task: WorkerTask; onT
         <Text className="metric">{formatBytes(task.transfer.bytes_per_second)}/秒</Text>
       </> : <Text>正在{stageLabel(task.stage).replace(/中$/, "")}，暂不显示下载速度</Text>}
       <Text className="metric">检查点 #{task.checkpoint_revision} · 已尝试 {task.attempt} 次</Text>
+      {task.error && <Text role="status">失败原因：{task.error}</Text>}
       <div>
         {canPause && <Button onClick={() => command("pause")} disabled={busy !== null}>暂停任务</Button>}
         {canResume && <Button onClick={() => command("resume")} disabled={busy !== null}>继续任务</Button>}

@@ -105,12 +105,19 @@ def _snapshot_message(service, job_id: str | None, task_manager=None) -> str:
             latest_transfer = next(
                 (event.payload for event in reversed(events) if event.kind == "transfer"), None
             )
+            latest_terminal = next(
+                (event.payload for event in reversed(events) if event.kind == "terminal"), None
+            )
             if task.stage == "downloading" and isinstance(latest_transfer, Mapping):
                 task_payload["transfer"] = {
                     "completed_bytes": latest_transfer.get("completed_bytes"),
                     "total_bytes": latest_transfer.get("total_bytes"),
                     "bytes_per_second": latest_transfer.get("bytes_per_second"),
                 }
+            if task.status == "failed" and isinstance(latest_terminal, Mapping):
+                reason = latest_terminal.get("reason")
+                if isinstance(reason, str):
+                    task_payload["error"] = reason
             tasks.append(task_payload)
             lines = [
                 str(event.payload.get("line", ""))

@@ -100,6 +100,7 @@ function isWorkerTask(value: unknown): value is WorkerTask {
     && isFiniteNumber(task.attempt)
     && isFiniteNumber(task.checkpoint_revision)
     && typeof task.updated_at === "string"
+    && (task.error === undefined || typeof task.error === "string")
     && (task.transfer === undefined || isWorkerTransfer(task.transfer));
 }
 
