@@ -186,6 +186,15 @@ class OrchestrationStore:
             raise KeyError(f"unknown worker lease: {task_id}")
         return self._lease_from_row(row)
 
+    def list_leases(self) -> tuple[WorkerLeaseRecord, ...]:
+        with self._connection() as connection:
+            rows = connection.execute("SELECT * FROM worker_leases ORDER BY launched_at").fetchall()
+        return tuple(self._lease_from_row(row) for row in rows)
+
+    def remove_lease(self, task_id: str) -> None:
+        with self._connection() as connection:
+            connection.execute("DELETE FROM worker_leases WHERE task_id = ?", (task_id,))
+
     def transition_task(
         self,
         task_id: str,
