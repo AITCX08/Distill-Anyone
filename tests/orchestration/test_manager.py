@@ -88,3 +88,35 @@ def test_bilibili_task_payload_keeps_only_stable_video_and_part_identifiers(tmp_
     assert payload["source"] == {"platform": "bilibili", "bvid": "BV18bLkztE7R", "part": 7}
     assert "command" not in payload
     assert "cookie" not in json.dumps(payload).lower()
+
+
+def test_tick_releases_a_completed_worker_slot_after_its_terminal_event(tmp_path):
+    class FinishedProcess:
+        pid = 4242
+
+        def poll(self):
+            return 0
+
+    store = OrchestrationStore(tmp_path / "orchestration.sqlite3")
+    job = store.create_job(platform="bilibili", target="https://example.invalid/creator")
+    task = store.create_tasks(job.job_id, ["p01"])[0]
+    manager = TaskManager(
+        store=store,
+        worker_root=tmp_path / "workers",
+        process_factory=lambda task, payload: FinishedProcess(),
+    )
+    manager.start(task.task_id)
+    (tmp_path / "workers" / task.task_id / "events.jsonl").write_text(
+        '{"v":1,"type":"terminal","task_id":"' + task.task_id + '","status":"completed"}\n',
+        "utf-8",
+    )
+
+    manager.tick()
+
+    assert store.get_task(task.task_id).status == "completed"
+    try:
+        store.get_lease(task.task_id)
+    except KeyError:
+        pass
+    else:
+        raise AssertionError("completed worker lease was not released")

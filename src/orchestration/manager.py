@@ -44,8 +44,10 @@ class TaskManager:
         return self.store.create_tasks(job_id, [source_id])[0]
 
     def tick(self) -> None:
-        for task_id in tuple(self._processes):
+        for task_id, process in tuple(self._processes.items()):
             self._read_worker_events(task_id)
+            if process.poll() is not None:
+                self._finalize_exited_process(task_id)
         capacity = max(0, self.max_pipeline_workers - len(self._processes))
         for task in self.store.list_tasks(status="pending")[:capacity]:
             self.start(task.task_id)
@@ -162,6 +164,20 @@ class TaskManager:
                     status=str(event.payload["status"]),
                 )
         self._event_lines_read[task_id] = len(lines)
+
+    def _finalize_exited_process(self, task_id: str) -> None:
+        """Release only this manager's finished lease after consuming its terminal JSONL."""
+
+        task = self.store.get_task(task_id)
+        if task.status in {"running", "pause_requested", "cancel_requested"}:
+            self.store.transition_task(task_id, task.revision, status="interrupted")
+            self.store.append_event(
+                task_id,
+                kind="log",
+                payload={"line": "worker process exited before terminal checkpoint"},
+            )
+        self.store.remove_lease(task_id)
+        self._processes.pop(task_id, None)
 
     @staticmethod
     def _launch_worker(task: TaskRecord, payload_path: Path) -> subprocess.Popen[str]:
