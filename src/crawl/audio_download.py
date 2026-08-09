@@ -5,6 +5,8 @@
 """
 
 import subprocess
+import shutil
+import sys
 import tempfile
 import wave
 from collections.abc import Callable
@@ -23,6 +25,17 @@ console = Console()
 BILIBILI_VIDEO_URL = "https://www.bilibili.com/video/{bvid}"
 _PROGRESS_MARKER = "__distill_progress__"
 _DOWNLOAD_TIMEOUT_SECONDS = 300
+
+
+def _shell_ytdlp() -> str | None:
+    return shutil.which("yt-dlp")
+
+
+def _yt_dlp_command() -> list[str]:
+    """Prefer a shell binary, then use the installed Python module on Windows PATH gaps."""
+
+    executable = _shell_ytdlp()
+    return [executable] if executable is not None else [sys.executable, "-m", "yt_dlp"]
 
 
 def _parse_progress_line(line: str) -> tuple[int, int | None, float | None] | None:
@@ -167,8 +180,7 @@ def download_audio(
         console.print(f"[yellow]删除旧文件，重新下载: {bvid}")
 
     url = BILIBILI_VIDEO_URL.format(bvid=bvid)
-    cmd = [
-        "yt-dlp",
+    cmd = _yt_dlp_command() + [
         "-x",                           # 提取音频
         "--audio-format", audio_format,  # 音频格式
         "-o", output_template,           # 输出路径模板
@@ -239,8 +251,7 @@ def download_audio_with_progress(
     if force and expected_output.exists():
         expected_output.unlink()
 
-    cmd = [
-        "yt-dlp",
+    cmd = _yt_dlp_command() + [
         "-x",
         "--audio-format", audio_format,
         "-o", output_template,

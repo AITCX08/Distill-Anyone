@@ -19,6 +19,12 @@ from src.crawl import audio_download
 from src.crawl.audio_download import generate_cookies_file
 
 
+def test_ytdlp_command_falls_back_to_installed_python_module(monkeypatch):
+    monkeypatch.setattr(audio_download, "_shell_ytdlp", lambda: None, raising=False)
+
+    assert audio_download._yt_dlp_command() == [sys.executable, "-m", "yt_dlp"]
+
+
 def make_credential(sessdata="test_sessdata", bili_jct="test_bili_jct"):
     cred = MagicMock()
     cred.sessdata = sessdata
