@@ -85,6 +85,7 @@ def test_worker_honors_parent_pause_between_stages(tmp_path):
     assert pipeline.download_calls == 0
     checkpoint = json.loads((work_dir / "checkpoint.json").read_text("utf-8"))
     assert checkpoint["stage"] == "paused"
+    assert checkpoint["resume_stage"] == "pending"
     events = (work_dir / "events.jsonl").read_text("utf-8")
     assert '"status": "paused"' in events
 

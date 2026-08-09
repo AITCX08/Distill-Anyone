@@ -39,6 +39,37 @@ def test_pause_requests_checkpoint_without_killing_an_unowned_process(tmp_path):
     assert store.get_task(task.task_id).status == "pause_requested"
 
 
+def test_resume_restores_the_saved_worker_checkpoint_stage(tmp_path):
+    store = OrchestrationStore(tmp_path / "orchestration.sqlite3")
+    job = store.create_job(platform="bilibili", target="https://example.invalid/creator")
+    task = store.create_tasks(job.job_id, ["p01"])[0]
+    task = store.transition_task(task.task_id, task.revision, status="paused")
+    worker_dir = tmp_path / "workers" / task.task_id
+    worker_dir.mkdir(parents=True)
+    checkpoint_path = worker_dir / "checkpoint.json"
+    checkpoint_path.write_text(
+        json.dumps(
+            {
+                "task_id": task.task_id,
+                "stage": "paused",
+                "resume_stage": "transcribing",
+                "checkpoint_revision": 3,
+                "artifacts": {"audio": "media/p01.wav"},
+                "transcript_verified": False,
+            }
+        ),
+        "utf-8",
+    )
+    manager = TaskManager(store=store, worker_root=tmp_path / "workers")
+
+    manager.resume(task.task_id)
+
+    restored = json.loads(checkpoint_path.read_text("utf-8"))
+    assert store.get_task(task.task_id).status == "pending"
+    assert restored["stage"] == "transcribing"
+    assert "resume_stage" not in restored
+
+
 def test_restart_reattaches_live_lease_and_consumes_new_worker_jsonl(tmp_path):
     store, task = _running_task(tmp_path)
     probes = [True, False]

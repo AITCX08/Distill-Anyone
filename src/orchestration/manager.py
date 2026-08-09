@@ -132,6 +132,7 @@ class TaskManager:
         task = self.store.get_task(task_id)
         if task.status not in {"paused", "interrupted"}:
             raise ValueError("only a paused or interrupted task can be resumed")
+        self._restore_paused_checkpoint(task_id)
         control_path = self.worker_root / task_id / "control.json"
         control_path.unlink(missing_ok=True)
         self.store.transition_task(task_id, task.revision, status="pending")
@@ -290,6 +291,39 @@ class TaskManager:
         work_dir = self.worker_root / task_id
         (work_dir / "resource-request.json").unlink(missing_ok=True)
         (work_dir / "resource-grant.json").unlink(missing_ok=True)
+
+    def _restore_paused_checkpoint(self, task_id: str) -> None:
+        """Make a cooperative pause resumable before a fresh worker is launched."""
+
+        checkpoint_path = self.worker_root / task_id / "checkpoint.json"
+        if not checkpoint_path.exists():
+            return
+        try:
+            checkpoint = json.loads(checkpoint_path.read_text("utf-8"))
+        except (OSError, UnicodeError, ValueError) as error:
+            raise RuntimeError("paused worker checkpoint is invalid") from error
+        if not isinstance(checkpoint, dict) or checkpoint.get("task_id") != task_id:
+            raise RuntimeError("paused worker checkpoint is invalid")
+        if checkpoint.get("stage") != "paused":
+            return
+        resume_stage = checkpoint.get("resume_stage", "pending")
+        if resume_stage not in {
+            "pending",
+            "downloading",
+            "downloaded",
+            "extracting_audio",
+            "transcribing",
+            "cleaning",
+            "summarizing",
+            "writing",
+        }:
+            raise RuntimeError("paused worker checkpoint has an invalid resume stage")
+        checkpoint["stage"] = resume_stage
+        checkpoint.pop("resume_stage", None)
+        checkpoint["checkpoint_revision"] = int(checkpoint.get("checkpoint_revision", 0)) + 1
+        temporary = checkpoint_path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(checkpoint, ensure_ascii=False, sort_keys=True), "utf-8")
+        os.replace(temporary, checkpoint_path)
 
     @staticmethod
     def _launch_worker(task: TaskRecord, payload_path: Path) -> subprocess.Popen[str]:

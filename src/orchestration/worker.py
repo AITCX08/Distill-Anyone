@@ -68,6 +68,7 @@ def run_worker(
                     stage="paused" if action == "pause" else "cancelled",
                     previous=checkpoint,
                     artifacts=artifacts,
+                    resume_stage=checkpoint["stage"] if action == "pause" else None,
                 )
                 _append_event(work_dir, task_id, "checkpoint", {
                     "stage": checkpoint["stage"],
@@ -97,6 +98,7 @@ def run_worker(
                         stage="paused" if action == "pause" else "cancelled",
                         previous=checkpoint,
                         artifacts=artifacts,
+                        resume_stage=checkpoint["stage"] if action == "pause" else None,
                     )
                     _append_event(work_dir, task_id, "checkpoint", {
                         "stage": checkpoint["stage"],
@@ -242,6 +244,7 @@ def _write_checkpoint(
     stage: str,
     previous: Mapping[str, Any],
     artifacts: Mapping[str, str],
+    resume_stage: str | None = None,
 ) -> dict[str, Any]:
     checkpoint = {
         "task_id": task_id,
@@ -251,6 +254,8 @@ def _write_checkpoint(
         "transcript_verified": bool(previous.get("transcript_verified", False) or "transcript" in artifacts),
         "updated_at": utc_now_iso(),
     }
+    if resume_stage is not None:
+        checkpoint["resume_stage"] = resume_stage
     destination = work_dir / "checkpoint.json"
     temporary = destination.with_suffix(".tmp")
     temporary.write_text(json.dumps(checkpoint, ensure_ascii=False, sort_keys=True), "utf-8")
