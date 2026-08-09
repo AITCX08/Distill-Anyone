@@ -6,6 +6,7 @@ import { MissionControls, type MissionJob } from "./MissionControls";
 import { MissionOverview } from "./MissionOverview";
 import { SeriesRail } from "./SeriesRail";
 import { TaskDetailDrawer } from "./TaskDetailDrawer";
+import { TaskControlCard, type WorkerTask } from "./TaskControlCard";
 
 export type ProgressSnapshot = {
   job_id: string;
@@ -39,11 +40,15 @@ export function MissionControlPage({
   job = null,
   traceEntries = [],
   onJobUpdated = () => undefined,
+  tasks = [],
+  onTaskUpdated = () => undefined,
 }: {
   snapshot: ProgressSnapshot;
   job?: MissionJob | null;
   traceEntries?: readonly string[];
   onJobUpdated?: (job: MissionJob) => void;
+  tasks?: readonly WorkerTask[];
+  onTaskUpdated?: (task: WorkerTask) => void;
 }) {
   const [selectedRowId, setSelectedRowId] = useState<number | null>(null);
   const [detailItem, setDetailItem] = useState<ActiveItem | null>(null);
@@ -74,7 +79,10 @@ export function MissionControlPage({
       </section>
       <section className="execution-queue" aria-label="作品执行队列">
         <div className="execution-queue__heading"><Text as="h2" size={500}>作品执行队列</Text><Text className="metric">活动 {displayedSnapshot.counts.active}</Text></div>
-        {displayedSnapshot.active_items.map((item) => (
+        {tasks.map((task) => (
+          <TaskControlCard key={task.task_id} task={task} onTaskUpdated={onTaskUpdated} />
+        ))}
+        {tasks.length === 0 && displayedSnapshot.active_items.map((item) => (
           <ActiveItemRow key={item.source_id} item={item} onInspect={setDetailItem} />
         ))}
         {displayedSnapshot.active_items.length === 0 && <Text>{paused ? "任务已暂停；恢复后会在此显示执行进度。" : "当前没有正在执行的作品。"}</Text>}
