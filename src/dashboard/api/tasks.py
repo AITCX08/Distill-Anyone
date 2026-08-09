@@ -1,11 +1,19 @@
 """Local-only, revision-checked commands for isolated pipeline tasks."""
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from src.dashboard.schemas import TaskCommandInput, TaskResponse
+from src.dashboard.schemas import (
+    BilibiliImportInput,
+    BilibiliImportResponse,
+    TaskCommandInput,
+    TaskResponse,
+)
 from src.dashboard.security import require_mutation_security
 from src.distillation.state import RevisionConflict
 from src.orchestration.models import TaskRecord
+from src.orchestration.bilibili_import import BilibiliSeriesImporter
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 
@@ -36,6 +44,20 @@ def _check_revision(manager, task_id: str, expected_revision: int) -> TaskRecord
     if task.revision != expected_revision:
         raise RevisionConflict(expected_revision, task.revision)
     return task
+
+
+@router.post("/import/bilibili", response_model=BilibiliImportResponse, dependencies=[Depends(require_mutation_security)])
+def import_bilibili(payload: BilibiliImportInput, request: Request):
+    manager = _manager(request)
+    state_path = manager.worker_root.parent / "series" / payload.bvid / "state.json"
+    try:
+        legacy_state = json.loads(state_path.read_text("utf-8"))
+    except (OSError, UnicodeError, ValueError):
+        raise HTTPException(status_code=404, detail="local Bilibili series state was not found") from None
+    if not isinstance(legacy_state, dict):
+        raise HTTPException(status_code=400, detail="local Bilibili series state is invalid")
+    result = BilibiliSeriesImporter(manager.store).import_series(payload.bvid, legacy_state=legacy_state)
+    return BilibiliImportResponse(**result.__dict__)
 
 
 @router.get("", response_model=tuple[TaskResponse, ...])

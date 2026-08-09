@@ -30,6 +30,17 @@ class TaskCommandInput(RevisionInput):
     command_id: str = Field(min_length=8, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
 
 
+class BilibiliImportInput(BaseModel):
+    bvid: str = Field(min_length=4, max_length=64, pattern=r"^BV[A-Za-z0-9]+$")
+
+
+class BilibiliImportResponse(BaseModel):
+    job_id: str
+    created_tasks: int
+    completed_tasks: int
+    pending_tasks: int
+
+
 class TaskResponse(BaseModel):
     task_id: str
     job_id: str
