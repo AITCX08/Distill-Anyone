@@ -6,7 +6,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Protocol
+from typing import Any, Callable, Mapping, Protocol
 
 from src.application.redaction import redact_value
 from src.distillation.state import utc_now_iso
@@ -22,6 +22,7 @@ class WorkerContext:
     payload: Mapping[str, Any]
     work_dir: Path
     artifacts: Mapping[str, str]
+    emit_transfer: Callable[[int, int | None, float | None], None]
 
 
 _NEXT_STAGE = {
@@ -74,8 +75,15 @@ def run_worker(task_id: str, payload_path: Path, *, pipeline: Pipeline | None = 
             if stage_method is None:
                 raise RuntimeError(f"worker pipeline cannot execute {method_name}")
 
-            _append_event(work_dir, task_id, "stage", {"stage": checkpoint["stage"]})
-            context = WorkerContext(task_id, payload, work_dir, dict(artifacts))
+            event_stage = "downloading" if method_name == "download" else checkpoint["stage"]
+            _append_event(work_dir, task_id, "stage", {"stage": event_stage})
+            context = WorkerContext(
+                task_id,
+                payload,
+                work_dir,
+                dict(artifacts),
+                _transfer_emitter(work_dir, task_id, stage=event_stage),
+            )
             produced = stage_method(context)
             if produced is not None:
                 if not isinstance(produced, Mapping):
@@ -196,3 +204,40 @@ def _append_event(work_dir: Path, task_id: str, kind: str, payload: Mapping[str,
     event = {"v": 1, "type": kind, "task_id": task_id, **safe_payload}
     with (work_dir / "events.jsonl").open("a", encoding="utf-8", newline="\n") as stream:
         stream.write(json.dumps(event, ensure_ascii=False) + "\n")
+
+
+def _transfer_emitter(
+    work_dir: Path,
+    task_id: str,
+    *,
+    stage: str,
+) -> Callable[[int, int | None, float | None], None]:
+    """Translate downloader callbacks without inventing missing measurements."""
+
+    def emit(completed_bytes: int, total_bytes: int | None, bytes_per_second: float | None) -> None:
+        if stage != "downloading":
+            return
+        if (
+            isinstance(completed_bytes, bool)
+            or not isinstance(completed_bytes, int)
+            or completed_bytes < 0
+            or isinstance(total_bytes, bool)
+            or not isinstance(total_bytes, int)
+            or total_bytes < completed_bytes
+            or isinstance(bytes_per_second, bool)
+            or not isinstance(bytes_per_second, (int, float))
+            or bytes_per_second < 0
+        ):
+            return
+        _append_event(
+            work_dir,
+            task_id,
+            "transfer",
+            {
+                "completed_bytes": completed_bytes,
+                "total_bytes": total_bytes,
+                "bytes_per_second": bytes_per_second,
+            },
+        )
+
+    return emit
