@@ -1,7 +1,9 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { OutputTemplateDialog } from "./OutputTemplateDialog";
+
+afterEach(cleanup);
 
 describe("OutputTemplateDialog", () => {
   it("explains the selected deliverable with a readable representative template", () => {
