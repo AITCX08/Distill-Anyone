@@ -2,19 +2,20 @@
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from src.application.commands import CreateJobRequest, JobView, PreviewRequest, PreviewResult
 from src.application.service import DistillationService
 from src.dashboard.schemas import (
     CreateJobInput,
     ItemResponse,
+    JobDetailsResponse,
     JobResponse,
     PreviewInput,
     PreviewResponse,
     RevisionInput,
 )
-from src.dashboard.security import require_mutation_security
+from src.dashboard.security import require_local_session, require_mutation_security
 from src.distillation.state import ProcessingStatus, RevisionConflict
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
@@ -39,6 +40,35 @@ def _job_response(view: JobView) -> JobResponse:
 
 def _preview_response(value: PreviewResult) -> PreviewResponse:
     return PreviewResponse(**value.__dict__)
+
+
+def _delivery_details(job_id: str, request: Request) -> JobDetailsResponse:
+    state = request.app.state.service.queries.get(job_id)
+    raw_destination = state.request.get("output_directory")
+    if not isinstance(raw_destination, str) or not raw_destination.strip():
+        raise HTTPException(status_code=409, detail="此任务没有可用的保存位置")
+    destination = Path(raw_destination).expanduser().resolve(strict=False)
+    if destination == destination.parent or not destination.is_dir():
+        raise HTTPException(status_code=409, detail="保存位置不可用")
+
+    titles = (
+        str(value.get("title")).strip()
+        for value in state.catalog.values()
+        if isinstance(value, dict) and isinstance(value.get("title"), str)
+    )
+    display_title = next((title for title in titles if title), "内容蒸馏任务")
+    completed_at = max(
+        (item.completed_at for item in state.items.values() if item.completed_at),
+        default=None,
+    )
+    return JobDetailsResponse(
+        job_id=state.job_id,
+        display_title=display_title,
+        creator_name=str(state.creator.get("display_name") or "未知创作者"),
+        destination=str(destination),
+        artifact_count=sum(len(item.artifacts) for item in state.items.values()),
+        completed_at=completed_at,
+    )
 
 
 @router.post("/preview", response_model=PreviewResponse, dependencies=[Depends(require_mutation_security)])
@@ -82,6 +112,21 @@ def list_jobs(request: Request):
 def get_job(job_id: str, request: Request):
     service: DistillationService = request.app.state.service
     return _job_response(service.get_job(job_id))
+
+
+@router.get("/{job_id}/details", response_model=JobDetailsResponse, dependencies=[Depends(require_local_session)])
+def job_details(job_id: str, request: Request):
+    return _delivery_details(job_id, request)
+
+
+@router.post("/{job_id}/reveal-output", status_code=204, dependencies=[Depends(require_mutation_security)])
+def reveal_output(job_id: str, request: Request) -> Response:
+    details = _delivery_details(job_id, request)
+    try:
+        request.app.state.reveal_directory(Path(details.destination))
+    except OSError as error:
+        raise HTTPException(status_code=409, detail="打开保存位置失败") from error
+    return Response(status_code=204)
 
 
 @router.get("/{job_id}/items", response_model=tuple[ItemResponse, ...])

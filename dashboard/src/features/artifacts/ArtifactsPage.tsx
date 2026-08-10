@@ -9,8 +9,21 @@ type ArtifactSummary = {
   source_id: string;
   name: string;
   display_name: string;
+  display_title: string;
+  kind: string;
+  size_bytes: number;
+  created_at: string;
 };
 type ArtifactContent = ArtifactSummary & { content: string };
+
+type JobDetails = {
+  job_id: string;
+  display_title: string;
+  creator_name: string;
+  destination: string;
+  artifact_count: number;
+  completed_at: string | null;
+};
 
 function isJobSummary(value: unknown): value is JobSummary {
   return typeof value === "object" && value !== null
@@ -32,17 +45,41 @@ function isArtifactSummary(value: unknown): value is ArtifactSummary {
     && !value.artifact_id.includes("/") && !value.artifact_id.includes("\\")
     && "source_id" in value && typeof value.source_id === "string"
     && "name" in value && typeof value.name === "string"
-    && "display_name" in value && typeof value.display_name === "string";
+    && "display_name" in value && typeof value.display_name === "string"
+    && "display_title" in value && typeof value.display_title === "string"
+    && "kind" in value && typeof value.kind === "string"
+    && "size_bytes" in value && typeof value.size_bytes === "number" && Number.isFinite(value.size_bytes)
+    && "created_at" in value && typeof value.created_at === "string";
 }
 
 function isArtifactContent(value: unknown): value is ArtifactContent {
   return isArtifactSummary(value) && "content" in value && typeof value.content === "string";
 }
 
+function isJobDetails(value: unknown): value is JobDetails {
+  return typeof value === "object" && value !== null
+    && "job_id" in value && typeof value.job_id === "string"
+    && "display_title" in value && typeof value.display_title === "string"
+    && "creator_name" in value && typeof value.creator_name === "string"
+    && "destination" in value && typeof value.destination === "string"
+    && "artifact_count" in value && typeof value.artifact_count === "number"
+    && "completed_at" in value && (typeof value.completed_at === "string" || value.completed_at === null);
+}
+
+function formatBytes(value: number): string {
+  return value >= 1024 * 1024 ? `${(value / (1024 * 1024)).toFixed(1)} MB` : `${(value / 1024).toFixed(1)} KB`;
+}
+
+function formatTime(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "时间未知" : date.toLocaleString("zh-CN", { hour12: false });
+}
+
 export function ArtifactsPage() {
   const [jobs, setJobs] = useState<JobSummary[] | null>(null);
   const [selectedJob, setSelectedJob] = useState<string | null>(null);
   const [artifacts, setArtifacts] = useState<ArtifactSummary[] | null>(null);
+  const [details, setDetails] = useState<JobDetails | null>(null);
   const [content, setContent] = useState<ArtifactContent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -75,8 +112,24 @@ export function ArtifactsPage() {
     }
   }
 
+  async function loadDetails(jobId: string) {
+    setDetails(null);
+    try {
+      const result = await getJson<unknown>(`/api/v1/jobs/${encodeURIComponent(jobId)}/details`);
+      if (!isJobDetails(result)) throw new Error("invalid job details response");
+      setDetails(result);
+    } catch {
+      setDetails(null);
+      setError("本地引擎尚未确认任务交付详情。");
+    }
+  }
+
   useEffect(() => { void loadJobs(); }, []);
-  useEffect(() => { if (selectedJob) void loadArtifacts(selectedJob); }, [selectedJob]);
+  useEffect(() => {
+    if (!selectedJob) return;
+    void loadArtifacts(selectedJob);
+    void loadDetails(selectedJob);
+  }, [selectedJob]);
 
   async function previewArtifact(artifact: ArtifactSummary) {
     if (!selectedJob) return;
@@ -115,22 +168,41 @@ export function ArtifactsPage() {
     }
   }
 
+  async function revealOutput() {
+    if (!selectedJob) return;
+    setError(null);
+    setStatus(null);
+    try {
+      await postJson<unknown>(`/api/v1/jobs/${encodeURIComponent(selectedJob)}/reveal-output`, {});
+      setStatus("已发送打开任务保存位置的请求。");
+    } catch {
+      setError("本地引擎尚未确认打开保存位置的请求。");
+    }
+  }
+
   return (
     <section id="artifacts" aria-label="产物库">
       <Card>
         <Text as="h2" size={600}>产物库</Text>
-        <Text>文本预览为只读；打开文件夹仅允许已列出的产物，页面不会显示实际路径。</Text>
-        {jobs?.length === 0 && <Text role="status">没有可浏览产物的任务。</Text>}
+        <Text>文本预览为只读；保存位置只在当前本地会话的任务详情中显示。</Text>
+        {jobs?.length === 0 && <Text role="status">没有可浏览产物的任务。<a href="#mission">返回任务作战台</a>或<a href="#create">新建任务</a>。</Text>}
         {jobs && jobs.length > 0 && <Select aria-label="产物所属任务" value={selectedJob ?? ""} onChange={(_, data) => setSelectedJob(data.value)}>
-          {jobs.map((job) => <option key={job.job_id} value={job.job_id}>{job.creator_name} · {job.job_id}</option>)}
+          {jobs.map((job) => <option key={job.job_id} value={job.job_id}>{job.creator_name} · {details?.job_id === job.job_id ? details.display_title : "加载任务标题中"}</option>)}
         </Select>}
         {error && <Text role="alert">{error}</Text>}
         {status && <Text role="status">{status}</Text>}
-        {artifacts?.length === 0 && <Text role="status">此任务暂无可安全预览的文本产物。</Text>}
+        {details && <Card className="artifact-delivery">
+          <Text as="h3" size={500}>{details.creator_name} · {details.display_title}</Text>
+          <Text>保存位置</Text><Text className="metric">{details.destination}</Text>
+          <Text className="metric">可用产物 {details.artifact_count}{details.completed_at ? ` · 完成于 ${formatTime(details.completed_at)}` : ""}</Text>
+          <Button appearance="primary" onClick={() => void revealOutput()}>打开任务保存位置</Button>
+        </Card>}
+        {artifacts?.length === 0 && <Text role="status">此任务暂无可安全预览的文本产物。<a href="#create">新建任务</a></Text>}
         {artifacts?.map((artifact) => (
           <Card key={artifact.artifact_id}>
             <Text as="h3" size={500}>{artifact.display_name}</Text>
-            <Text className="metric">{artifact.name} · {artifact.source_id}</Text>
+            <Text>{artifact.display_title} · {artifact.kind} · {formatBytes(artifact.size_bytes)}</Text>
+            <Text className="metric">创建于 {formatTime(artifact.created_at)}</Text>
             <Button appearance="secondary" onClick={() => void previewArtifact(artifact)}>预览 {artifact.display_name}</Button>
             <Button appearance="secondary" onClick={() => void revealArtifact(artifact)}>打开所在文件夹 {artifact.display_name}</Button>
           </Card>

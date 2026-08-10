@@ -99,7 +99,11 @@ export function MissionControlPage({
             : <>当前没有正在执行的作品。<a href="#create">新建任务</a></>}</Text>}
       </section>
       <LiveTrace entries={traceEntries} />
-      {detailItem && <TaskDetailDrawer item={detailItem} onClose={() => setDetailItem(null)} />}
+      {detailItem && <TaskDetailDrawer
+        item={detailItem}
+        onClose={() => setDetailItem(null)}
+        onViewArtifacts={job ? () => onViewArtifacts(job.job_id) : undefined}
+      />}
     </section>
   );
 }

@@ -104,6 +104,15 @@ class JobResponse(BaseModel):
     updated_at: str
 
 
+class JobDetailsResponse(BaseModel):
+    job_id: str
+    display_title: str
+    creator_name: str
+    destination: str
+    artifact_count: int = Field(ge=0)
+    completed_at: str | None = None
+
+
 class ItemResponse(BaseModel):
     source_id: str
     processing_status: str
