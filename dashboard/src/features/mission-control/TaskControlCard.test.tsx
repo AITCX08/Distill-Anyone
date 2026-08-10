@@ -28,6 +28,15 @@ const snapshot = {
 afterEach(cleanup);
 
 describe("TaskControlCard", () => {
+  it("uses the work title before its stable source id", () => {
+    render(<TaskControlCard task={{
+      ...task, display_title: "开场与概念", part_number: 1, status: "completed", stage: "completed",
+    }} />);
+
+    expect(screen.getByRole("heading", { name: "第 1 集 · 开场与概念" })).toBeVisible();
+    expect(screen.getByText(task.source_id).closest("details")).toHaveTextContent("技术信息");
+  });
+
   it("shows independent controls for two active tasks", () => {
     render(<MissionControlPage snapshot={snapshot} tasks={[task, { ...task, task_id: "task-2", source_id: "p02" }]} />);
     expect(screen.getAllByRole("button", { name: "暂停任务" })).toHaveLength(2);

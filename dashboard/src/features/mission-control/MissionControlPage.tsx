@@ -42,6 +42,7 @@ export function MissionControlPage({
   onJobUpdated = () => undefined,
   tasks = [],
   onTaskUpdated = () => undefined,
+  onViewArtifacts = () => { window.location.hash = "#artifacts"; },
 }: {
   snapshot: ProgressSnapshot;
   job?: MissionJob | null;
@@ -49,10 +50,12 @@ export function MissionControlPage({
   onJobUpdated?: (job: MissionJob) => void;
   tasks?: readonly WorkerTask[];
   onTaskUpdated?: (task: WorkerTask) => void;
+  onViewArtifacts?: (jobId: string) => void;
 }) {
   const [selectedRowId, setSelectedRowId] = useState<number | null>(null);
   const [detailItem, setDetailItem] = useState<ActiveItem | null>(null);
   const paused = job?.status === "paused" || job?.status === "pause_requested";
+  const completed = job?.status === "completed";
   const displayedSnapshot = paused
     ? { ...snapshot, active_items: [], counts: { ...snapshot.counts, active: 0 } }
     : snapshot;
@@ -60,7 +63,7 @@ export function MissionControlPage({
 
   return (
     <section id="mission" className="mission-control" aria-label="任务执行台">
-      <MissionOverview snapshot={displayedSnapshot} jobStatus={job?.status} />
+      <MissionOverview snapshot={displayedSnapshot} job={job} jobStatus={job?.status} onViewArtifacts={onViewArtifacts} />
       {job && (job.read_only || job.job_id.startsWith("imported-series-")) && <SeriesRail
         total={displayedSnapshot.counts.total}
         completed={displayedSnapshot.counts.completed}
@@ -70,7 +73,11 @@ export function MissionControlPage({
         onSelect={setSelectedRowId}
       />}
       <section className="mission-control__summary" aria-label="任务控制与状态">
-        <Text>{paused ? "任务已暂停，恢复后将从最近检查点继续。" : `失败 ${snapshot.counts.failed} · 等待重试 ${snapshot.counts.retry} · 当前任务预计 ${formatDuration(snapshot.eta_active_slowest_seconds)}`}</Text>
+        <Text>{completed
+          ? "任务已完成，产物已准备就绪。"
+          : paused
+            ? "任务已暂停，恢复后将从最近检查点继续。"
+            : `失败 ${snapshot.counts.failed} · 等待重试 ${snapshot.counts.retry} · 当前任务预计 ${formatDuration(snapshot.eta_active_slowest_seconds)}`}</Text>
         {job && <MissionControls
           job={job}
           retryableFailures={displayedSnapshot.counts.failed > 0 || displayedSnapshot.counts.retry > 0}
@@ -85,7 +92,11 @@ export function MissionControlPage({
         {tasks.length === 0 && displayedSnapshot.active_items.map((item) => (
           <ActiveItemRow key={item.source_id} item={item} onInspect={setDetailItem} />
         ))}
-        {displayedSnapshot.active_items.length === 0 && <Text>{paused ? "任务已暂停；恢复后会在此显示执行进度。" : "当前没有正在执行的作品。"}</Text>}
+        {displayedSnapshot.active_items.length === 0 && tasks.length === 0 && <Text>{paused
+          ? "任务已暂停；恢复后会在此显示执行进度。"
+          : completed
+            ? "所有作品均已完成，可前往产物库查看。"
+            : <>当前没有正在执行的作品。<a href="#create">新建任务</a></>}</Text>}
       </section>
       <LiveTrace entries={traceEntries} />
       {detailItem && <TaskDetailDrawer item={detailItem} onClose={() => setDetailItem(null)} />}

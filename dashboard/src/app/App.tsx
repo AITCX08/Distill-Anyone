@@ -22,6 +22,7 @@ export function App() {
           onJobUpdated={mission.updateJob}
           tasks={mission.tasks}
           onTaskUpdated={mission.updateTask}
+          onViewArtifacts={() => { window.location.hash = "#artifacts"; }}
         />
         : <MissionEmptyState />)}
       {workspace === "create" && <CreateJobPage />}

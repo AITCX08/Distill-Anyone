@@ -72,7 +72,12 @@ function isMissionJob(value: unknown): value is MissionJob {
   const job = value as Record<string, unknown>;
   return typeof job.job_id === "string"
     && typeof job.status === "string"
-    && isFiniteNumber(job.revision);
+    && isFiniteNumber(job.revision)
+    && (job.display_title === undefined || typeof job.display_title === "string")
+    && (job.creator_name === undefined || typeof job.creator_name === "string")
+    && (job.platform === undefined || typeof job.platform === "string")
+    && (job.artifact_count === undefined || isFiniteNumber(job.artifact_count))
+    && (job.completed_at === undefined || typeof job.completed_at === "string");
 }
 
 function jobFromSnapshot(data: Record<string, unknown>, jobId: string): MissionJob | null {
@@ -153,7 +158,17 @@ function workerJob(tasks: readonly WorkerTask[]): MissionJob {
         : statuses.some((value) => value === "failed")
           ? "failed"
           : "queued";
-  return { job_id: snapshot.job_id, status, revision: snapshot.revision, read_only: true };
+  const latestUpdate = tasks.reduce((latest, task) => task.updated_at > latest ? task.updated_at : latest, tasks[0]?.updated_at ?? "");
+  return {
+    job_id: snapshot.job_id,
+    status,
+    revision: snapshot.revision,
+    display_title: tasks[0]?.display_title,
+    platform: tasks[0]?.source_id.startsWith("bilibili_") ? "bilibili" : undefined,
+    artifact_count: tasks.filter((task) => task.delivery_state === "available").length,
+    completed_at: status === "completed" ? latestUpdate : undefined,
+    read_only: true,
+  };
 }
 
 function workerTraceEntries(data: Record<string, unknown>, tasks: readonly WorkerTask[]): readonly string[] {

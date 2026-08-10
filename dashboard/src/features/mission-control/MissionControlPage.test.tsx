@@ -1,6 +1,8 @@
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 import { MissionControlPage } from "./MissionControlPage";
+
+afterEach(cleanup);
 
 const snapshot = {
   job_id: "job-1",
@@ -29,6 +31,16 @@ const snapshot = {
 };
 
 describe("MissionControlPage", () => {
+  it("offers a clear creation action when no work is active", () => {
+    render(<MissionControlPage snapshot={{
+      ...snapshot,
+      active_items: [],
+      counts: { ...snapshot.counts, active: 0 },
+    }} />);
+
+    expect(screen.getByRole("link", { name: "新建任务" })).toHaveAttribute("href", "#create");
+  });
+
   it("renders server transfer values with readable overall and active ETA labels", () => {
     render(<MissionControlPage snapshot={snapshot} />);
 
@@ -88,7 +100,7 @@ describe("MissionControlPage", () => {
       job={{ job_id: "job-1", status: "paused", revision: 1 }}
     />);
 
-    expect(screen.getByText("已暂停")).toBeVisible();
+    expect(screen.getAllByText("已暂停")).not.toHaveLength(0);
     expect(screen.getByText("恢复后估算")).toBeVisible();
     expect(screen.queryByText("未知")).not.toBeInTheDocument();
   });

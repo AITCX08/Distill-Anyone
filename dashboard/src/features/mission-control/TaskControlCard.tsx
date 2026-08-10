@@ -23,10 +23,15 @@ function pathFor(task: WorkerTask, action: Action): string {
   return `/api/v1/tasks/${encodeURIComponent(task.task_id)}/${action}`;
 }
 
+function headingFor(task: WorkerTask): string {
+  return task.part_number ? `第 ${task.part_number} 集 · ${task.display_title}` : task.display_title;
+}
+
 export function TaskControlCard({ task, onTaskUpdated }: { task: WorkerTask; onTaskUpdated?: (task: WorkerTask) => void }) {
   const [busy, setBusy] = useState<Action | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const downloading = task.stage === "downloading";
+  const transfer = task.transfer;
+  const downloading = task.stage === "downloading" && transfer !== undefined;
   const canPause = task.status === "running";
   const canResume = task.status === "paused" || task.status === "interrupted";
   const canCancel = task.status === "running" || task.status === "pause_requested";
@@ -36,11 +41,11 @@ export function TaskControlCard({ task, onTaskUpdated }: { task: WorkerTask; onT
     setBusy(action);
     setMessage(null);
     try {
-      const updated = await postJson<WorkerTask>(pathFor(task, action), {
+      const updated = await postJson<Partial<WorkerTask>>(pathFor(task, action), {
         expected_revision: task.revision,
         command_id: newCommandId(),
       });
-      onTaskUpdated?.(updated);
+      onTaskUpdated?.({ ...task, ...updated });
     } catch (error) {
       setMessage(error instanceof DashboardRequestError && error.code === "revision_conflict"
         ? "任务状态已更新，请等待服务端刷新。"
@@ -50,26 +55,13 @@ export function TaskControlCard({ task, onTaskUpdated }: { task: WorkerTask; onT
     }
   }
 
-  return (
-    <Card className="execution-row" aria-label={`${task.source_id} · ${stageLabel(task.stage)}`}>
-      <div className="execution-row__identity">
-        <Text as="h3">作品 {task.source_id}</Text>
-        <Text className="execution-row__stage">{stageLabel(task.stage)}</Text>
-      </div>
-      {downloading && task.transfer ? <>
-        <Text>{formatBytes(task.transfer.completed_bytes)} / {formatBytes(task.transfer.total_bytes)}</Text>
-        <ProgressBar value={task.transfer.total_bytes > 0 ? task.transfer.completed_bytes / task.transfer.total_bytes : undefined} />
-        <Text className="metric">{formatBytes(task.transfer.bytes_per_second)}/秒</Text>
-      </> : <Text>正在{stageLabel(task.stage).replace(/中$/, "")}，暂不显示下载速度</Text>}
-      <Text className="metric">检查点 #{task.checkpoint_revision} · 已尝试 {task.attempt} 次</Text>
-      {task.error && <Text role="status">失败原因：{task.error}</Text>}
-      <div>
-        {canPause && <Button onClick={() => command("pause")} disabled={busy !== null}>暂停任务</Button>}
-        {canResume && <Button onClick={() => command("resume")} disabled={busy !== null}>继续任务</Button>}
-        {canCancel && <Button onClick={() => command("cancel")} disabled={busy !== null}>取消任务</Button>}
-        {canRetry && <Button onClick={() => command("retry")} disabled={busy !== null}>重试任务</Button>}
-      </div>
-      {message && <Text role="status">{message}</Text>}
-    </Card>
-  );
+  return <Card className="execution-row" aria-label={`${headingFor(task)} · ${stageLabel(task.stage)}`}>
+    <div className="execution-row__identity"><div><Text as="h3">{headingFor(task)}</Text><Text className="execution-row__stage">{stageLabel(task.stage)}</Text></div><Text className="metric">{task.delivery_state === "available" ? "产物可用" : task.delivery_state === "unavailable" ? "交付不可用" : "处理中"}</Text></div>
+    {downloading && transfer ? <><Text>{formatBytes(transfer.completed_bytes)} / {formatBytes(transfer.total_bytes)}</Text><ProgressBar value={transfer.total_bytes > 0 ? transfer.completed_bytes / transfer.total_bytes : undefined} /><Text className="metric">{formatBytes(transfer.bytes_per_second)}/秒</Text></> : <Text>{task.status === "completed" ? "该作品已完成交付。" : `正在${stageLabel(task.stage).replace("中", "")}，暂不显示下载速度`}</Text>}
+    <Text className="metric">检查点 #{task.checkpoint_revision} · 已尝试 {task.attempt} 次</Text>
+    <details className="execution-row__technical"><summary>技术信息</summary><Text className="metric">{task.source_id}</Text></details>
+    {task.error && <Text role="status">失败原因：{task.error}</Text>}
+    <div>{canPause && <Button onClick={() => void command("pause")} disabled={busy !== null}>暂停任务</Button>}{canResume && <Button onClick={() => void command("resume")} disabled={busy !== null}>继续任务</Button>}{canCancel && <Button onClick={() => void command("cancel")} disabled={busy !== null}>取消任务</Button>}{canRetry && <Button onClick={() => void command("retry")} disabled={busy !== null}>重试任务</Button>}</div>
+    {message && <Text role="status">{message}</Text>}
+  </Card>;
 }

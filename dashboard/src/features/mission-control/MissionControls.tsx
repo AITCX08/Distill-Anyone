@@ -1,12 +1,10 @@
 import { Button, Text } from "@fluentui/react-components";
 import { useState } from "react";
 import { DashboardRequestError, postJson } from "../../api/client";
+import type { MissionJob as MissionJobContract } from "../../api/schema";
 import { jobStatusLabel } from "../../i18n/zh";
 
-export type MissionJob = {
-  job_id: string;
-  status: string;
-  revision: number;
+export type MissionJob = MissionJobContract & {
   read_only?: boolean;
 };
 

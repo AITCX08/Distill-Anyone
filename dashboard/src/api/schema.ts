@@ -1,5 +1,15 @@
 export type JobStatus = "queued" | "running" | "pause_requested" | "paused" | "partial" | "completed" | "failed";
 export interface JobSummary { job_id: string; status: JobStatus; revision: number; platform: string; creator_name: string; total_items: number; completed_items: number; failed_items: number; unsupported_items: number; updated_at: string; }
+export interface MissionJob {
+  job_id: string;
+  status: string;
+  revision: number;
+  display_title?: string;
+  creator_name?: string;
+  platform?: string;
+  artifact_count?: number;
+  completed_at?: string;
+}
 export interface JobItem { source_id: string; processing_status: string; retryable: boolean; stage_progress: number; overall_progress: number; last_error: string | null; updated_at: string; }
 export interface WorkerTransfer { completed_bytes: number; total_bytes: number; bytes_per_second: number; }
 export interface WorkerTask {
