@@ -67,6 +67,8 @@ class TaskResponse(BaseModel):
     task_id: str
     job_id: str
     source_id: str
+    display_title: str
+    part_number: int | None = Field(default=None, ge=1)
     status: str
     stage: str
     revision: int

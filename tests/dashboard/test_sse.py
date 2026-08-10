@@ -97,6 +97,29 @@ def test_initial_sse_snapshot_contains_worker_tasks_and_traces(tmp_path):
     assert "worker ready" in message
 
 
+def test_initial_sse_snapshot_exposes_safe_task_metadata_without_output_directory(tmp_path):
+    hub = EventHub()
+    store = OrchestrationStore(tmp_path / "orchestration.sqlite3")
+    job = store.create_job(
+        platform="bilibili",
+        target="https://example.invalid/creator",
+        output_directory=str(tmp_path / "private-delivery"),
+    )
+    store.create_tasks(job.job_id, ["bilibili_BV18bLkztE7R_p02"])
+    service = SimpleNamespace(events=hub, list_jobs=lambda: ())
+    manager = SimpleNamespace(store=store)
+
+    async def next_message():
+        return await anext(event_stream(service, last_event_id=None, job_id=None, task_manager=manager))
+
+    message = asyncio.run(next_message())
+
+    assert '"display_title": "第 2 集"' in message
+    assert '"part_number": 2' in message
+    assert '"delivery_state": "pending"' in message
+    assert "private-delivery" not in message
+
+
 def test_initial_sse_snapshot_projects_latest_worker_transfer_to_its_task(tmp_path):
     hub = EventHub()
     store = OrchestrationStore(tmp_path / "orchestration.sqlite3")

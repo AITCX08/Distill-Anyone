@@ -23,6 +23,8 @@ def _response(task: TaskRecord) -> TaskResponse:
         task_id=task.task_id,
         job_id=task.job_id,
         source_id=task.source_id,
+        display_title=task.display_title,
+        part_number=task.part_number,
         status=task.status,
         stage=task.stage,
         revision=task.revision,

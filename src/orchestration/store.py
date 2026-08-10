@@ -11,7 +11,14 @@ from typing import Any, Iterator, Mapping, Sequence
 
 from src.application.redaction import redact_value
 from src.distillation.state import RevisionConflict, utc_now_iso
-from src.orchestration.models import JobRecord, TaskEventRecord, TaskRecord, WorkerLeaseRecord
+from src.orchestration.models import (
+    JobRecord,
+    TaskEventRecord,
+    TaskRecord,
+    TaskSpec,
+    WorkerLeaseRecord,
+    task_metadata,
+)
 
 
 class OrchestrationStore:
@@ -43,6 +50,8 @@ class OrchestrationStore:
                     checkpoint_revision INTEGER NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
+                    display_title TEXT NOT NULL DEFAULT '',
+                    part_number INTEGER,
                     UNIQUE(job_id, source_id)
                 );
                 CREATE TABLE IF NOT EXISTS task_events (
@@ -119,17 +128,18 @@ class OrchestrationStore:
             )
         return job
 
-    def create_tasks(self, job_id: str, source_ids: Sequence[str]) -> tuple[TaskRecord, ...]:
-        if not source_ids or any(not source_id.strip() for source_id in source_ids):
+    def create_tasks(self, job_id: str, source_ids: Sequence[str | TaskSpec]) -> tuple[TaskRecord, ...]:
+        specs = tuple(_normalize_task_spec(source_id) for source_id in source_ids)
+        if not specs or any(not spec.source_id.strip() for spec in specs):
             raise ValueError("at least one non-empty source_id is required")
-        if len(set(source_ids)) != len(source_ids):
+        if len({spec.source_id for spec in specs}) != len(specs):
             raise ValueError("source_ids must be unique within a job")
         now = utc_now_iso()
         tasks = tuple(
             TaskRecord(
                 task_id=f"task_{uuid.uuid4().hex}",
                 job_id=job_id,
-                source_id=source_id,
+                source_id=spec.source_id,
                 status="pending",
                 stage="queued",
                 revision=0,
@@ -137,8 +147,10 @@ class OrchestrationStore:
                 checkpoint_revision=0,
                 created_at=now,
                 updated_at=now,
+                display_title=spec.display_title,
+                part_number=spec.part_number,
             )
-            for source_id in source_ids
+            for spec in specs
         )
         with self._connection() as connection:
             if connection.execute("SELECT 1 FROM jobs WHERE job_id = ?", (job_id,)).fetchone() is None:
@@ -146,8 +158,8 @@ class OrchestrationStore:
             connection.executemany(
                 """INSERT INTO tasks
                    (task_id, job_id, source_id, status, stage, revision, attempt,
-                    checkpoint_revision, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    checkpoint_revision, created_at, updated_at, display_title, part_number)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 [
                     (
                         task.task_id,
@@ -160,6 +172,8 @@ class OrchestrationStore:
                         task.checkpoint_revision,
                         task.created_at,
                         task.updated_at,
+                        task.display_title,
+                        task.part_number,
                     )
                     for task in tasks
                 ],
@@ -398,17 +412,30 @@ class OrchestrationStore:
 
     @staticmethod
     def _ensure_incremental_columns(connection: sqlite3.Connection) -> None:
-        columns = {
+        job_columns = {
             str(row["name"])
             for row in connection.execute("PRAGMA table_info(jobs)").fetchall()
         }
-        if "output_directory" not in columns:
+        if "output_directory" not in job_columns:
             connection.execute(
                 "ALTER TABLE jobs ADD COLUMN output_directory TEXT NOT NULL DEFAULT ''"
             )
+        task_columns = {
+            str(row["name"])
+            for row in connection.execute("PRAGMA table_info(tasks)").fetchall()
+        }
+        if "display_title" not in task_columns:
+            connection.execute("ALTER TABLE tasks ADD COLUMN display_title TEXT NOT NULL DEFAULT ''")
+        if "part_number" not in task_columns:
+            connection.execute("ALTER TABLE tasks ADD COLUMN part_number INTEGER")
 
     @staticmethod
     def _task_from_row(row: sqlite3.Row) -> TaskRecord:
+        display_title, part_number = task_metadata(
+            str(row["source_id"]),
+            display_title=str(row["display_title"] or ""),
+            part_number=int(row["part_number"]) if row["part_number"] is not None else None,
+        )
         return TaskRecord(
             task_id=row["task_id"],
             job_id=row["job_id"],
@@ -420,6 +447,8 @@ class OrchestrationStore:
             checkpoint_revision=row["checkpoint_revision"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
+            display_title=display_title,
+            part_number=part_number,
         )
 
     @staticmethod
@@ -455,3 +484,15 @@ class OrchestrationStore:
             launched_at=row["launched_at"],
             heartbeat_at=row["heartbeat_at"],
         )
+
+
+def _normalize_task_spec(value: str | TaskSpec) -> TaskSpec:
+    spec = TaskSpec(value) if isinstance(value, str) else value
+    if not isinstance(spec, TaskSpec):
+        raise TypeError("task specification must be a source ID or TaskSpec")
+    display_title, part_number = task_metadata(
+        spec.source_id,
+        display_title=spec.display_title,
+        part_number=spec.part_number,
+    )
+    return TaskSpec(spec.source_id, display_title, part_number)

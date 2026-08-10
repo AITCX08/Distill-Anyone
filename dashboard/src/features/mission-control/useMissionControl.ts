@@ -94,6 +94,10 @@ function isWorkerTask(value: unknown): value is WorkerTask {
   return typeof task.task_id === "string"
     && typeof task.job_id === "string"
     && typeof task.source_id === "string"
+    && typeof task.display_title === "string"
+    && task.display_title.trim().length > 0
+    && (task.part_number === null || (isFiniteNumber(task.part_number) && task.part_number >= 1))
+    && (task.delivery_state === "pending" || task.delivery_state === "available" || task.delivery_state === "unavailable")
     && typeof task.status === "string"
     && typeof task.stage === "string"
     && isFiniteNumber(task.revision)

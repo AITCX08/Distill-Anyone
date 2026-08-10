@@ -94,6 +94,9 @@ def _snapshot_message(service, job_id: str | None, task_manager=None) -> str:
                 "task_id": task.task_id,
                 "job_id": task.job_id,
                 "source_id": task.source_id,
+                "display_title": task.display_title,
+                "part_number": task.part_number,
+                "delivery_state": _delivery_state(task),
                 "status": task.status,
                 "stage": task.stage,
                 "revision": task.revision,
@@ -135,6 +138,14 @@ def _snapshot_message(service, job_id: str | None, task_manager=None) -> str:
         "task_traces": task_traces,
     }
     return f"event: snapshot\ndata: {json.dumps(message, ensure_ascii=False)}\n\n"
+
+
+def _delivery_state(task) -> str:
+    if task.status == "completed":
+        return "available"
+    if task.status == "failed":
+        return "unavailable"
+    return "pending"
 
 
 async def event_stream(

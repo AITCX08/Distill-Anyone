@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from src.orchestration.models import TaskRecord
+from src.orchestration.models import TaskRecord, TaskSpec
 from src.orchestration.store import OrchestrationStore
 
 
@@ -61,7 +61,17 @@ class BilibiliSeriesImporter:
             target=source_url,
             output_directory=output_directory,
         )
-        tasks = self.store.create_tasks(job.job_id, source_ids)
+        tasks = self.store.create_tasks(
+            job.job_id,
+            [
+                TaskSpec(
+                    source_id=self._source_id(bvid, number),
+                    display_title=_part_title(value, number),
+                    part_number=number,
+                )
+                for number, value in numbered
+            ],
+        )
         completed_by_source = {
             self._source_id(bvid, number)
             for number, value in numbered
@@ -99,3 +109,8 @@ def _declared_part_count(title: str) -> int | None:
 
     match = re.search(r"(\d+)\s*(?:集|episodes?)", title, flags=re.IGNORECASE)
     return int(match.group(1)) if match is not None else None
+
+
+def _part_title(value: Any, part_number: int) -> str:
+    title = str(value.get("title") or "").strip() if isinstance(value, Mapping) else ""
+    return title or f"第 {part_number} 集"

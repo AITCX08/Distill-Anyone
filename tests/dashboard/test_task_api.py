@@ -31,6 +31,26 @@ def test_pause_task_requires_current_revision(tmp_path):
     assert response.json()["status"] == "pause_requested"
 
 
+def test_task_api_returns_readable_metadata_without_private_output_directory(tmp_path):
+    store = OrchestrationStore(tmp_path / "orchestration.sqlite3")
+    job = store.create_job(
+        platform="bilibili",
+        target="https://example.invalid/creator",
+        output_directory=str(tmp_path / "private-delivery"),
+    )
+    task = store.create_tasks(job.job_id, ["bilibili_BV18bLkztE7R_p03"])[0]
+    client = make_client(tmp_path)
+    client.app.state.task_manager = TaskManager(store=store, worker_root=tmp_path / "workers")
+
+    response = client.get("/api/v1/tasks")
+
+    assert response.status_code == 200
+    assert response.json()[0]["display_title"] == "第 3 集"
+    assert response.json()[0]["part_number"] == 3
+    assert response.json()[0]["source_id"] == task.source_id
+    assert "private-delivery" not in response.text
+
+
 def test_import_bilibili_series_creates_independent_tasks_from_local_legacy_state(tmp_path):
     client = make_client(tmp_path)
     store = OrchestrationStore(tmp_path / "orchestration.sqlite3")

@@ -6,6 +6,9 @@ export interface WorkerTask {
   task_id: string;
   job_id: string;
   source_id: string;
+  display_title: string;
+  part_number: number | null;
+  delivery_state: "pending" | "available" | "unavailable";
   status: string;
   stage: string;
   revision: number;
