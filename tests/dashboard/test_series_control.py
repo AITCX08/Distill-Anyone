@@ -1,3 +1,4 @@
+import os
 from unittest.mock import Mock
 
 from src.dashboard.series_control import SeriesController, _worker_is_alive
@@ -77,3 +78,7 @@ def test_worker_liveness_treats_windows_invalid_handles_as_not_running(monkeypat
     monkeypatch.setattr("src.dashboard.series_control.os.kill", invalid_handle)
 
     assert _worker_is_alive(99999) is False
+
+
+def test_worker_liveness_recognizes_the_current_process():
+    assert _worker_is_alive(os.getpid()) is True

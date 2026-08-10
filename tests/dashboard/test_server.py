@@ -104,3 +104,11 @@ def test_series_worker_environment_keeps_credentials_out_of_process_arguments(tm
     assert environment["BILIBILI_BILI_JCT"] == "secret-token"
     assert environment["BILIBILI_BUVID3"] == "browser-id"
     assert environment["UNCHANGED"] == "value"
+
+
+def test_series_worker_creation_flags_detach_the_windowless_child(monkeypatch):
+    monkeypatch.setattr(server.subprocess, "CREATE_NO_WINDOW", 1, raising=False)
+    monkeypatch.setattr(server.subprocess, "CREATE_NEW_PROCESS_GROUP", 2, raising=False)
+    monkeypatch.setattr(server.subprocess, "DETACHED_PROCESS", 4, raising=False)
+
+    assert server._series_worker_creation_flags() == 7

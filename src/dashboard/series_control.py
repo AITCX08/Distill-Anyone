@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -72,10 +73,28 @@ class SeriesController:
 
 
 def _worker_is_alive(worker_pid: int) -> bool:
+    if os.name == "nt":
+        # `os.kill(pid, 0)` is not a reliable liveness probe on Windows: it
+        # can raise SystemError even for a live process. Query the process
+        # handle and its exit code instead.
+        process_query_limited_information = 0x1000
+        still_active = 259
+        handle = ctypes.windll.kernel32.OpenProcess(  # type: ignore[attr-defined]
+            process_query_limited_information,
+            False,
+            worker_pid,
+        )
+        if not handle:
+            return False
+        try:
+            exit_code = ctypes.c_ulong()
+            if not ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):  # type: ignore[attr-defined]
+                return False
+            return exit_code.value == still_active
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)  # type: ignore[attr-defined]
     try:
         os.kill(worker_pid, 0)
-    except (OSError, SystemError):
-        # On Windows, ``os.kill(pid, 0)`` can surface an invalid handle as a
-        # SystemError rather than OSError when the process has already exited.
+    except OSError:
         return False
     return True

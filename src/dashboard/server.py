@@ -87,6 +87,16 @@ def _series_worker_environment(data_dir: Path) -> dict[str, str]:
     return environment
 
 
+def _series_worker_creation_flags() -> int:
+    """Create a fully detached, windowless Windows worker process."""
+
+    return (
+        getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        | getattr(subprocess, "DETACHED_PROCESS", 0)
+    )
+
+
 def _run_task_manager_loop(
     task_manager: TaskManager,
     server: uvicorn.Server,
@@ -159,7 +169,7 @@ def run_dashboard(service: DistillationService, port: int, open_browser: bool) -
         runner = data_dir.parent / ".local-artifacts" / "bilibili-series" / "distill_tianji_sizhu.py"
         log_path = data_dir / "series" / bvid / "runner.log"
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        flags = _series_worker_creation_flags()
         with log_path.open("a", encoding="utf-8") as log_file:
             interpreter = _worker_python_executable()
             log_file.write(f"[dashboard] starting series runner with {interpreter}\n")
