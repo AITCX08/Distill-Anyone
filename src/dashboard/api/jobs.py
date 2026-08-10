@@ -143,6 +143,7 @@ def list_items(job_id: str, request: Request):
             stage_progress=item.stage_progress,
             overall_progress=item.overall_progress,
             last_error=item.last_error,
+            completed_at=item.completed_at,
             updated_at=item.updated_at,
         )
         for item in state.items.values()

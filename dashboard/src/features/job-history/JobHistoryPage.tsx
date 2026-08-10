@@ -33,6 +33,7 @@ function isJobItem(value: unknown): value is JobItem {
     && "stage_progress" in value && typeof value.stage_progress === "number"
     && "overall_progress" in value && typeof value.overall_progress === "number"
     && "last_error" in value && (typeof value.last_error === "string" || value.last_error === null)
+    && "completed_at" in value && (typeof value.completed_at === "string" || value.completed_at === null)
     && "updated_at" in value && typeof value.updated_at === "string";
 }
 
@@ -48,6 +49,15 @@ function isJobDetails(value: unknown): value is JobDetails {
 
 function itemHeading(item: JobItem): string {
   return item.part_number === null ? item.display_title : `第 ${item.part_number} 集 · ${item.display_title}`;
+}
+
+function sourceBvid(sourceId: string): string | null {
+  return /^bilibili_(BV[0-9A-Za-z]+)_p\d+$/i.exec(sourceId)?.[1] ?? null;
+}
+
+function compactDateTime(value: string): string {
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(value);
+  return match ? `${match[1]} ${match[2]}` : value;
 }
 
 function isJobUpdate(value: unknown): value is Pick<JobSummary, "job_id" | "status" | "revision"> {
@@ -186,7 +196,11 @@ export function JobHistoryPage() {
             {itemsByJob[job.job_id]?.map((item) => (
               <div key={item.source_id}>
                 <Text className="metric">{itemHeading(item)} · {stageLabel(item.processing_status)}</Text>
-                <details><summary>技术信息</summary><Text className="metric">{item.source_id}</Text></details>
+                <Text className="metric">
+                  {sourceBvid(item.source_id) ?? `来源编号 ${item.source_id}`} · {item.completed_at
+                    ? `完成于 ${compactDateTime(item.completed_at)}`
+                    : `最后更新 ${compactDateTime(item.updated_at)}`}
+                </Text>
                 {item.last_error && <Text role="status">失败原因：{item.last_error}</Text>}
                 {item.retryable && <Button
                   appearance="primary"

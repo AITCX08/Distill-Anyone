@@ -122,4 +122,5 @@ class ItemResponse(BaseModel):
     stage_progress: float
     overall_progress: float
     last_error: str | None
+    completed_at: str | None
     updated_at: str
