@@ -11,6 +11,26 @@ class HealthResponse(BaseModel):
     static_compatible: bool
 
 
+class OutputDirectoryInput(BaseModel):
+    directory: str = Field(min_length=1, max_length=32768)
+
+
+class OutputDirectoryResponse(BaseModel):
+    directory: str
+
+
+class DirectoryValidationResponse(OutputDirectoryResponse):
+    token: str
+    expires_at: str
+
+
+class DirectorySelectionResponse(BaseModel):
+    selected: bool
+    directory: str | None = None
+    token: str | None = None
+    expires_at: str | None = None
+
+
 class PreviewInput(BaseModel):
     target: str = Field(min_length=1, max_length=4096)
     platform: str = "auto"
