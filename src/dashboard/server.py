@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import webbrowser
+import subprocess
+import sys
 from pathlib import Path
 from threading import Thread
 from time import monotonic, sleep
@@ -14,7 +16,10 @@ import uvicorn
 from src.application.service import DistillationService
 from src.dashboard.app import create_dashboard_app
 from src.dashboard.series_bridge import SeriesTaskBridge, SeriesTaskMonitor
+from src.dashboard.series_control import SeriesController
 from src.dashboard.security import validate_host
+from src.orchestration.manager import TaskManager
+from src.orchestration.store import OrchestrationStore
 
 
 def _probe_health(url: str) -> bool:
@@ -23,6 +28,49 @@ def _probe_health(url: str) -> bool:
             return response.status == 200
     except (OSError, URLError):
         return False
+
+
+def _build_task_manager(service: DistillationService) -> TaskManager:
+    """Build the private process owner from the same local data root as Dashboard."""
+
+    data_dir = service.repository.root.parent
+    return TaskManager(
+        store=OrchestrationStore(data_dir / "orchestration.sqlite3"),
+        worker_root=data_dir / "workers",
+    )
+
+
+def _run_task_manager_loop(
+    task_manager: TaskManager,
+    server: uvicorn.Server,
+    *,
+    interval_seconds: float = 0.25,
+) -> None:
+    """Continuously harvest worker JSONL and launch queued work without a console window."""
+
+    while not server.should_exit:
+        task_manager.tick()
+        sleep(interval_seconds)
+
+
+def build_dashboard_server(app: object, *, host: str, port: int) -> uvicorn.Server:
+    """Build a server that remains valid when launched by ``pythonw``.
+
+    Uvicorn's default color formatter reads ``sys.stdout.isatty()`` during
+    configuration.  ``pythonw`` deliberately exposes no stdout/stderr, so the
+    Dashboard must opt out of Uvicorn's console log configuration.
+    """
+
+    return uvicorn.Server(
+        uvicorn.Config(
+            app,
+            host=host,
+            port=port,
+            log_level="warning",
+            log_config=None,
+            access_log=False,
+        )
+    )
 
 
 def _open_browser_when_healthy(
@@ -53,18 +101,51 @@ def run_dashboard(service: DistillationService, port: int, open_browser: bool) -
     host = validate_host("127.0.0.1")
     static_dir = Path(__file__).with_name("static")
     app = create_dashboard_app(service, static_dir, session_secret="process-local")
+    app.state.task_manager = _build_task_manager(service)
+    app.state.task_manager.claim_ownership()
+    app.state.task_manager.reconcile()
     monitor = SeriesTaskMonitor(
-        SeriesTaskBridge(data_dir=service.repository.root.parent, events=service.events)
+        SeriesTaskBridge(
+            data_dir=service.repository.root.parent,
+            events=service.events,
+            orchestration_store=app.state.task_manager.store,
+        )
     )
     monitor.start()
     app.state.series_task_monitor = monitor
+    data_dir = service.repository.root.parent
+
+    def launch_series(bvid: str) -> None:
+        if bvid != "BV18bLkztE7R":
+            raise LookupError("the requested series has no registered local runner")
+        runner = data_dir.parent / ".local-artifacts" / "bilibili-series" / "resume_with_dashboard_credential.py"
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        subprocess.Popen(
+            [sys.executable, str(runner)],
+            cwd=data_dir.parent,
+            creationflags=flags,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+    app.state.series_controller = SeriesController(data_dir, launcher=launch_series)
     url = f"http://{host}:{port}"
-    server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
-    if open_browser:
+    server = build_dashboard_server(app, host=host, port=port)
+    try:
         Thread(
-            target=_open_browser_when_healthy,
-            args=(server, url),
+            target=_run_task_manager_loop,
+            args=(app.state.task_manager, server),
             daemon=True,
-            name="distill-dashboard-browser",
+            name="distill-task-manager",
         ).start()
-    server.run()
+        if open_browser:
+            Thread(
+                target=_open_browser_when_healthy,
+                args=(server, url),
+                daemon=True,
+                name="distill-dashboard-browser",
+            ).start()
+        server.run()
+    finally:
+        monitor.stop()
+        app.state.task_manager.release_ownership()

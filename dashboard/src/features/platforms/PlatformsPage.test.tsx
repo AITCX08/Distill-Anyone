@@ -53,4 +53,32 @@ describe("PlatformsPage", () => {
     expect(await screen.findByText("已扫码，请在手机上确认登录。")).toBeVisible();
     await waitFor(() => expect(getJson).toHaveBeenCalledWith("/api/v1/platforms/bilibili/login/bili-op"));
   });
+
+  it("closes the Bilibili QR dialog as soon as the login session succeeds", async () => {
+    let completeLoginStatus: (value: unknown) => void = () => undefined;
+    const pendingLoginStatus = new Promise<unknown>((resolve) => { completeLoginStatus = resolve; });
+    getJson.mockResolvedValueOnce([bilibili]).mockReturnValueOnce(pendingLoginStatus).mockResolvedValueOnce([
+      { ...bilibili, auth_status: "configured" },
+    ]);
+    postJson.mockResolvedValueOnce({
+      operation_id: "bili-op",
+      platform: "bilibili",
+      status: "waiting_for_scan",
+      message: "请使用哔哩哔哩 App 扫码",
+      qr_url: "/api/v1/platforms/bilibili/login/bili-op/qr",
+    });
+
+    render(<PlatformsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "登录 哔哩哔哩" }));
+
+    expect(await screen.findByRole("dialog", { name: "扫描二维码登录哔哩哔哩" })).toBeVisible();
+    completeLoginStatus({
+      operation_id: "bili-op",
+      status: "succeeded",
+      message: "登录成功，凭据已安全保存到本机。",
+    });
+
+    await waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
+    expect(getJson).toHaveBeenCalledWith("/api/v1/platforms");
+  });
 });

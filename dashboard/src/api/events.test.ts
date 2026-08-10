@@ -23,4 +23,25 @@ describe("subscribeToEvents", () => {
     subscription.close();
     expect(FakeEventSource.latest!.close).toHaveBeenCalledOnce();
   });
+
+  it("receives the server snapshot without synthesizing missing task metadata", () => {
+    vi.stubGlobal("EventSource", FakeEventSource);
+    const received: unknown[] = [];
+    subscribeToEvents((event) => received.push(event));
+
+    FakeEventSource.latest!.listeners.get("snapshot")!(new MessageEvent("snapshot", {
+      data: JSON.stringify({
+        schema_version: 1,
+        jobs: [],
+        tasks: [{
+          task_id: "task-1", job_id: "job-1", source_id: "bilibili_BV1_p01",
+          display_title: "第 1 集", part_number: 1, delivery_state: "pending",
+          status: "pending", stage: "queued", revision: 0, attempt: 0,
+          checkpoint_revision: 0, updated_at: "2026-08-10T00:00:00Z",
+        }],
+      }),
+    }));
+
+    expect(received).toHaveLength(1);
+  });
 });

@@ -108,7 +108,11 @@ export function PlatformsPage() {
         setBilibiliLogin((current) => current && current.operation_id === response.operation_id
           ? { ...current, status: response.status, message: response.message }
           : current);
-        if (response.status === "succeeded") void refresh();
+        if (response.status === "succeeded") {
+          setBilibiliLogin(null);
+          void refresh();
+          return;
+        }
         if (isActiveLogin(response.status)) timer = setTimeout(() => void poll(), 1000);
       } catch {
         if (!stopped) setBilibiliLogin((current) => current ? {

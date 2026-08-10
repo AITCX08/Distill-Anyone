@@ -166,7 +166,7 @@ def run_qrcode_login() -> tuple:
     return asyncio.run(_qrcode_login())
 
 
-def get_credential(config) -> tuple:
+def get_credential(config, *, allow_interactive: bool = True) -> tuple:
     """
     统一凭据获取入口。
 
@@ -216,7 +216,9 @@ def get_credential(config) -> tuple:
         else:
             console.print("[yellow]缓存凭据已过期，将重新登录")
 
-    # 策略三：扫码登录
+    # 策略三：扫码登录。Worker callers must not create a separate browser window.
+    if not allow_interactive:
+        raise RuntimeError("Bilibili Dashboard login required")
     try:
         credential, buvid3 = run_qrcode_login()
         save_credential(credential, buvid3, config.credentials_cache)

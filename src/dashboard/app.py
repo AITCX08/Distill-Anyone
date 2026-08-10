@@ -21,7 +21,10 @@ from src.dashboard.api.artifacts import reveal_directory, router as artifacts_ro
 from src.dashboard.api.jobs import router as jobs_router
 from src.dashboard.api.platforms import router as platforms_router
 from src.dashboard.api.events import router as events_router
+from src.dashboard.api.tasks import router as tasks_router
+from src.dashboard.api.settings import router as settings_router
 from src.dashboard.bilibili_login import BilibiliLoginCoordinator
+from src.dashboard.output_directory import OutputDirectoryService, choose_output_directory
 from src.dashboard.security import CSRF_COOKIE, SESSION_COOKIE, new_local_session
 from src.distillation.state import RevisionConflict
 
@@ -47,11 +50,23 @@ def create_dashboard_app(
     app.state.local_session = new_local_session()
     app.state.reveal_directory = reveal_directory
     app.state.bilibili_login = BilibiliLoginCoordinator()
+    app.state.series_controller = None
+    app.state.task_manager = None
+    runner_config = getattr(getattr(service, "source_runner", None), "config", None)
+    configured_output_directory = getattr(runner_config, "output_dir", service.repository.root.parent / "output")
+    app.state.output_directories = OutputDirectoryService(
+        service.repository.root.parent / "dashboard-settings.json",
+        session_id=app.state.local_session.value,
+        default_directory=Path(configured_output_directory),
+    )
+    app.state.choose_output_directory = choose_output_directory
     app.include_router(health_router)
     app.include_router(jobs_router)
     app.include_router(platforms_router)
     app.include_router(artifacts_router)
     app.include_router(events_router)
+    app.include_router(tasks_router)
+    app.include_router(settings_router)
 
     @app.exception_handler(RevisionConflict)
     async def revision_conflict(_: Request, error: RevisionConflict) -> JSONResponse:

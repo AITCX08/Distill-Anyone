@@ -44,6 +44,7 @@ class SourceCreatorRequest:
     headful: bool = False
     dry_run: bool = False
     llm_provider: str | None = None
+    output_directory: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -410,19 +411,20 @@ class SourceDistillationRunner:
                 knowledge_extractor=knowledge_extractor,
             )
 
+        output_directory = request.output_directory or self.config.output_dir
         targets = []
         if "episodes" in request.emit:
-            targets.append(EpisodeMarkdownTarget(self.config.output_dir))
+            targets.append(EpisodeMarkdownTarget(output_directory))
         if "skill" in request.emit:
             targets.append(
                 SkillTarget(
-                    self.config.output_dir,
+                    output_directory,
                     merge_fn=knowledge_extractor.merge_knowledge,
                     generator=SkillGenerator(template_dir="templates"),
                 )
             )
         if request.rag_chunks:
-            targets.append(RagTarget(self.config.output_dir))
+            targets.append(RagTarget(output_directory))
 
         engine = DistillationEngine(
             adapter=context.adapter,
@@ -435,7 +437,7 @@ class SourceDistillationRunner:
             job_id=context.job_id,
             creator=context.creator,
             items=context.items,
-            output_root=self.config.output_dir,
+            output_root=output_directory,
             download_workers=request.download_workers,
             asr_workers=request.asr_workers,
             llm_workers=request.llm_workers,

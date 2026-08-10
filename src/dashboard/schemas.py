@@ -11,6 +11,26 @@ class HealthResponse(BaseModel):
     static_compatible: bool
 
 
+class OutputDirectoryInput(BaseModel):
+    directory: str = Field(min_length=1, max_length=32768)
+
+
+class OutputDirectoryResponse(BaseModel):
+    directory: str
+
+
+class DirectoryValidationResponse(OutputDirectoryResponse):
+    token: str
+    expires_at: str
+
+
+class DirectorySelectionResponse(BaseModel):
+    selected: bool
+    directory: str | None = None
+    token: str | None = None
+    expires_at: str | None = None
+
+
 class PreviewInput(BaseModel):
     target: str = Field(min_length=1, max_length=4096)
     platform: str = "auto"
@@ -20,10 +40,41 @@ class PreviewInput(BaseModel):
 
 class CreateJobInput(PreviewInput):
     preview_fingerprint: str = Field(min_length=1, max_length=256)
+    destination_mode: Literal["default", "override"] = "default"
+    destination_token: str | None = Field(default=None, min_length=1, max_length=256)
 
 
 class RevisionInput(BaseModel):
     expected_revision: int = Field(ge=0)
+
+
+class TaskCommandInput(RevisionInput):
+    command_id: str = Field(min_length=8, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+class BilibiliImportInput(BaseModel):
+    bvid: str = Field(min_length=4, max_length=64, pattern=r"^BV[A-Za-z0-9]+$")
+
+
+class BilibiliImportResponse(BaseModel):
+    job_id: str
+    created_tasks: int
+    completed_tasks: int
+    pending_tasks: int
+
+
+class TaskResponse(BaseModel):
+    task_id: str
+    job_id: str
+    source_id: str
+    display_title: str
+    part_number: int | None = Field(default=None, ge=1)
+    status: str
+    stage: str
+    revision: int
+    attempt: int
+    checkpoint_revision: int
+    updated_at: str
 
 
 class PreviewResponse(BaseModel):
@@ -51,6 +102,15 @@ class JobResponse(BaseModel):
     failed_items: int
     unsupported_items: int
     updated_at: str
+
+
+class JobDetailsResponse(BaseModel):
+    job_id: str
+    display_title: str
+    creator_name: str
+    destination: str
+    artifact_count: int = Field(ge=0)
+    completed_at: str | None = None
 
 
 class ItemResponse(BaseModel):

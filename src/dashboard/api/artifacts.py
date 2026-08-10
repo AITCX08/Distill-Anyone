@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -25,6 +26,10 @@ class _Artifact:
     source_id: str
     name: str
     path: Path
+    display_title: str
+    kind: str
+    size_bytes: int
+    created_at: str
 
 
 class ArtifactSummary(BaseModel):
@@ -32,6 +37,10 @@ class ArtifactSummary(BaseModel):
     source_id: str
     name: str
     display_name: str
+    display_title: str
+    kind: str
+    size_bytes: int
+    created_at: str
 
 
 class ArtifactContent(ArtifactSummary):
@@ -41,18 +50,78 @@ class ArtifactContent(ArtifactSummary):
 def _artifacts(request: Request, job_id: str) -> dict[str, _Artifact]:
     state = request.app.state.service.queries.get(job_id)
     root = request.app.state.service.repository.root.resolve()
+    roots = [root]
+    raw_destination = state.request.get("output_directory")
+    if isinstance(raw_destination, str) and raw_destination.strip():
+        destination = Path(raw_destination).expanduser().resolve(strict=False)
+        if destination != destination.parent:
+            roots.append(destination)
     values: dict[str, _Artifact] = {}
+
+    def add_artifact(
+        *,
+        source_id: str,
+        name: str,
+        candidate: str | Path,
+        display_title: str,
+        kind: str,
+    ) -> None:
+        path = Path(candidate).resolve()
+        if (
+            path.suffix.lower() not in _TEXT_SUFFIXES
+            or not path.is_file()
+            or not any(path.is_relative_to(allowed_root) for allowed_root in roots)
+        ):
+            return
+        opaque = hashlib.sha256(f"{job_id}\0{source_id}\0{name}".encode()).hexdigest()[:24]
+        values[opaque] = _Artifact(
+            opaque,
+            source_id,
+            name,
+            path,
+            display_title,
+            kind,
+            path.stat().st_size,
+            datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat(),
+        )
+
     for source_id, item in state.items.items():
+        catalog_entry = state.catalog.get(source_id)
+        title = catalog_entry.get("title") if isinstance(catalog_entry, dict) else None
+        display_title = str(title).strip() if isinstance(title, str) and title.strip() else source_id
         for name, record in item.artifacts.items():
-            path = Path(record.path).resolve()
-            if (
-                path.suffix.lower() not in _TEXT_SUFFIXES
-                or not path.is_file()
-                or not path.is_relative_to(root)
-            ):
+            add_artifact(
+                source_id=source_id,
+                name=name,
+                candidate=record.path,
+                display_title=display_title,
+                kind=str(record.content_type or name),
+            )
+        for name, receipt in item.outputs.items():
+            if not isinstance(receipt, dict) or receipt.get("status") != "completed":
                 continue
-            opaque = hashlib.sha256(f"{job_id}\0{source_id}\0{name}".encode()).hexdigest()[:24]
-            values[opaque] = _Artifact(opaque, source_id, name, path)
+            path = receipt.get("path")
+            if isinstance(path, str):
+                add_artifact(
+                    source_id=source_id,
+                    name=str(name),
+                    candidate=path,
+                    display_title=display_title,
+                    kind=str(name),
+                )
+
+    for name, receipt in state.outputs.items():
+        if not isinstance(receipt, dict):
+            continue
+        path = receipt.get("path")
+        if isinstance(path, str):
+            add_artifact(
+                source_id="job-output",
+                name=str(name),
+                candidate=path,
+                display_title=str(state.creator.get("display_name") or "任务汇总产物"),
+                kind=str(name),
+            )
     return values
 
 
@@ -62,6 +131,10 @@ def _summary(value: _Artifact) -> ArtifactSummary:
         source_id=value.source_id,
         name=value.name,
         display_name=value.path.name,
+        display_title=value.display_title,
+        kind=value.kind,
+        size_bytes=value.size_bytes,
+        created_at=value.created_at,
     )
 
 

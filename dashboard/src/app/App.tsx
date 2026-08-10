@@ -20,6 +20,9 @@ export function App() {
           job={mission.job}
           traceEntries={mission.traceEntries}
           onJobUpdated={mission.updateJob}
+          tasks={mission.tasks}
+          onTaskUpdated={mission.updateTask}
+          onViewArtifacts={() => { window.location.hash = "#artifacts"; }}
         />
         : <MissionEmptyState />)}
       {workspace === "create" && <CreateJobPage />}

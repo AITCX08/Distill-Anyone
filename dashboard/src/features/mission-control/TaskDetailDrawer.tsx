@@ -2,7 +2,7 @@ import { Button, Text } from "@fluentui/react-components";
 import { stageLabel } from "../../i18n/zh";
 import type { ActiveItem } from "./ActiveItemRow";
 
-export function TaskDetailDrawer({ item, onClose }: { item: ActiveItem; onClose: () => void }) {
+export function TaskDetailDrawer({ item, onClose, onViewArtifacts }: { item: ActiveItem; onClose: () => void; onViewArtifacts?: () => void }) {
   return (
     <aside className="task-detail" aria-label="任务详情" aria-live="polite">
       <div className="task-detail__heading">
@@ -15,6 +15,7 @@ export function TaskDetailDrawer({ item, onClose }: { item: ActiveItem; onClose:
         <div><dt>服务端阶段进度</dt><dd className="metric">{item.stage_progress === null ? "未知" : `${Math.round(item.stage_progress * 100)}%`}</dd></div>
         <div><dt>服务端总体进度</dt><dd className="metric">{Math.round(item.overall_progress * 100)}%</dd></div>
       </dl>
+      {onViewArtifacts && <Button appearance="primary" onClick={onViewArtifacts}>查看本任务产物</Button>}
     </aside>
   );
 }

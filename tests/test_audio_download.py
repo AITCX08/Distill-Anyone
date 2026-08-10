@@ -19,6 +19,12 @@ from src.crawl import audio_download
 from src.crawl.audio_download import generate_cookies_file
 
 
+def test_ytdlp_command_falls_back_to_installed_python_module(monkeypatch):
+    monkeypatch.setattr(audio_download, "_shell_ytdlp", lambda: None, raising=False)
+
+    assert audio_download._yt_dlp_command() == [sys.executable, "-m", "yt_dlp"]
+
+
 def make_credential(sessdata="test_sessdata", bili_jct="test_bili_jct"):
     cred = MagicMock()
     cred.sessdata = sessdata
@@ -88,6 +94,7 @@ class TestGenerateCookiesFile:
 def test_callback_download_reports_ytdlp_transfer_before_completion(tmp_path, monkeypatch):
     output = tmp_path / "BV1abc.wav"
     updates = []
+    launched = {}
 
     class FakeYtDlp:
         stdout = io.StringIO("__distill_progress__\t1024\t4096\t512.5\n")
@@ -98,7 +105,11 @@ def test_callback_download_reports_ytdlp_transfer_before_completion(tmp_path, mo
             output.write_bytes(b"audio")
             return 0
 
-    monkeypatch.setattr(audio_download.subprocess, "Popen", lambda *args, **kwargs: FakeYtDlp())
+    def launch(*args, **kwargs):
+        launched.update(kwargs)
+        return FakeYtDlp()
+
+    monkeypatch.setattr(audio_download.subprocess, "Popen", launch)
 
     result = audio_download.download_audio_with_progress(
         "BV1abc",
@@ -109,6 +120,7 @@ def test_callback_download_reports_ytdlp_transfer_before_completion(tmp_path, mo
     )
 
     assert result == output
+    assert launched["creationflags"] == getattr(audio_download.subprocess, "CREATE_NO_WINDOW", 0)
 
 
 def test_callback_download_times_out_a_silent_stdout_and_kills_process(tmp_path, monkeypatch):

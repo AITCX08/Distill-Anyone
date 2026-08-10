@@ -1,5 +1,23 @@
 # Distill-Anyone
 
+> Worker 编排运行时：每个作品由一个隔离的子进程执行完整流水线。浏览器只控制本地任务；不会收到 Cookie、命令行、PID、二维码载荷或原始 Worker 输出。保存目录仅能在当前本地会话保护的创建确认与任务交付详情中查看。发布架构见 `docs/superpowers/specs/2026-08-09-worker-orchestrated-distillation-design.md`。
+
+## Dashboard Worker 工作流
+
+1. 打开仅监听本机回环地址的 Dashboard，在本地登录弹窗中完成扫码。
+2. 创建创作者任务或导入本地 Bilibili 系列。导入系列会成为一个任务，其中每个分集都有独立、可恢复的执行单元；已完成分集保持完成状态。
+3. `TaskManager` 最多启动两个无窗口 Worker。每个 Worker 独立完成下载、音频提取、转写、清洗、摘要与 Markdown 交付。
+4. 作品卡仅在下载阶段显示字节数、速度和 ETA；ASR 与 LLM 阶段显示真实阶段与检查点，不伪造下载数据。
+5. 暂停、继续或取消一个作品不会影响其他作品。Worker 会在下一个持久化边界停止；重启协调器会识别仍存活的租约，或将缺失租约的任务标为可恢复。
+
+### 资源与隐私策略
+
+- 默认限制为两个流水线 Worker、两个下载、一个 ASR 阶段和一个 LLM 阶段。Worker 只有取得 `TaskManager` 发放的阶段许可后才会消耗受限资源。
+- Dashboard 只绑定 `127.0.0.1`。Cookie、二维码载荷、凭据、命令行、PID 和原始 Worker 输出不会进入浏览器、SSE 或日志。
+- Worker 进度保存在任务私有 JSONL 中，服务端先校验和脱敏，再投影为紧凑的 SSE 快照。
+
+Dashboard 始终是本地单用户工具：广泛订阅的任务列表、SSE 和实时日志只包含脱敏状态；绝对保存目录只可通过本地会话保护的详情接口提供给当前页面。
+
 > 将公开内容转化为可复用的结构化知识：逐作品 Markdown、聚合 Skill 与 RAG 知识块。
 
 Distill-Anyone 是一个本地优先的内容蒸馏工具。它可以从创作者主页枚举可见作品，完成下载、转写、清洗、知识提取与输出；也保留 PDF、DOCX、TXT 文档蒸馏和会议纪要能力。
@@ -150,12 +168,21 @@ python main.py dashboard --port 9000
 
 Dashboard 提供：
 
-- 平台状态与“打开外部登录浏览器”；扫码仍在 Chromium 中完成。
-- 任务预检、创建、实时下载/阶段进度、ETA 与脱敏 trace。
+- 平台状态与本地扫码登录；页面不会保存 Cookie 或二维码载荷。
+- 来源预检、输出模板预览、默认保存位置和单次覆盖保存位置。
+- 可读的作品标题、实时下载/阶段进度、ETA 与脱敏 trace。
 - 暂停、恢复、取消和失败单项重试。
-- 作业历史、产物列表、只读文本预览、复制和在本地资源管理器中定位文件。
+- 作业历史、产物列表、只读文本预览、复制以及打开该任务已批准的本地保存位置。
 
 服务只绑定 `127.0.0.1`，并对会话、Origin 与写操作使用本地会话/CSRF 校验。它不是局域网或公网服务；请勿通过端口转发把它暴露到不受信任网络。
+
+### 创作者工作台
+
+1. 在“新建任务”中粘贴创作者主页并执行预检，确认创作者、作品数量和登录状态。
+2. 选择“逐作品 Markdown”“蒸馏 Skill”或“RAG 分块”；每项均可打开示例，先了解生成结果。
+3. 使用已设置的默认保存位置，或勾选“本次使用其他保存位置”并完成本地校验。
+4. 在“任务作战台”中查看标题优先的执行信息。下载阶段才显示传输速度；转写、摘要和写入阶段显示真实状态与检查点。
+5. 完成后点击“查看产物”，在“产物库”预览文本或打开已批准的任务保存位置。保存目录仅在这一受保护的本地详情中显示。
 
 ## 输出与目录
 
@@ -223,11 +250,14 @@ npm test
 npm run e2e
 ```
 
-Python 测试在项目根目录运行：
+Python 测试必须使用无窗口包装器在项目根目录运行：
 
-```bash
-python -m pytest -q
+```powershell
+$env:DISTILL_ANYONE_PYTHON = 'C:\Coding\Anaconda\envs\Distill-Anyone\python.exe'
+cmd /d /c start "" /b scripts\run-pytest-background.cmd tests\dashboard\test_output_directory.py
 ```
+
+随后读取 `.local-artifacts/test-runs/latest.exitcode` 与日志确认结果。不要直接执行 `pytest` 或 `python -m pytest`，以避免桌面端长命令流的已知稳定性问题。
 
 提交前至少执行与改动范围相符的测试，并检查 Markdown 与前端构建产物是否同步。完整开发规范、数据契约和架构细节请阅读：
 
@@ -235,6 +265,7 @@ python -m pytest -q
 - [CLAUDE.md](./CLAUDE.md)：AI 编程协作约定与仓库反模式。
 - [多平台设计](./docs/superpowers/specs/2026-07-21-multi-platform-distillation-design.md)：Source Adapter 与双输出设计。
 - [Dashboard 设计](./docs/superpowers/specs/2026-07-21-local-dashboard-design.md)：本地 Dashboard 的接口、安全与交互设计。
+- [创作者工作台设计](./docs/superpowers/specs/2026-08-10-dashboard-creator-workbench-design.md)：创建、执行与交付闭环。
 
 ## 使用边界
 

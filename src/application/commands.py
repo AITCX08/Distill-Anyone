@@ -64,6 +64,7 @@ class CreateJobRequest:
     outputs: tuple[str, ...] = ("skill",)
     rag_chunks: bool = False
     job_id: str = ""
+    output_directory: str = ""
 
     def preview_request(self) -> PreviewRequest:
         return PreviewRequest(self.target, self.platform, self.outputs, self.rag_chunks)

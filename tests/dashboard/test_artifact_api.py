@@ -31,6 +31,10 @@ def test_artifacts_are_resolved_by_allowlisted_ids_and_reject_path_traversal(tmp
     traversal = client.get("/api/v1/jobs/job-1/artifacts/%2E%2E")
 
     assert read.json()["content"] == "# Safe artifact"
+    assert listed.json()[0]["display_title"] == "douyin_1"
+    assert listed.json()[0]["kind"] == "episode"
+    assert listed.json()[0]["size_bytes"] == artifact_path.stat().st_size
+    assert listed.json()[0]["created_at"]
     assert "safe.md" in listed.text
     assert str(root) not in listed.text
     assert traversal.status_code == 403
@@ -65,3 +69,43 @@ def test_reveal_uses_allowlisted_artifact_parent_without_exposing_or_mutating_pa
     assert revealed == [root.resolve()]
     assert artifact_path.read_text(encoding="utf-8") == "# Safe artifact"
     assert str(root) not in response.text
+
+
+def test_artifacts_include_allowlisted_deliveries_recorded_in_output_receipts(tmp_path):
+    root = tmp_path / "jobs"
+    destination = tmp_path / "delivery"
+    delivered = destination / "episodes" / "P01-episode.md"
+    delivered.parent.mkdir(parents=True)
+    delivered.write_text("# Delivered artifact", encoding="utf-8")
+    repository = JobRepository(root)
+    store = repository.register("job-1", platform="douyin", creator_id="creator-1")
+    store.save(JobState(
+        job_id="job-1",
+        request={"output_directory": str(destination)},
+        catalog={"douyin_1": {"title": "第 1 集标题"}},
+        items={"douyin_1": ItemState(
+            source_id="douyin_1",
+            outputs={"episodes": {"status": "completed", "path": str(delivered)}},
+        )},
+    ))
+    static_dir = tmp_path / "static"
+    static_dir.mkdir()
+    (static_dir / "index.html").write_text("dashboard", encoding="utf-8")
+    client = TestClient(create_dashboard_app(DistillationService(repository=repository), static_dir, "test"))
+
+    listed = client.get("/api/v1/jobs/job-1/artifacts")
+
+    assert listed.status_code == 200
+    assert listed.json() == [
+        {
+            "artifact_id": listed.json()[0]["artifact_id"],
+            "source_id": "douyin_1",
+            "name": "episodes",
+            "display_name": "P01-episode.md",
+            "display_title": "第 1 集标题",
+            "kind": "episodes",
+            "size_bytes": delivered.stat().st_size,
+            "created_at": listed.json()[0]["created_at"],
+        }
+    ]
+    assert str(destination) not in listed.text

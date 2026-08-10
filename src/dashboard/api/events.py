@@ -16,7 +16,12 @@ async def events(
     job_id: str | None = Query(default=None, max_length=256),
 ):
     return StreamingResponse(
-        event_stream(request.app.state.service, last_event_id, job_id),
+        event_stream(
+            request.app.state.service,
+            last_event_id,
+            job_id,
+            task_manager=getattr(request.app.state, "task_manager", None),
+        ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
