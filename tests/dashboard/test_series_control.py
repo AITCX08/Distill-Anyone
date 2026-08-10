@@ -1,6 +1,6 @@
 from unittest.mock import Mock
 
-from src.dashboard.series_control import SeriesController
+from src.dashboard.series_control import SeriesController, _worker_is_alive
 from src.series.runtime import SeriesRuntimeStore
 
 
@@ -68,3 +68,12 @@ def test_reconcile_marks_an_orphaned_running_series_as_paused(tmp_path):
     current = runtime.load()
     assert current["status"] == "paused"
     assert current["last_error"] == "执行器已停止，可继续任务。"
+
+
+def test_worker_liveness_treats_windows_invalid_handles_as_not_running(monkeypatch):
+    def invalid_handle(*_args):
+        raise SystemError("invalid handle")
+
+    monkeypatch.setattr("src.dashboard.series_control.os.kill", invalid_handle)
+
+    assert _worker_is_alive(99999) is False

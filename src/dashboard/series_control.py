@@ -74,6 +74,8 @@ class SeriesController:
 def _worker_is_alive(worker_pid: int) -> bool:
     try:
         os.kill(worker_pid, 0)
-    except OSError:
+    except (OSError, SystemError):
+        # On Windows, ``os.kill(pid, 0)`` can surface an invalid handle as a
+        # SystemError rather than OSError when the process has already exited.
         return False
     return True
