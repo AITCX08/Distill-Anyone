@@ -1,244 +1,169 @@
-# Dashboard Creator Workbench Design
+# Dashboard 创作者工作台设计
 
-## Status
+## 状态
 
-Approved direction: evolve the local Dashboard from a process monitor into a
-creator-facing workbench. The product must explain what will be created, let a
-creator choose where each new job is delivered, show human-readable source
-titles throughout execution, and close every completed job with clear artifact
-actions.
+已确认的方向：将本地 Dashboard 从“进程监视器”升级为面向创作者的工作台。产品必须在创建前解释将生成什么内容，允许创作者为每个任务选择交付位置，在执行中持续使用人类可读的作品标题，并在完成后提供明确的产物入口。
 
-This design extends, but does not replace,
-the worker-orchestrated runtime. `TaskManager` remains the only process owner,
-workers retain their complete pipeline boundaries, and the Dashboard remains
-loopback-only.
+本设计扩展而不替代 Worker 编排运行时。`TaskManager` 仍是唯一的进程所有者，Worker 仍以一个作品对应一条完整流水线运行，Dashboard 仍只监听本机回环地址。
 
-## Product Outcomes
+## 产品目标
 
-- A creator can understand every requested output before starting a job.
-- A job can use the configured default output directory or a per-job override.
-- Task and job views lead with creator, series, part number, and work title;
-  opaque IDs remain available only as secondary diagnostic metadata.
-- A completed job leads directly to its artifacts and output folder.
-- Progress, empty, blocked, failed, paused, and completed states each state the
-  next useful action in Chinese.
+- 创作者可在开始前理解每一种输出的用途与成品形态。
+- 每个任务可使用已设置的默认保存目录，或单独覆盖为本次目录。
+- 任务页和作品页优先显示创作者、系列、集数和作品标题；内部 ID 只作为辅助技术信息。
+- 任务完成后可直接查看产物、预览文本和打开所在文件夹。
+- 运行中、空状态、登录受阻、暂停、失败与完成状态均用中文说明下一步操作。
 
-## Scope and Non-goals
+## 范围与非目标
 
-### In scope
+### 本次范围
 
-- Guided creation flow with source inspection, output explanations, template
-  previews, and destination selection.
-- Per-job optional destination override with a persisted default destination.
-- User-facing job and work display metadata.
-- Artifact preview, download/open-folder actions, and completion summaries.
-- Mission Control information hierarchy, readable states, and responsive,
-  keyboard-accessible controls.
+- 引导式创建流程：来源预检、输出说明、模板预览与保存位置选择。
+- 默认保存目录与单任务覆盖目录。
+- 面向用户的任务和作品展示元数据。
+- 产物预览、打开所在文件夹、完成摘要。
+- 作战台的信息层级、可读状态、键盘可访问性与响应式布局。
 
-### Out of scope
+### 非目标
 
-- Cloud storage, multi-user workspaces, or remote Dashboard access.
-- Arbitrary file-system browsing by browser JavaScript.
-- Displaying credentials, raw worker payloads, process command lines, or raw
-  diagnostic paths in SSE, traces, task lists, or error events.
+- 云端存储、多用户工作区或远程访问 Dashboard。
+- 允许浏览器 JavaScript 任意浏览本机文件系统。
+- 在 SSE、执行日志、任务列表或错误信息中暴露凭据、原始 Worker 参数、进程命令行或诊断路径。
 
-## Experience Model
+## 使用体验模型
 
-The Dashboard has three deliberately connected moments:
+Dashboard 将创建、执行和交付组织为连续的三段闭环：
 
 ```text
-Create
-  inspect source -> choose deliverables -> choose destination -> create
+创建
+  来源预检 -> 选择交付物 -> 选择保存位置 -> 创建任务
       |
       v
-Operate
-  named job -> named works -> stage-specific progress -> task controls
+执行
+  可读任务名 -> 可读作品名 -> 阶段化进度 -> 任务级控制
       |
       v
-Deliver
-  completion summary -> preview artifacts -> reveal output folder -> reuse
+交付
+  完成摘要 -> 预览产物 -> 打开文件夹 -> 复用配置
 ```
 
-The navigation labels remain concise: `任务作战台`, `新建任务`, `平台与登录`,
-`任务历史`, and `产物库`. A page must not repeat opaque internal IDs as its
-primary heading.
+导航保持简洁：`任务作战台`、`新建任务`、`平台与登录`、`任务历史`、`产物库`。页面主标题不得重复展示内部 ID。
 
-## Creation Flow
+## 新建任务流程
 
-### Source inspection
+### 来源预检
 
-The form starts with a source URL and platform selector. Inspecting the source
-returns a creator/series summary, supported work count, skipped work count, and
-login state. The Create button remains unavailable until this result is current.
-Validation errors explain whether the URL, platform, login, or source content
-requires attention.
+表单从来源链接和平台选择开始。预检结果展示创作者或系列名称、可处理数量、跳过数量和登录状态。只有当前预检结果仍有效时，才允许创建任务。校验错误必须说明是链接、平台、登录还是来源内容需要处理。
 
-### Deliverable selection
+### 交付物选择
 
-Deliverables are selectable cards in a labelled group. Each card has a purpose,
-an estimated shape, and a `查看示例` action:
+交付物采用带说明的选择卡，而不是孤立的复选框。每张卡说明用途、成品形态，并提供 `查看示例`：
 
-| Deliverable | User-facing description | Template preview |
+| 交付物 | 面向用户的说明 | 模板预览内容 |
 | --- | --- | --- |
-| 逐作品 Markdown | One readable note per source work | title, source summary, transcript outline, distilled notes |
-| 蒸馏 Skill | A reusable method assembled from the collection | overview, principles, workflow, prompts, cautions |
-| RAG 分块 | Search-ready knowledge fragments | source metadata, chunk title, content, retrieval tags |
+| 逐作品 Markdown | 为每个作品生成一份可阅读、可归档的笔记 | 标题、来源摘要、转写提纲、蒸馏笔记 |
+| 蒸馏 Skill | 将整套内容整理为可复用的方法论 | 总览、原则、工作流、提示词、注意事项 |
+| RAG 分块 | 生成用于知识库检索和问答的内容片段 | 来源信息、分块标题、正文、检索标签 |
 
-`查看示例` opens an accessible Dialog with tabs. Samples are static,
-representative templates only. Previewing does not inspect, create, or write
-user files.
+`查看示例` 使用可访问的 Dialog 和标签页展示静态、具有代表性的模板。预览不读取来源，也不会创建或写入任何用户文件。
 
-### Destination selection
+### 保存位置
 
-The Dashboard maintains one local default destination. The creation form shows
-the selected default and a checkbox named `本次使用其他保存位置`.
+Dashboard 维护一个本地默认保存目录。创建表单默认显示该目录，并提供 `本次使用其他保存位置` 复选框。
 
-When the checkbox is selected, the creator can either enter a directory or use
-`选择文件夹`. The latter calls a local server endpoint that invokes the platform
-folder chooser without a console window. On platforms where a native picker is
-not available, direct validated entry remains available.
+勾选后，创作者可直接输入目录，或点击 `选择文件夹`。后者调用本地服务打开系统文件夹选择器，不弹出 CMD 窗口；若当前平台不能提供原生选择器，仍保留已校验的手动输入。
 
-The server normalizes and validates a candidate directory before a job is
-created: it must be writable, be a directory or have a creatable parent, and
-must not resolve to a system root. The selected path becomes the private job
-destination. When not selected, the current private default destination is
-copied to the job configuration so later default changes do not move an
-in-progress job.
+服务端在创建任务前规范化并校验目录：目录必须可写，或父目录可创建；不得解析为系统根目录。所选目录成为该任务私有的保存位置。未勾选覆盖时，当前默认目录会被复制到任务配置中，之后修改默认目录不会移动已创建或执行中的任务。
 
-The full destination is shown only in the local creation confirmation and the
-authenticated Job Details/Artifacts views. It is never included in task list
-records, SSE snapshots, worker JSONL, traces, or sanitized errors.
+完整目录只在本地创建确认页、经本地会话保护的任务详情页和产物页中展示；不得进入任务列表、SSE 快照、Worker JSONL、实时日志或脱敏错误信息。
 
-## Job and Work Presentation
+## 任务与作品展示
 
-### Job overview
+### 任务总览
 
-Mission Control leads with:
+作战台主标题显示：
 
-- `创作者 · 系列或任务标题`;
-- platform and work count;
-- lifecycle summary such as `已完成 8/8`;
-- current phase only when work is active;
-- an estimated completion time only when a meaningful estimate exists.
+- `创作者 · 系列或任务标题`；
+- 平台和作品数量；
+- 例如 `已完成 8/8` 的生命周期摘要；
+- 仅在存在活动作品时展示当前阶段；
+- 仅在能够可靠估算时展示完成时间。
 
-The opaque job ID moves into a collapsible `技术信息` section with a copy action.
-After completion, the four telemetry cells become a delivery summary: completed
-time, generated artifacts, destination, and a primary `查看产物` action. It must
-not say `估算中` or `仅下载时显示` when no work is active.
+内部任务 ID 移入可展开的 `技术信息`，并提供复制操作。任务完成后，原有四项遥测指标改为交付摘要：完成时间、已生成产物、保存位置和主操作 `查看产物`。无活动任务时不得继续显示“估算中”或“仅下载时显示”。
 
-### Work cards
+### 作品卡片
 
-Each card uses `第 N 集 · 原始作品标题` as its heading. The stable source ID is
-secondary metadata. Cards display only metrics that apply to their stage:
+每张卡以 `第 N 集 · 原始作品标题` 为标题，稳定 `source_id` 降级为次级信息。卡片只显示与当前阶段相关的指标：
 
-- Downloading: transferred bytes, known total, speed, and transfer ETA.
-- Waiting for a resource: named resource and queue position when known.
-- Transcribing, cleaning, or summarizing: named stage, elapsed time, and last
-  durable checkpoint, without invented transfer speed.
-- Completed: generated artifact types and `查看产物`.
-- Failed: concise sanitized reason, recovery hint, and `重试此作品`.
+- 下载中：已传输大小、已知总大小、速度和下载 ETA。
+- 等待资源：具体资源名称与可获取时的队列位置。
+- 转写、清洗、摘要中：命名阶段、已耗时与最近持久化检查点，不伪造下载速度。
+- 已完成：已生成的产物类型与 `查看产物`。
+- 已失败：简短且脱敏的原因、恢复建议与 `重试此作品`。
 
-The existing pause, resume, cancel, and retry controls remain task-scoped and
-revision-protected. Buttons provide progress labels and disable only while the
-same task command is pending.
+暂停、继续、取消、重试仍然是任务级且受修订版本保护。按钮仅在同一任务的命令执行中禁用，并显示正在处理的操作。
 
-## Artifact Delivery
+## 产物交付
 
-The Artifact Library groups files by human-readable job and work title. Each
-entry provides file type, display name, generated time, size, inline preview
-when text is supported, and a `打开所在文件夹` action. Completion summary actions
-link to filtered artifacts for the selected job.
+产物库按可读任务名和作品名分组。每份产物展示文件类型、显示名称、生成时间、大小；支持文本时可内联预览，并提供 `打开所在文件夹`。完成摘要中的操作会跳转到当前任务已筛选的产物列表。
 
-The reveal action remains server-allowlisted. The browser never constructs or
-submits a file path for an existing artifact.
+打开文件夹仍然由服务端白名单控制，浏览器不得为已有产物拼接或提交文件路径。
 
-## Data and API Boundaries
+## 数据与 API 边界
 
-### Private server records
+### 服务端私有记录
 
-Add a small local workspace settings record for the default destination and
-extend persisted job request metadata with:
+新增本地工作区设置以保存默认目录；扩展任务请求元数据：
 
-- display title and creator name;
-- selected output kinds;
-- `destination_mode` (`default` or `override`);
-- normalized private destination;
-- user-created timestamp and completion timestamp.
+- 显示标题和创作者名称；
+- 选择的输出类型；
+- `destination_mode`，取值为 `default` 或 `override`；
+- 规范化后的私有保存目录；
+- 创建时间和完成时间。
 
-Worker payloads receive only the resolved destination reference required to
-write artifacts. This field is never emitted in an event.
+Worker 仅收到写入产物必需的已解析目录引用，且不得将其作为事件字段发出。
 
-### Browser-safe display contract
+### 浏览器安全展示契约
 
-Extend job/task API and SSE snapshot contracts with safe display fields:
+扩展任务 API 与 SSE 快照中的安全展示字段：
 
-- job: `display_title`, `creator_name`, `platform`, output kinds, completion
-  summary, and artifact counts;
-- task: `display_title`, `part_number`, output state, elapsed time, and stage
-  specific telemetry;
-- artifact: existing opaque identifier plus display name, type, size, timestamp,
-  and user-safe source title.
+- 任务：`display_title`、`creator_name`、`platform`、输出类型、完成摘要和产物数量；
+- 作品：`display_title`、`part_number`、产物状态、已耗时与阶段专属遥测；
+- 产物：现有不透明标识、显示名称、类型、大小、时间和安全的来源标题。
 
-Expose destination only through a local-session-protected job-details endpoint,
-not through the broad task stream. The endpoint returns it solely for the
-currently displayed local job. No path is persisted in events or traces.
+保存目录只通过本地会话保护的任务详情接口返回，不进入广泛订阅的任务流。接口只为当前本地页面展示目标任务的目录。
 
-### Local settings and folder selection
+### 本地设置与目录选择
 
-- `GET/PUT /api/v1/settings/output-directory` reads or changes the private
-  default destination after local-session, Origin, CSRF, and directory
-  validation checks.
-- `POST /api/v1/directories/choose` opens the native folder chooser locally and
-  returns the selected directory only to the requesting local session.
-- `POST /api/v1/directories/validate` validates direct entry before job creation.
-- Job creation accepts `destination_mode` and, for override mode, a validated
-  destination token rather than trusting arbitrary path text a second time.
+- `GET/PUT /api/v1/settings/output-directory`：经本地会话、Origin、CSRF 与目录校验后读取或修改默认目录。
+- `POST /api/v1/directories/choose`：打开本地原生文件夹选择器，只将所选目录返回给请求它的本地会话。
+- `POST /api/v1/directories/validate`：在创建前校验手动输入的目录。
+- 创建任务时提交 `destination_mode`；覆盖模式提交已校验的短期目录令牌，避免再次信任任意路径文本。
 
-Tokens are short-lived, session-bound, and cannot be replayed as artifact paths.
+目录令牌是短期、会话绑定的，不能作为产物路径重放。
 
-## Visual and Interaction System
+## 视觉与交互规范
 
-Use the existing Fluent UI v9 foundation, deep local-operations theme, and
-teal accent. The density target is a desktop workbench: compact enough for
-multiple work cards, but with clear type hierarchy and 44px minimum action
-targets.
+沿用现有 Fluent UI v9、深色本地操作主题和青色强调色。密度目标是桌面工作台：能同时看到多个作品卡，又具有清晰的文字层级和至少 44px 的操作目标。
 
-- Keep one dark theme; do not add decorative gradients or competing accents.
-- Use Cards for meaningful task groups, not every small label.
-- Use Dialog for templates and destination confirmation, Drawer for task
-  details, Tooltip for secondary technical IDs, and Field/helper text for form
-explanations.
-- Preserve visible focus rings, semantic headings, labelled checkbox groups,
-  live status announcements, contrast-safe inputs, and mobile single-column
-  collapse.
-- Render loading, zero-result, login-required, validation-error, offline, and
-  completed states explicitly.
+- 保持统一深色主题，不增加装饰性渐变或竞争性的强调色。
+- 仅对有意义的任务组使用 Card，不为每一行文字套卡片。
+- 模板和保存位置确认使用 Dialog；任务细节使用 Drawer；技术 ID 使用 Tooltip；表单解释使用 Field 与帮助文字。
+- 保留可见焦点环、语义化标题、有标签的复选框分组、实时状态播报、对比度安全的输入控件与移动端单列布局。
+- 明确渲染加载、零结果、需要登录、校验错误、离线和已完成状态。
 
-## Failure Handling
+## 失败处理
 
-- A destination that becomes unavailable after job creation pauses the affected
-  write stage with a sanitized `保存位置不可用` state; it does not silently fall
-  back to another directory.
-- Native folder picker failures leave the manual entry path available.
-- Job metadata absent from older imported series falls back to stable source ID
-  and part number, while background-safe metadata repair enriches it on the
-  next source inspection or import.
-- Incomplete source titles use `第 N 集` rather than blank headings.
+- 任务创建后保存目录不可用时，受影响的写入阶段暂停并显示脱敏的 `保存位置不可用`，不得静默写入其他目录。
+- 原生目录选择器失败时，保留手动输入方式。
+- 旧导入系列缺少展示元数据时，回退为 `第 N 集` 和稳定来源 ID；下一次来源预检或导入时可安全补全元数据。
+- 作品标题缺失时显示 `第 N 集`，不得出现空标题。
 
-## Verification and Acceptance
+## 验收标准
 
-1. A creator can inspect a source, understand each output via template preview,
-   select default or per-job destination, create a job, and see a readable
-   confirmation.
-2. A created job and every work card show titles; technical identifiers are not
-   primary labels.
-3. Active tasks show only stage-appropriate progress. Completed jobs show a
-   delivery summary and no pending ETA wording.
-4. The default destination persists locally. A job override remains fixed after
-   the default changes; invalid or unwritable destinations cannot create jobs.
-5. Artifact list and completion actions open the correct allowlisted local
-   output; no event, task snapshot, trace, or sanitized error contains an
-   absolute path.
-6. Tests cover creation validation, preview dialogs, labels/fallbacks, path
-   validation/token expiry, settings persistence, accessible task controls, API
-   session/CSRF enforcement, and responsive build output.
+1. 创作者可预检来源、通过模板理解每种输出、选择默认目录或单任务目录并创建任务，且获得可读确认。
+2. 任务和全部作品卡均显示标题，技术标识不再是主标签。
+3. 活动任务只展示阶段适用的进度；已完成任务展示交付摘要，不再残留 ETA 等待文案。
+4. 默认目录在本地持久化；任务覆盖目录在默认目录变化后保持不变；无效或不可写目录不能创建任务。
+5. 产物列表和完成操作能打开正确的白名单目录；事件、任务快照、日志和脱敏错误均不含绝对路径。
+6. 测试覆盖创建校验、模板 Dialog、标题与回退、路径校验和令牌过期、设置持久化、可访问任务控制、API 会话/CSRF 保护和响应式构建产物。
