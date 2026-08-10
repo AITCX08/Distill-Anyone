@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 import webbrowser
 import subprocess
 import sys
@@ -63,6 +65,26 @@ def _record_series_runner_exit(process: subprocess.Popen[object], log_path: Path
     return_code = process.wait()
     with log_path.open("a", encoding="utf-8") as log_file:
         log_file.write(f"[dashboard] series runner exited with code {return_code}\n")
+
+
+def _series_worker_environment(data_dir: Path) -> dict[str, str]:
+    """Read local Bilibili credentials without exposing them to UI or logs."""
+
+    try:
+        credentials = json.loads((data_dir / ".credentials.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise RuntimeError("本地哔哩哔哩登录凭据不可用，请先在 Dashboard 登录") from error
+    if not isinstance(credentials, dict) or not credentials.get("sessdata") or not credentials.get("bili_jct"):
+        raise RuntimeError("本地哔哩哔哩登录凭据不可用，请先在 Dashboard 登录")
+    environment = dict(os.environ)
+    environment.update(
+        {
+            "BILIBILI_SESSDATA": str(credentials["sessdata"]),
+            "BILIBILI_BILI_JCT": str(credentials["bili_jct"]),
+            "BILIBILI_BUVID3": str(credentials.get("buvid3") or ""),
+        }
+    )
+    return environment
 
 
 def _run_task_manager_loop(
@@ -134,7 +156,7 @@ def run_dashboard(service: DistillationService, port: int, open_browser: bool) -
     def launch_series(bvid: str) -> int:
         if bvid != "BV18bLkztE7R":
             raise LookupError("the requested series has no registered local runner")
-        runner = data_dir.parent / ".local-artifacts" / "bilibili-series" / "resume_with_dashboard_credential.py"
+        runner = data_dir.parent / ".local-artifacts" / "bilibili-series" / "distill_tianji_sizhu.py"
         log_path = data_dir / "series" / bvid / "runner.log"
         log_path.parent.mkdir(parents=True, exist_ok=True)
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -148,6 +170,7 @@ def run_dashboard(service: DistillationService, port: int, open_browser: bool) -
                 creationflags=flags,
                 stdout=log_file,
                 stderr=subprocess.STDOUT,
+                env=_series_worker_environment(data_dir),
             )
         Thread(
             target=_record_series_runner_exit,

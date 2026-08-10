@@ -80,3 +80,27 @@ def test_worker_interpreter_uses_console_peer_of_pythonw(monkeypatch, tmp_path):
     monkeypatch.setattr(server.sys, "executable", str(pythonw))
 
     assert server._worker_python_executable() == str(python)
+
+
+def test_series_worker_environment_requires_local_login(tmp_path):
+    try:
+        server._series_worker_environment(tmp_path)
+    except RuntimeError as error:
+        assert "登录凭据不可用" in str(error)
+    else:
+        raise AssertionError("expected missing credentials to reject worker launch")
+
+
+def test_series_worker_environment_keeps_credentials_out_of_process_arguments(tmp_path, monkeypatch):
+    (tmp_path / ".credentials.json").write_text(
+        '{"sessdata":"secret-session","bili_jct":"secret-token","buvid3":"browser-id"}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("UNCHANGED", "value")
+
+    environment = server._series_worker_environment(tmp_path)
+
+    assert environment["BILIBILI_SESSDATA"] == "secret-session"
+    assert environment["BILIBILI_BILI_JCT"] == "secret-token"
+    assert environment["BILIBILI_BUVID3"] == "browser-id"
+    assert environment["UNCHANGED"] == "value"
