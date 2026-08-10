@@ -93,7 +93,12 @@ def test_tick_reads_events_appended_after_worker_launch(tmp_path):
 def test_bilibili_task_payload_keeps_only_stable_video_and_part_identifiers(tmp_path):
     factory = FakeProcessFactory()
     store = OrchestrationStore(tmp_path / "orchestration.sqlite3")
-    job = store.create_job(platform="bilibili", target="https://www.bilibili.com/video/BV18bLkztE7R")
+    delivery = tmp_path / "delivery"
+    job = store.create_job(
+        platform="bilibili",
+        target="https://www.bilibili.com/video/BV18bLkztE7R",
+        output_directory=str(delivery),
+    )
     task = store.create_tasks(job.job_id, ["bilibili_BV18bLkztE7R_p07"])[0]
     manager = TaskManager(store=store, worker_root=tmp_path / "workers", process_factory=factory)
 
@@ -101,8 +106,10 @@ def test_bilibili_task_payload_keeps_only_stable_video_and_part_identifiers(tmp_
 
     payload = json.loads(factory.payload_path.read_text("utf-8"))
     assert payload["source"] == {"platform": "bilibili", "bvid": "BV18bLkztE7R", "part": 7}
+    assert payload["output_directory"] == str(delivery)
     assert "command" not in payload
     assert "cookie" not in json.dumps(payload).lower()
+    assert str(delivery) not in json.dumps(store.list_events(task.task_id), default=str)
 
 
 def test_tick_releases_a_completed_worker_slot_after_its_terminal_event(tmp_path):

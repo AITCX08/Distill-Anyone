@@ -27,6 +27,7 @@ class BilibiliSeriesImporter:
         bvid: str,
         *,
         legacy_state: Mapping[str, Any],
+        output_directory: str = "",
     ) -> BilibiliImportResult:
         if str(legacy_state.get("bvid") or bvid) != bvid:
             raise ValueError("legacy state does not match requested Bilibili series")
@@ -55,7 +56,11 @@ class BilibiliSeriesImporter:
             tasks = tuple(task for task in existing if task.job_id == existing_job.job_id)
             return self._result(existing_job.job_id, tasks, created_tasks=0)
 
-        job = self.store.create_job(platform="bilibili", target=source_url)
+        job = self.store.create_job(
+            platform="bilibili",
+            target=source_url,
+            output_directory=output_directory,
+        )
         tasks = self.store.create_tasks(job.job_id, source_ids)
         completed_by_source = {
             self._source_id(bvid, number)

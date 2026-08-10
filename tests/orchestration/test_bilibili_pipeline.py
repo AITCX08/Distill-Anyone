@@ -88,3 +88,27 @@ def test_bilibili_worker_falls_back_to_an_available_configured_llm_provider():
     )
 
     assert select_available_llm_provider(config) == "deepseek"
+
+
+def test_bilibili_write_delivers_markdown_and_knowledge_to_the_private_job_directory(tmp_path):
+    knowledge = tmp_path / "artifacts" / "knowledge.json"
+    knowledge.parent.mkdir(parents=True)
+    knowledge.write_text('{"title":"Lesson Seven","summary":"Summary"}', "utf-8")
+    destination = tmp_path / "delivery"
+    pipeline = BilibiliWorkPipeline(config=object())
+    context = WorkerContext(
+        task_id="task_1",
+        payload={
+            "source": {"platform": "bilibili", "bvid": "BV18bLkztE7R", "part": 7},
+            "output_directory": str(destination),
+        },
+        work_dir=tmp_path,
+        artifacts={"knowledge": "artifacts/knowledge.json"},
+        emit_transfer=lambda completed, total, speed: None,
+    )
+
+    artifacts = pipeline.write(context)
+
+    assert artifacts == {"episode": "artifacts/episode.md"}
+    assert len(list((destination / "episodes").glob("*.md"))) == 1
+    assert len(list((destination / "knowledge").glob("*.json"))) == 1

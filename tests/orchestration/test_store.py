@@ -39,3 +39,16 @@ def test_events_are_ordered_per_task_and_redacted_before_storage(tmp_path):
 
     assert (first.sequence, second.sequence) == (1, 2)
     assert "secret" not in store.list_events(task.task_id)[0].payload["line"]
+
+
+def test_job_persists_a_private_output_directory(tmp_path):
+    store = OrchestrationStore(tmp_path / "orchestration.sqlite3")
+    delivery = tmp_path / "delivery"
+
+    job = store.create_job(
+        platform="bilibili",
+        target="https://example.invalid/creator",
+        output_directory=str(delivery),
+    )
+
+    assert store.get_job(job.job_id).output_directory == str(delivery)

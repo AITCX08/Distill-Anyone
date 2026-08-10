@@ -189,6 +189,7 @@ class TaskManager:
                     "work_dir": str(work_dir),
                     "source": _source_descriptor(job.platform, task.source_id),
                     "resource_control": True,
+                    **({"output_directory": job.output_directory} if job.output_directory else {}),
                 },
                 ensure_ascii=False,
             ),

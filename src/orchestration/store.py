@@ -85,8 +85,9 @@ class OrchestrationStore:
                     ON task_events(task_id, sequence);
                 """
             )
+            self._ensure_incremental_columns(connection)
 
-    def create_job(self, *, platform: str, target: str) -> JobRecord:
+    def create_job(self, *, platform: str, target: str, output_directory: str = "") -> JobRecord:
         if not platform.strip() or not target.strip():
             raise ValueError("platform and target are required")
         now = utc_now_iso()
@@ -98,12 +99,13 @@ class OrchestrationStore:
             revision=0,
             created_at=now,
             updated_at=now,
+            output_directory=output_directory,
         )
         with self._connection() as connection:
             connection.execute(
                 """INSERT INTO jobs
-                   (job_id, platform, target, status, revision, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                   (job_id, platform, target, status, revision, created_at, updated_at, output_directory)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     job.job_id,
                     job.platform,
@@ -112,6 +114,7 @@ class OrchestrationStore:
                     job.revision,
                     job.created_at,
                     job.updated_at,
+                    job.output_directory,
                 ),
             )
         return job
@@ -394,6 +397,17 @@ class OrchestrationStore:
             connection.close()
 
     @staticmethod
+    def _ensure_incremental_columns(connection: sqlite3.Connection) -> None:
+        columns = {
+            str(row["name"])
+            for row in connection.execute("PRAGMA table_info(jobs)").fetchall()
+        }
+        if "output_directory" not in columns:
+            connection.execute(
+                "ALTER TABLE jobs ADD COLUMN output_directory TEXT NOT NULL DEFAULT ''"
+            )
+
+    @staticmethod
     def _task_from_row(row: sqlite3.Row) -> TaskRecord:
         return TaskRecord(
             task_id=row["task_id"],
@@ -418,6 +432,7 @@ class OrchestrationStore:
             revision=row["revision"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
+            output_directory=str(row["output_directory"] or ""),
         )
 
     @staticmethod

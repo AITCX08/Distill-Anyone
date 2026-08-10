@@ -1,6 +1,8 @@
 """Versioned job query and mutation endpoints."""
 
-from fastapi import APIRouter, Depends, Request
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from src.application.commands import CreateJobRequest, JobView, PreviewRequest, PreviewResult
 from src.application.service import DistillationService
@@ -49,7 +51,25 @@ def preview(payload: PreviewInput, request: Request):
 def create(payload: CreateJobInput, request: Request):
     service: DistillationService = request.app.state.service
     data = payload.model_dump()
-    return _job_response(service.create(CreateJobRequest(**data)))
+    destination = _resolve_destination(payload, request)
+    data.pop("destination_mode", None)
+    data.pop("destination_token", None)
+    return _job_response(service.create(CreateJobRequest(**data, output_directory=str(destination))))
+
+
+def _resolve_destination(payload: CreateJobInput, request: Request) -> Path:
+    directories = request.app.state.output_directories
+    if payload.destination_mode == "default":
+        return directories.get_default()
+    if not payload.destination_token:
+        raise HTTPException(status_code=409, detail="\u4fdd\u5b58\u4f4d\u7f6e\u5c1a\u672a\u6821\u9a8c")
+    try:
+        return directories.resolve_token(
+            payload.destination_token,
+            session_id=request.app.state.local_session.value,
+        )
+    except PermissionError as error:
+        raise HTTPException(status_code=409, detail="\u4fdd\u5b58\u4f4d\u7f6e\u5c1a\u672a\u6821\u9a8c") from error
 
 
 @router.get("", response_model=tuple[JobResponse, ...])

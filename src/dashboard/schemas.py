@@ -40,6 +40,8 @@ class PreviewInput(BaseModel):
 
 class CreateJobInput(PreviewInput):
     preview_fingerprint: str = Field(min_length=1, max_length=256)
+    destination_mode: Literal["default", "override"] = "default"
+    destination_token: str | None = Field(default=None, min_length=1, max_length=256)
 
 
 class RevisionInput(BaseModel):

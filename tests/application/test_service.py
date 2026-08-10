@@ -179,6 +179,45 @@ def test_create_starts_the_configured_source_runner_from_a_verified_preview(tmp_
     assert source_requests[0].platform == "douyin"
     assert source_requests[0].emit == ("episodes", "skill")
     assert source_requests[0].rag_chunks is True
+    assert source_requests[0].output_directory is None
+
+
+def test_create_passes_a_private_output_directory_to_the_source_runner(tmp_path):
+    preview = PreviewResult(
+        fingerprint="current",
+        platform="douyin",
+        creator_id="creator-1",
+        creator_name="Creator",
+        total_items=1,
+        processable_items=1,
+    )
+    completed = Event()
+    source_requests = []
+
+    class Runner:
+        def preview(self, request):
+            return preview
+
+        def job_id_for_preview(self, value):
+            return "dashboard-job"
+
+        def run(self, request):
+            source_requests.append(request)
+            completed.set()
+
+    destination = tmp_path / "delivery"
+    service = DistillationService(repository=JobRepository(tmp_path), source_runner=Runner())
+
+    service.create(
+        CreateJobRequest(
+            target="https://fixture.invalid/creator",
+            preview_fingerprint="current",
+            output_directory=str(destination),
+        )
+    )
+
+    assert completed.wait(timeout=1)
+    assert source_requests[0].output_directory == destination
 
 
 def test_pause_notifies_an_active_source_runner(tmp_path):

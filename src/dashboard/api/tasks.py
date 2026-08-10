@@ -68,7 +68,11 @@ def import_bilibili(payload: BilibiliImportInput, request: Request):
         raise HTTPException(status_code=404, detail="local Bilibili series state was not found") from None
     if not isinstance(legacy_state, dict):
         raise HTTPException(status_code=400, detail="local Bilibili series state is invalid")
-    result = BilibiliSeriesImporter(manager.store).import_series(payload.bvid, legacy_state=legacy_state)
+    result = BilibiliSeriesImporter(manager.store).import_series(
+        payload.bvid,
+        legacy_state=legacy_state,
+        output_directory=str(request.app.state.output_directories.get_default()),
+    )
     return BilibiliImportResponse(**result.__dict__)
 
 

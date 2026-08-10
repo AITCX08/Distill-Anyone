@@ -15,6 +15,7 @@ class JobRecord:
     revision: int
     created_at: str
     updated_at: str
+    output_directory: str = ""
 
 
 @dataclass(frozen=True)

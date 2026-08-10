@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 import tempfile
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -172,7 +174,32 @@ class BilibiliWorkPipeline:
             f"# {title}\n\n{summary}\n",
             "utf-8",
         )
+        destination = context.payload.get("output_directory") or getattr(self.config, "output_dir", None)
+        if destination:
+            try:
+                self._deliver_outputs(
+                    Path(str(destination)),
+                    title,
+                    part,
+                    output,
+                    _artifact_path(context, "knowledge"),
+                )
+            except OSError as error:
+                raise RuntimeError("\u4fdd\u5b58\u4f4d\u7f6e\u4e0d\u53ef\u7528") from error
         return {"episode": "artifacts/episode.md"}
+
+    @staticmethod
+    def _deliver_outputs(
+        destination: Path,
+        title: str,
+        part: int,
+        episode: Path,
+        knowledge: Path,
+    ) -> None:
+        safe_title = re.sub(r'[<>:"/\\|?*]+', "-", title).strip(" .-") or "untitled"
+        stem = f"P{part:02d}-{safe_title[:80]}"
+        _atomic_copy(episode, destination / "episodes" / f"{stem}.md")
+        _atomic_copy(knowledge, destination / "knowledge" / f"{stem}.json")
 
 
 def _source(context: WorkerContext) -> tuple[str, int]:
@@ -194,3 +221,10 @@ def _artifact_path(context: WorkerContext, name: str) -> Path:
     if not path.is_file() or not path.resolve().is_relative_to(context.work_dir.resolve()):
         raise RuntimeError(f"{name} artifact is invalid")
     return path
+
+
+def _atomic_copy(source: Path, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_suffix(f"{destination.suffix}.tmp")
+    temporary.write_bytes(source.read_bytes())
+    os.replace(temporary, destination)

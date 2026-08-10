@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 from threading import Thread
 from typing import Any, Callable
 
@@ -60,6 +61,7 @@ class DistillationService:
                     platform=request.platform,
                     emit=request.outputs,
                     rag_chunks=request.rag_chunks,
+                    output_directory=Path(request.output_directory) if request.output_directory else None,
                 ),
             )
         return created
@@ -94,6 +96,7 @@ class DistillationService:
             retry_failed=retry_failed,
             keep_media=bool(values.get("keep_media", False)),
             llm_provider=values.get("llm_provider"),
+            output_directory=(Path(str(values["output_directory"])) if values.get("output_directory") else None),
         )
 
     def _run_created_source(self, job_id: str, request: Any) -> None:
