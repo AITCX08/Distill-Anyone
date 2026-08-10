@@ -1,7 +1,11 @@
 import { useState } from "react";
-import { Button, Card, Checkbox, Field, Input, Select, Text } from "@fluentui/react-components";
+import { Button, Card, Field, Input, Select, Text } from "@fluentui/react-components";
 
 import { DashboardRequestError, postJson } from "../../api/client";
+import { OutputDirectoryField, type OutputDirectorySelection } from "./OutputDirectoryField";
+import { OutputSelectionCard } from "./OutputSelectionCard";
+import { OutputTemplateDialog } from "./OutputTemplateDialog";
+import type { OutputTemplateKey } from "./OutputTemplates";
 
 type Output = "episodes" | "skill";
 
@@ -46,6 +50,8 @@ export function CreateJobPage() {
   const [platform, setPlatform] = useState("auto");
   const [outputs, setOutputs] = useState<Output[]>(["episodes", "skill"]);
   const [ragChunks, setRagChunks] = useState(false);
+  const [directory, setDirectory] = useState<OutputDirectorySelection>({ destinationMode: "default" });
+  const [templateOutput, setTemplateOutput] = useState<OutputTemplateKey | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [created, setCreated] = useState<CreatedJob | null>(null);
   const [pending, setPending] = useState<"preview" | "create" | null>(null);
@@ -59,9 +65,7 @@ export function CreateJobPage() {
 
   function updateOutput(output: Output, checked: boolean) {
     invalidatePreview();
-    setOutputs((current) => checked
-      ? [...current, output]
-      : current.filter((value) => value !== output));
+    setOutputs((current) => checked ? [...current, output] : current.filter((value) => value !== output));
   }
 
   async function inspectSource() {
@@ -84,7 +88,7 @@ export function CreateJobPage() {
   }
 
   async function createMission() {
-    if (!preview || created || pending || !target.trim()) return;
+    if (!preview || created || pending || !target.trim() || (directory.destinationMode === "override" && !directory.destinationToken)) return;
     setPending("create");
     setError(null);
     try {
@@ -94,6 +98,8 @@ export function CreateJobPage() {
         outputs,
         rag_chunks: ragChunks,
         preview_fingerprint: preview.fingerprint,
+        destination_mode: directory.destinationMode,
+        ...(directory.destinationMode === "override" ? { destination_token: directory.destinationToken } : {}),
       });
       if (!isCreatedJob(result)) throw new Error("invalid create response");
       setCreated(result);
@@ -104,18 +110,16 @@ export function CreateJobPage() {
     }
   }
 
+  const cannotCreate = !preview || !!created || pending !== null
+    || (directory.destinationMode === "override" && !directory.destinationToken);
+
   return (
     <section id="create" aria-label="新建任务">
-      <Card>
+      <Card className="create-job-card">
         <Text as="h2" size={600}>新建任务</Text>
-        <Text>请先预检来源；创建操作将严格使用该次服务端预检结果。</Text>
+        <Text>先预检来源，再选择要交付的内容和保存位置。创建后可在任务作战台跟踪全流程。</Text>
         <Field label="创作者链接" required>
-          <Input
-            aria-label="创作者链接"
-            value={target}
-            onChange={(_, data) => { invalidatePreview(); setTarget(data.value); }}
-            placeholder="https://space.bilibili.com/..."
-          />
+          <Input aria-label="创作者链接" value={target} onChange={(_, data) => { invalidatePreview(); setTarget(data.value); }} placeholder="https://space.bilibili.com/..." />
         </Field>
         <Field label="平台">
           <Select value={platform} onChange={(_, data) => { invalidatePreview(); setPlatform(data.value); }}>
@@ -124,23 +128,24 @@ export function CreateJobPage() {
             <option value="douyin">抖音</option>
           </Select>
         </Field>
-        <Checkbox label="按作品生成 Markdown" checked={outputs.includes("episodes")} onChange={(_, data) => updateOutput("episodes", !!data.checked)} />
-        <Checkbox label="生成蒸馏 Skill" checked={outputs.includes("skill")} onChange={(_, data) => updateOutput("skill", !!data.checked)} />
-        <Checkbox label="生成 RAG 分块" checked={ragChunks} onChange={(_, data) => { invalidatePreview(); setRagChunks(!!data.checked); }} />
-        <div>
-          <Button appearance="secondary" onClick={inspectSource} disabled={!target.trim() || outputs.length === 0 || pending !== null}>
-            {pending === "preview" ? "正在预检…" : "预检来源"}
-          </Button>
-          <Button appearance="primary" onClick={createMission} disabled={!preview || !!created || pending !== null}>
-            {pending === "create" ? "正在创建…" : "创建任务"}
-          </Button>
+        <section className="output-selection" aria-label="选择交付内容">
+          <Text as="h3" size={400}>选择交付内容</Text>
+          <div className="output-selection__grid">
+            <OutputSelectionCard output="episodes" checked={outputs.includes("episodes")} onCheckedChange={(checked) => updateOutput("episodes", checked)} onShowTemplate={() => setTemplateOutput("episodes")} />
+            <OutputSelectionCard output="skill" checked={outputs.includes("skill")} onCheckedChange={(checked) => updateOutput("skill", checked)} onShowTemplate={() => setTemplateOutput("skill")} />
+            <OutputSelectionCard output="rag" checked={ragChunks} onCheckedChange={(checked) => { invalidatePreview(); setRagChunks(checked); }} onShowTemplate={() => setTemplateOutput("rag")} />
+          </div>
+        </section>
+        <OutputDirectoryField onChange={setDirectory} />
+        <div className="create-job-card__actions">
+          <Button appearance="secondary" onClick={() => void inspectSource()} disabled={!target.trim() || outputs.length === 0 || pending !== null}>{pending === "preview" ? "正在预检…" : "预检来源"}</Button>
+          <Button appearance="primary" onClick={() => void createMission()} disabled={cannotCreate}>{pending === "create" ? "正在创建…" : "创建任务"}</Button>
         </div>
-        {preview && <Text role="status" className="metric">
-          {preview.creator_name} · 可处理 {preview.processable_items} / 共 {preview.total_items} 条
-        </Text>}
-        {created && <Text role="status">任务 {created.job_id} 已由本地引擎接收。</Text>}
+        {preview && <Text role="status" className="metric">{preview.creator_name} · 可处理 {preview.processable_items} / 共 {preview.total_items} 条 · 登录状态：{preview.auth_status}</Text>}
+        {created && <Text role="status">任务已创建，可前往<a href="#mission">任务作战台</a>查看执行进度，或在<a href="#artifacts">产物库</a>查看交付内容。</Text>}
         {error && <Text role="alert">{error}</Text>}
       </Card>
+      {templateOutput && <OutputTemplateDialog output={templateOutput} open onOpenChange={(open) => { if (!open) setTemplateOutput(null); }} />}
     </section>
   );
 }

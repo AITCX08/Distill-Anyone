@@ -1,14 +1,32 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+const getJson = vi.hoisted(() => vi.fn());
 const postJson = vi.hoisted(() => vi.fn());
 
-vi.mock("../../api/client", () => ({ postJson }));
+vi.mock("../../api/client", () => ({ getJson, postJson }));
 
 import { CreateJobPage } from "./CreateJobPage";
 
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+
 describe("CreateJobPage", () => {
+  it("explains every deliverable and opens its representative template", async () => {
+    getJson.mockResolvedValueOnce({ directory: "D:/default" });
+
+    render(<CreateJobPage />);
+
+    expect(screen.getByText("逐作品 Markdown")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "查看 蒸馏 Skill 示例" }));
+    expect(await screen.findByRole("dialog", { name: "蒸馏 Skill 示例" })).toHaveTextContent("工作流");
+    fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+  });
+
   it("requires a current preview before submitting that preview fingerprint", async () => {
+    getJson.mockResolvedValueOnce({ directory: "D:/default" });
     postJson
       .mockResolvedValueOnce({
         fingerprint: "preview-123",
@@ -32,7 +50,7 @@ describe("CreateJobPage", () => {
     expect(create).toBeDisabled();
 
     fireEvent.click(screen.getByRole("button", { name: "预检来源" }));
-    await screen.findByText("Creator · 可处理 2 / 共 3 条");
+    await screen.findByText("Creator · 可处理 2 / 共 3 条 · 登录状态：configured");
     expect(create).toBeEnabled();
 
     fireEvent.click(create);
@@ -42,7 +60,8 @@ describe("CreateJobPage", () => {
       outputs: ["episodes", "skill"],
       rag_chunks: false,
       preview_fingerprint: "preview-123",
+      destination_mode: "default",
     }));
-    expect(screen.getByText("任务 job-1 已由本地引擎接收。")).toBeVisible();
+    expect(screen.getAllByRole("status").at(-1)).toHaveTextContent("任务已创建，可前往任务作战台查看执行进度");
   });
 });
