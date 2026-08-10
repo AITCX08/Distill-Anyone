@@ -40,6 +40,31 @@ def _build_task_manager(service: DistillationService) -> TaskManager:
     )
 
 
+def _worker_python_executable() -> str:
+    """Use the console interpreter for child work while keeping it windowless.
+
+    Dashboard itself is deliberately launched through ``pythonw.exe``. A
+    checkpointed worker needs the matching ``python.exe`` instead: it honors
+    redirected stderr and gives the runner a normal process environment.
+    ``CREATE_NO_WINDOW`` below prevents a console from appearing.
+    """
+
+    executable = Path(sys.executable)
+    if executable.name.lower() == "pythonw.exe":
+        console_executable = executable.with_name("python.exe")
+        if console_executable.is_file():
+            return str(console_executable)
+    return str(executable)
+
+
+def _record_series_runner_exit(process: subprocess.Popen[object], log_path: Path) -> None:
+    """Persist the child exit result without ever opening a terminal window."""
+
+    return_code = process.wait()
+    with log_path.open("a", encoding="utf-8") as log_file:
+        log_file.write(f"[dashboard] series runner exited with code {return_code}\n")
+
+
 def _run_task_manager_loop(
     task_manager: TaskManager,
     server: uvicorn.Server,
@@ -104,31 +129,45 @@ def run_dashboard(service: DistillationService, port: int, open_browser: bool) -
     app.state.task_manager = _build_task_manager(service)
     app.state.task_manager.claim_ownership()
     app.state.task_manager.reconcile()
-    monitor = SeriesTaskMonitor(
-        SeriesTaskBridge(
-            data_dir=service.repository.root.parent,
-            events=service.events,
-            orchestration_store=app.state.task_manager.store,
-        )
-    )
-    monitor.start()
-    app.state.series_task_monitor = monitor
     data_dir = service.repository.root.parent
 
-    def launch_series(bvid: str) -> None:
+    def launch_series(bvid: str) -> int:
         if bvid != "BV18bLkztE7R":
             raise LookupError("the requested series has no registered local runner")
         runner = data_dir.parent / ".local-artifacts" / "bilibili-series" / "resume_with_dashboard_credential.py"
+        log_path = data_dir / "series" / bvid / "runner.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-        subprocess.Popen(
-            [sys.executable, str(runner)],
-            cwd=data_dir.parent,
-            creationflags=flags,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        with log_path.open("a", encoding="utf-8") as log_file:
+            interpreter = _worker_python_executable()
+            log_file.write(f"[dashboard] starting series runner with {interpreter}\n")
+            log_file.flush()
+            process = subprocess.Popen(
+                [interpreter, str(runner)],
+                cwd=data_dir.parent,
+                creationflags=flags,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+            )
+        Thread(
+            target=_record_series_runner_exit,
+            args=(process, log_path),
+            daemon=True,
+            name=f"distill-series-runner-{bvid}",
+        ).start()
+        return process.pid
 
     app.state.series_controller = SeriesController(data_dir, launcher=launch_series)
+    monitor = SeriesTaskMonitor(
+        SeriesTaskBridge(
+            data_dir=data_dir,
+            events=service.events,
+            orchestration_store=app.state.task_manager.store,
+        ),
+        reconcile=app.state.series_controller.reconcile,
+    )
+    monitor.start()
+    app.state.series_task_monitor = monitor
     url = f"http://{host}:{port}"
     server = build_dashboard_server(app, host=host, port=port)
     try:

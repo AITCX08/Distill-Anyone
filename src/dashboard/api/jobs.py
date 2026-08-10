@@ -132,9 +132,12 @@ def reveal_output(job_id: str, request: Request) -> Response:
 @router.get("/{job_id}/items", response_model=tuple[ItemResponse, ...])
 def list_items(job_id: str, request: Request):
     service: DistillationService = request.app.state.service
+    state = service.queries.get(job_id)
     return tuple(
         ItemResponse(
             source_id=item.source_id,
+            display_title=_item_title(state, item.source_id),
+            part_number=_item_part_number(state, item.source_id),
             processing_status=item.processing_status.value,
             retryable=item.processing_status in {ProcessingStatus.FAILED, ProcessingStatus.RETRY_WAIT},
             stage_progress=item.stage_progress,
@@ -142,8 +145,23 @@ def list_items(job_id: str, request: Request):
             last_error=item.last_error,
             updated_at=item.updated_at,
         )
-        for item in service.queries.items(job_id).values()
+        for item in state.items.values()
     )
+
+
+def _catalog_metadata(state, source_id: str) -> dict[str, object]:
+    value = state.catalog.get(source_id)
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _item_title(state, source_id: str) -> str:
+    value = _catalog_metadata(state, source_id).get("title")
+    return value.strip() if isinstance(value, str) and value.strip() else source_id
+
+
+def _item_part_number(state, source_id: str) -> int | None:
+    value = _catalog_metadata(state, source_id).get("part_number")
+    return value if isinstance(value, int) and value >= 1 else None
 
 
 @router.post("/{job_id}/pause", response_model=JobResponse, dependencies=[Depends(require_mutation_security)])

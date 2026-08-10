@@ -7,6 +7,7 @@ import { jobStatusLabel, platformLabel, stageLabel } from "../../i18n/zh";
 
 const statuses: readonly JobStatus[] = ["queued", "running", "pause_requested", "paused", "partial", "completed", "failed"];
 type FilterStatus = "all" | JobStatus;
+type JobDetails = { job_id: string; display_title: string; creator_name: string; destination: string; artifact_count: number; completed_at: string | null };
 
 function isJobSummary(value: unknown): value is JobSummary {
   return typeof value === "object" && value !== null
@@ -25,12 +26,28 @@ function isJobSummary(value: unknown): value is JobSummary {
 function isJobItem(value: unknown): value is JobItem {
   return typeof value === "object" && value !== null
     && "source_id" in value && typeof value.source_id === "string"
+    && "display_title" in value && typeof value.display_title === "string"
+    && "part_number" in value && (typeof value.part_number === "number" || value.part_number === null)
     && "processing_status" in value && typeof value.processing_status === "string"
     && "retryable" in value && typeof value.retryable === "boolean"
     && "stage_progress" in value && typeof value.stage_progress === "number"
     && "overall_progress" in value && typeof value.overall_progress === "number"
     && "last_error" in value && (typeof value.last_error === "string" || value.last_error === null)
     && "updated_at" in value && typeof value.updated_at === "string";
+}
+
+function isJobDetails(value: unknown): value is JobDetails {
+  return typeof value === "object" && value !== null
+    && "job_id" in value && typeof value.job_id === "string"
+    && "display_title" in value && typeof value.display_title === "string"
+    && "creator_name" in value && typeof value.creator_name === "string"
+    && "destination" in value && typeof value.destination === "string"
+    && "artifact_count" in value && typeof value.artifact_count === "number"
+    && "completed_at" in value && (typeof value.completed_at === "string" || value.completed_at === null);
+}
+
+function itemHeading(item: JobItem): string {
+  return item.part_number === null ? item.display_title : `第 ${item.part_number} 集 · ${item.display_title}`;
 }
 
 function isJobUpdate(value: unknown): value is Pick<JobSummary, "job_id" | "status" | "revision"> {
@@ -46,6 +63,8 @@ export function JobHistoryPage() {
   const [loading, setLoading] = useState(false);
   const [itemsByJob, setItemsByJob] = useState<Record<string, JobItem[] | undefined>>({});
   const [itemsLoading, setItemsLoading] = useState<string | null>(null);
+  const [detailsByJob, setDetailsByJob] = useState<Record<string, JobDetails | undefined>>({});
+  const [detailsLoading, setDetailsLoading] = useState<string | null>(null);
   const [retryingItem, setRetryingItem] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -62,6 +81,29 @@ export function JobHistoryPage() {
       setError("任务历史暂不可用，请刷新后重试连接本地引擎。");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadDetails(jobId: string) {
+    setDetailsLoading(jobId);
+    setError(null);
+    try {
+      const result = await getJson<unknown>(`/api/v1/jobs/${encodeURIComponent(jobId)}/details`);
+      if (!isJobDetails(result)) throw new Error("invalid job details response");
+      setDetailsByJob((current) => ({ ...current, [jobId]: result }));
+    } catch {
+      setError("暂时无法读取本地交付位置。");
+    } finally {
+      setDetailsLoading(null);
+    }
+  }
+
+  async function revealOutput(jobId: string) {
+    setError(null);
+    try {
+      await postJson(`/api/v1/jobs/${encodeURIComponent(jobId)}/reveal-output`, {});
+    } catch {
+      setError("无法打开本地保存位置。");
     }
   }
 
@@ -134,9 +176,18 @@ export function JobHistoryPage() {
             <Button appearance="secondary" onClick={() => void loadItems(job.job_id)} disabled={itemsLoading === job.job_id}>
               {itemsLoading === job.job_id ? "正在加载项目操作…" : `查看 ${job.creator_name} 的项目操作`}
             </Button>
+            <Button appearance="secondary" onClick={() => void loadDetails(job.job_id)} disabled={detailsLoading === job.job_id}>
+              {detailsLoading === job.job_id ? "正在读取交付详情…" : "查看交付详情"}
+            </Button>
+            {detailsByJob[job.job_id] && <div>
+              <Text>保存位置：{detailsByJob[job.job_id]?.destination}</Text>
+              <Button appearance="secondary" onClick={() => void revealOutput(job.job_id)}>打开文件夹</Button>
+            </div>}
             {itemsByJob[job.job_id]?.map((item) => (
               <div key={item.source_id}>
-                <Text className="metric">{item.source_id} · {stageLabel(item.processing_status)}</Text>
+                <Text className="metric">{itemHeading(item)} · {stageLabel(item.processing_status)}</Text>
+                <details><summary>技术信息</summary><Text className="metric">{item.source_id}</Text></details>
+                {item.last_error && <Text role="status">失败原因：{item.last_error}</Text>}
                 {item.retryable && <Button
                   appearance="primary"
                   onClick={() => void retryItem(job, item)}

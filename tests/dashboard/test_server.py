@@ -70,3 +70,13 @@ def test_dashboard_server_does_not_require_console_streams() -> None:
 
     assert dashboard_server.config.log_config is None
     assert dashboard_server.config.access_log is False
+
+
+def test_worker_interpreter_uses_console_peer_of_pythonw(monkeypatch, tmp_path):
+    pythonw = tmp_path / "pythonw.exe"
+    python = tmp_path / "python.exe"
+    pythonw.write_text("", encoding="utf-8")
+    python.write_text("", encoding="utf-8")
+    monkeypatch.setattr(server.sys, "executable", str(pythonw))
+
+    assert server._worker_python_executable() == str(python)

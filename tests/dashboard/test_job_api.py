@@ -87,6 +87,10 @@ def test_item_listing_marks_only_server_retryable_items(tmp_path):
     store.save(
         replace(
             state,
+            catalog={
+                "retryable": {"title": "需要重试的作品", "part_number": 2},
+                "completed": {"title": "已经完成的作品", "part_number": 3},
+            },
             items={
                 "retryable": ItemState(source_id="retryable", processing_status=ProcessingStatus.FAILED),
                 "completed": ItemState(source_id="completed", processing_status=ProcessingStatus.COMPLETED),
@@ -100,3 +104,5 @@ def test_item_listing_marks_only_server_retryable_items(tmp_path):
 
     assert items["retryable"]["retryable"] is True
     assert items["completed"]["retryable"] is False
+    assert items["retryable"]["display_title"] == "需要重试的作品"
+    assert items["retryable"]["part_number"] == 2
