@@ -1,4 +1,4 @@
-# Distill-Anyone -- AI 辅助编程约定
+# Distill-Everything -- AI 辅助编程约定
 
 > 本文件给 Claude Code / Cursor / Copilot 等 AI 编程助手阅读。修改本项目前请先了解以下事项。
 
@@ -20,7 +20,7 @@
 
 ## 项目愿景
 
-Distill-Anyone 是一个 **B站知识区 UP 主视频内容蒸馏工具**，将视频内容通过 5 阶段流水线（爬取 -> ASR -> 清洗 -> 知识建模 -> SKILL.md 生成）转化为可供 AI 助手使用的结构化知识文件。输出格式对齐 [女娲.skill](https://github.com/alchaincyf/nuwa-skill) / [张雪峰.skill](https://github.com/alchaincyf/zhangxuefeng-skill) 风格。
+Distill-Everything 是一个 **多平台内容蒸馏工具**，将视频内容通过 5 阶段流水线（爬取 -> ASR -> 清洗 -> 知识建模 -> SKILL.md 生成）转化为可供 AI 助手使用的结构化知识文件。输出格式对齐 [女娲.skill](https://github.com/alchaincyf/nuwa-skill) / [张雪峰.skill](https://github.com/alchaincyf/zhangxuefeng-skill) 风格。
 
 项目提供两条入口：
 - **视频路径**：`crawl → asr → clean → model → generate`（B 站 UP 主）
@@ -59,7 +59,7 @@ Distill-Anyone 是一个 **B站知识区 UP 主视频内容蒸馏工具**，将�
 
 ```mermaid
 graph TD
-    A["Distill-Anyone (根)"] --> B["src/"]
+    A["Distill-Everything (根)"] --> B["src/"]
     A --> C["templates/"]
     A --> D["prompts/"]
     A --> T["tests/"]
@@ -124,7 +124,7 @@ graph TD
 
 ### 环境
 
-- macOS + venv（目录名 `Distill-Anyone/`，已 .gitignore；Python 3.11）
+- macOS + venv（目录名 `Distill-Everything/`，已 .gitignore；Python 3.11）
 - PyTorch 2.8.0（pip 安装，支持 MPS）
 - ffmpeg via Homebrew（`/opt/homebrew/bin/ffmpeg`）
 - yt-dlp 需在 PATH 中（`pip install yt-dlp` 或 Homebrew）

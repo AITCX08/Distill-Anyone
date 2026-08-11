@@ -1,4 +1,4 @@
-[← 返回 Distill-Anyone](../../CLAUDE.md) > **src/clean**
+[← 返回 Distill-Everything](../../CLAUDE.md) > **src/clean**
 
 # src/clean -- 阶段 3：文本清洗 + LLM 客户端工厂
 

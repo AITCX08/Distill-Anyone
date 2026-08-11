@@ -1,4 +1,4 @@
-[← 返回 Distill-Anyone](../../CLAUDE.md) > **src/meeting**
+[← 返回 Distill-Everything](../../CLAUDE.md) > **src/meeting**
 
 # src/meeting -- 飞书妙记文字记录 → 智能会议纪要（MD + PDF）
 

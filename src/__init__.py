@@ -1,1 +1,1 @@
-# Distill-Anyone: B站UP主知识蒸馏工具
+# Distill-Everything: 多源内容蒸馏工具

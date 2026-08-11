@@ -1,4 +1,4 @@
-"""Loopback-only web dashboard for Distill-Anyone."""
+"""Loopback-only web dashboard for Distill-Everything."""
 
 from src.dashboard.app import create_dashboard_app
 from src.dashboard.server import run_dashboard

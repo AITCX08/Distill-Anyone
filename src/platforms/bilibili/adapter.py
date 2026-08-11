@@ -48,7 +48,7 @@ def legacy_source_id(value: str) -> str:
 
 
 class BilibiliAdapter:
-    """Thin wrapper around Distill-Anyone's established Bilibili functions."""
+    """Thin wrapper around Distill-Everything's established Bilibili functions."""
 
     descriptor = PlatformDescriptor(
         name="bilibili",

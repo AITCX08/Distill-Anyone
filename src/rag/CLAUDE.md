@@ -1,4 +1,4 @@
-[← 返回 Distill-Anyone](../../CLAUDE.md) > **src/rag**
+[← 返回 Distill-Everything](../../CLAUDE.md) > **src/rag**
 
 # src/rag -- RAG 知识块输出
 

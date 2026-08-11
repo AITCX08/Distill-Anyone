@@ -89,7 +89,7 @@
 
 ### 任务 4：替换运行标识、脚本与活跃文档
 
-- [ ] **任务 4 完成：** 活跃代码、脚本与用户文档不再使用旧产品标识。
+- [x] **任务 4 完成：** 活跃代码、脚本与用户文档不再使用旧产品标识。
 
 **文件：**
 - 修改：`README.md`
@@ -104,11 +104,11 @@
 - 修改：`src/platforms/bilibili/adapter.py`
 - 修改：活跃的 `src/**/CLAUDE.md` 导航链接
 
-- [ ] 先用 `rg` 生成当前运行代码、README、脚本和活跃导航中的旧名称清单；历史 `docs/superpowers/plans/**` 与 `docs/superpowers/specs/**` 不在批量替换范围。
-- [ ] 将用户可见名称统一替换为 `Distill-Everything`，机器可读名称统一替换为 `distill-everything`。
-- [ ] 将 `DISTILL_ANYONE_PYTHON` 改为 `DISTILL_EVERYTHING_PYTHON`，并更新示例与后台测试运行器的读取逻辑。
-- [ ] 保持所有 Python 导入 `src.*` 不变；不得重命名 `src` 目录。
-- [ ] 更新版本帮助测试或新增断言，证明 `main.py --help` 输出新项目名称、脚本读取新变量。
+- [x] 先用 `rg` 生成当前运行代码、README、脚本和活跃导航中的旧名称清单；历史 `docs/superpowers/plans/**` 与 `docs/superpowers/specs/**` 不在批量替换范围。
+- [x] 将用户可见名称统一替换为 `Distill-Everything`，机器可读名称统一替换为 `distill-everything`。
+- [x] 将 `DISTILL_ANYONE_PYTHON` 改为 `DISTILL_EVERYTHING_PYTHON`，并更新示例与后台测试运行器的读取逻辑。
+- [x] 保持所有 Python 导入 `src.*` 不变；未重命名 `src` 目录。
+- [x] 新增短回归断言，证明 `main.py --help` 输出新项目名称、脚本读取新变量。
 - [ ] 小提交：`refactor: rename product identifiers to distill-everything`
 
 ### 任务 5：更新 Dashboard 品牌与发布静态资源

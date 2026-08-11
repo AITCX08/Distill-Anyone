@@ -1,4 +1,4 @@
-# Distill-Anyone 开发文档
+# Distill-Everything 开发文档
 
 > 本文档面向两类读者:**二次开发者** 与 **AI 辅助编程 Agent**。阅读完本文档后,你应当能够在不阅读全部源码的前提下,对任一阶段进行定位、修改、扩展。
 >
@@ -28,7 +28,7 @@
 
 ### 1.1 设计理念
 
-Distill-Anyone 采用 **5 阶段流水线 + 文件系统作为中间态** 的架构:
+Distill-Everything 采用 **5 阶段流水线 + 文件系统作为中间态** 的架构:
 
 - 每个阶段是**幂等的**:重复运行只处理新/损坏的文件。
 - 阶段间通过 JSON 文件**解耦**,无进程内共享状态。
@@ -62,7 +62,7 @@ data/video_list.json                                    ↓
 ### 1.4 目录结构
 
 ```
-Distill-Anyone/
+Distill-Everything/
 ├── main.py                            # 入口:click 子命令,每条命令是一个阶段
 ├── requirements.txt                   # Python 依赖(不含 torch — funasr 未硬声明)
 ├── config.example.env                 # 环境变量模板
