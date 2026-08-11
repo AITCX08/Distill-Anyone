@@ -73,7 +73,7 @@
 
 ### 任务 3：移动两个 Git 工作树与本地运行数据
 
-- [ ] **任务 3 完成：** 两个工作树、数据和产物均在新路径且计数一致。
+- [x] **任务 3 完成：** 两个工作树、数据和产物均在新路径且计数一致。
 
 **文件：**
 - 修改：Git worktree 元数据（由 `git worktree move` 写入）
@@ -81,11 +81,11 @@
 - 移动：`C:\Users\Administrator\Desktop\Vibe\Distill-Anyone-dashboard-runtime` → `C:\Users\Administrator\Desktop\Vibe\Distill-Everything-dashboard-runtime`
 - 移动：新主目录中的 `data` 与 `output` 保持其相对位置
 
-- [ ] 先执行 `git worktree list --porcelain` 确认两个工作树受 Git 管理且路径与盘点一致。
-- [ ] 使用 `git worktree move` 移动 Dashboard 工作树；主工作树由受控目录移动后立刻运行 `git worktree repair` 校正元数据。
-- [ ] 将主目录下 `data` 与 `output` 一并保留在新主目录中；迁移后验证状态文件、凭据目录和产物文件仍可读取。
-- [ ] 使用 `git -C <新路径> status --short` 验证未提交修改仍完整存在。
-- [ ] 若移动后的服务检查失败，在没有写入新数据前按相反顺序移动回旧路径。
+- [x] 先执行 `git worktree list --porcelain` 确认两个工作树受 Git 管理且路径与盘点一致。
+- [x] 使用 `git worktree move` 移动 Dashboard 工作树；主工作树由受控目录移动后立刻运行 `git worktree repair` 校正元数据。
+- [x] 将主目录下 `data` 与 `output` 一并保留在新主目录中；迁移后验证状态文件、凭据目录和产物文件仍可读取。
+- [x] 使用 `git -C <新路径> status --short` 验证未提交修改仍完整存在。
+- [x] 移动后 Git 元数据、状态文件、产物计数均通过校验，不需要回退。
 
 ### 任务 4：替换运行标识、脚本与活跃文档
 
