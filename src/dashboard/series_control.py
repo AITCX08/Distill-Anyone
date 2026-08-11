@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import ctypes
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -10,9 +12,16 @@ from src.series.runtime import SeriesRuntimeStore
 
 
 class SeriesController:
-    def __init__(self, data_dir: Path, *, launcher: Callable[[str], None]) -> None:
+    def __init__(
+        self,
+        data_dir: Path,
+        *,
+        launcher: Callable[[str], int | None],
+        worker_is_alive: Callable[[int], bool] | None = None,
+    ) -> None:
         self.data_dir = Path(data_dir)
         self.launcher = launcher
+        self.worker_is_alive = worker_is_alive or _worker_is_alive
 
     def _store(self, bvid: str) -> SeriesRuntimeStore:
         state_path = self.data_dir / "series" / bvid / "state.json"
@@ -30,8 +39,62 @@ class SeriesController:
     def resume(self, bvid: str) -> dict[str, Any]:
         runtime = self._store(bvid)
         current = runtime.load()
-        if current.get("status") == "running":
+        if current.get("status") == "running" and self._has_live_worker(current):
             return current
-        updated = runtime.update(status="running", transfer={})
-        self.launcher(bvid)
-        return updated
+        worker_pid = self.launcher(bvid)
+        return runtime.update(
+            status="running",
+            transfer={},
+            worker_pid=worker_pid if isinstance(worker_pid, int) and worker_pid > 0 else None,
+            last_error=None,
+        )
+
+    def reconcile(self) -> int:
+        changed = 0
+        root = self.data_dir / "series"
+        if not root.is_dir():
+            return changed
+        for state_path in root.glob("*/state.json"):
+            runtime = SeriesRuntimeStore(state_path.parent)
+            current = runtime.load()
+            if current.get("status") == "running" and not self._has_live_worker(current):
+                runtime.update(
+                    status="paused",
+                    transfer={},
+                    worker_pid=None,
+                    last_error="执行器已停止，可继续任务。",
+                )
+                changed += 1
+        return changed
+
+    def _has_live_worker(self, runtime: dict[str, Any]) -> bool:
+        worker_pid = runtime.get("worker_pid")
+        return isinstance(worker_pid, int) and worker_pid > 0 and self.worker_is_alive(worker_pid)
+
+
+def _worker_is_alive(worker_pid: int) -> bool:
+    if os.name == "nt":
+        # `os.kill(pid, 0)` is not a reliable liveness probe on Windows: it
+        # can raise SystemError even for a live process. Query the process
+        # handle and its exit code instead.
+        process_query_limited_information = 0x1000
+        still_active = 259
+        handle = ctypes.windll.kernel32.OpenProcess(  # type: ignore[attr-defined]
+            process_query_limited_information,
+            False,
+            worker_pid,
+        )
+        if not handle:
+            return False
+        try:
+            exit_code = ctypes.c_ulong()
+            if not ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):  # type: ignore[attr-defined]
+                return False
+            return exit_code.value == still_active
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)  # type: ignore[attr-defined]
+    try:
+        os.kill(worker_pid, 0)
+    except OSError:
+        return False
+    return True

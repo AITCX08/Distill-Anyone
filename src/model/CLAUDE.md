@@ -1,4 +1,4 @@
-[← 返回 Distill-Anyone](../../CLAUDE.md) > **src/model**
+[← 返回 Distill-Everything](../../CLAUDE.md) > **src/model**
 
 # src/model -- 阶段 4：知识建模与博主画像合成
 

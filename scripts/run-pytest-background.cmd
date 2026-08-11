@@ -7,7 +7,7 @@ rem `cmd /d /c start "" /b ...` when no console window is desired.
 
 set "ROOT=%~dp0.."
 set "RUN_DIR=%ROOT%\.local-artifacts\test-runs"
-set "PYTHON=%DISTILL_ANYONE_PYTHON%"
+set "PYTHON=%DISTILL_EVERYTHING_PYTHON%"
 
 if "%PYTHON%"=="" if exist "%ROOT%\.venv\Scripts\python.exe" set "PYTHON=%ROOT%\.venv\Scripts\python.exe"
 if "%PYTHON%"=="" set "PYTHON=python"

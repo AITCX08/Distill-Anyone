@@ -120,6 +120,33 @@ def test_initial_sse_snapshot_exposes_safe_task_metadata_without_output_director
     assert "private-delivery" not in message
 
 
+def test_worker_sse_snapshot_enriches_task_with_series_title_and_completion_time(tmp_path):
+    hub = EventHub()
+    store = OrchestrationStore(tmp_path / "orchestration.sqlite3")
+    job = store.create_job(platform="bilibili", target="https://example.invalid/creator")
+    task = store.create_tasks(job.job_id, ["bilibili_BV18bLkztE7R_p01"])[0]
+    store.transition_task(task.task_id, task.revision, status="completed", stage="completed")
+    source_id = "bilibili_BV18bLkztE7R_p01"
+    source_state = SimpleNamespace(
+        catalog={source_id: {"title": "四柱命卦 1"}},
+        items={source_id: SimpleNamespace(completed_at="2026-08-10T16:44:12+00:00")},
+    )
+    service = SimpleNamespace(
+        events=hub,
+        list_jobs=lambda: (),
+        queries=SimpleNamespace(list=lambda: (source_state,)),
+    )
+    manager = SimpleNamespace(store=store)
+
+    async def next_message():
+        return await anext(event_stream(service, last_event_id=None, job_id=None, task_manager=manager))
+
+    message = asyncio.run(next_message())
+
+    assert '"display_title": "四柱命卦 1"' in message
+    assert '"completed_at": "2026-08-10T16:44:12+00:00"' in message
+
+
 def test_initial_sse_snapshot_projects_latest_worker_transfer_to_its_task(tmp_path):
     hub = EventHub()
     store = OrchestrationStore(tmp_path / "orchestration.sqlite3")

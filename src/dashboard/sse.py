@@ -84,17 +84,19 @@ def _snapshot_message(service, job_id: str | None, task_manager=None) -> str:
             continue
         seen_job_ids.add(current_job_id)
         progress_snapshots.append(snapshot)
+    task_metadata = _task_metadata_from_series_states(service)
     tasks = []
     task_traces: dict[str, list[str]] = {}
     if task_manager is not None:
         for task in task_manager.store.list_tasks():
             if job_id is not None and task.job_id != job_id:
                 continue
+            metadata = task_metadata.get(task.source_id, {})
             task_payload = {
                 "task_id": task.task_id,
                 "job_id": task.job_id,
                 "source_id": task.source_id,
-                "display_title": task.display_title,
+                "display_title": metadata.get("display_title", task.display_title),
                 "part_number": task.part_number,
                 "delivery_state": _delivery_state(task),
                 "status": task.status,
@@ -104,6 +106,9 @@ def _snapshot_message(service, job_id: str | None, task_manager=None) -> str:
                 "checkpoint_revision": task.checkpoint_revision,
                 "updated_at": task.updated_at,
             }
+            completed_at = metadata.get("completed_at")
+            if isinstance(completed_at, str):
+                task_payload["completed_at"] = completed_at
             events = task_manager.store.list_events(task.task_id)
             latest_transfer = next(
                 (event.payload for event in reversed(events) if event.kind == "transfer"), None
@@ -138,6 +143,40 @@ def _snapshot_message(service, job_id: str | None, task_manager=None) -> str:
         "task_traces": task_traces,
     }
     return f"event: snapshot\ndata: {json.dumps(message, ensure_ascii=False)}\n\n"
+
+
+def _task_metadata_from_series_states(service) -> dict[str, dict[str, str]]:
+    """Use durable series catalog metadata when a worker task mirrors that source."""
+
+    queries = getattr(service, "queries", None)
+    list_states = getattr(queries, "list", None)
+    if not callable(list_states):
+        return {}
+    try:
+        states = list_states()
+    except Exception:
+        return {}
+
+    metadata: dict[str, dict[str, str]] = {}
+    for state in states:
+        catalog = getattr(state, "catalog", {})
+        items = getattr(state, "items", {})
+        if not isinstance(catalog, Mapping) or not isinstance(items, Mapping):
+            continue
+        for source_id, item in items.items():
+            if not isinstance(source_id, str):
+                continue
+            catalog_entry = catalog.get(source_id)
+            title = catalog_entry.get("title") if isinstance(catalog_entry, Mapping) else None
+            completed_at = getattr(item, "completed_at", None)
+            item_metadata: dict[str, str] = {}
+            if isinstance(title, str) and title.strip():
+                item_metadata["display_title"] = title.strip()
+            if isinstance(completed_at, str) and completed_at:
+                item_metadata["completed_at"] = completed_at
+            if item_metadata:
+                metadata[source_id] = item_metadata
+    return metadata
 
 
 def _delivery_state(task) -> str:

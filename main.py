@@ -1,5 +1,5 @@
 """
-Distill-Anyone: B站UP主知识蒸馏工具
+Distill-Everything: 多源内容蒸馏工具
 
 将B站知识区UP主的视频内容，通过语音识别和LLM分析，
 转化为结构化的SKILL.md知识文件。
@@ -123,9 +123,9 @@ def cleanup_book_artifacts(config, book_id: str):
 
 
 @click.group()
-@click.version_option(version="0.4.0", prog_name="Distill-Anyone")
+@click.version_option(version="0.4.0", prog_name="Distill-Everything")
 def cli():
-    """Distill-Anyone: B站UP主知识蒸馏工具
+    """Distill-Everything: 多源内容蒸馏工具
 
     将B站知识区UP主的视频内容转化为结构化的SKILL.md知识文件。
     """
@@ -367,7 +367,7 @@ def login():
     from src.crawl.auth import run_qrcode_login, save_credential
 
     config = load_config()
-    console.print(Panel("[bold]B站扫码登录[/bold]", title="Distill-Anyone"))
+    console.print(Panel("[bold]B站扫码登录[/bold]", title="Distill-Everything"))
 
     try:
         credential, buvid3 = run_qrcode_login()
@@ -403,7 +403,7 @@ def crawl(uid, max_videos):
     limit_desc = "全部" if max_videos == 0 else f"最多 {max_videos} 个新视频"
     console.print(Panel(
         f"[bold]阶段1: 数据采集[/bold]\nUP主UID: {target_uid}\n获取数量: {limit_desc}",
-        title="Distill-Anyone",
+        title="Distill-Everything",
     ))
 
     # 获取B站认证凭据（自动：.env > 缓存 > 扫码登录）
@@ -602,7 +602,7 @@ def asr(delete_audio, watch, watch_interval):
         panel_title += f"（watch 模式，每 {watch_interval}s 扫描一次）"
     if delete_audio:
         panel_title += "  [转写后自动删除音频]"
-    console.print(Panel(f"[bold]{panel_title}[/bold]", title="Distill-Anyone"))
+    console.print(Panel(f"[bold]{panel_title}[/bold]", title="Distill-Everything"))
 
     # 加载视频列表（用于元信息）
     video_list_path = config.data_dir / "video_list.json"
@@ -698,7 +698,7 @@ def clean(llm_provider):
 
     console.print(Panel(
         f"[bold]阶段3: 文本清洗[/bold]\nLLM: {provider}",
-        title="Distill-Anyone",
+        title="Distill-Everything",
     ))
 
     # 查找所有转写结果
@@ -788,7 +788,7 @@ def model_cmd(llm_provider):
 
     console.print(Panel(
         f"[bold]阶段4: 知识建模[/bold]\nLLM: {provider}",
-        title="Distill-Anyone",
+        title="Distill-Everything",
     ))
 
     # 查找所有清洗结果
@@ -861,7 +861,7 @@ def generate():
 
     config = load_config()
 
-    console.print(Panel("[bold]阶段5: 生成SKILL.md[/bold]", title="Distill-Anyone"))
+    console.print(Panel("[bold]阶段5: 生成SKILL.md[/bold]", title="Distill-Everything"))
 
     # 加载博主画像
     profile_path = config.knowledge_dir / "blogger_profile.json"
@@ -912,7 +912,7 @@ def distill(file_path, llm_provider, author_name, by_chapter, rag_chunks):
 
     console.print(Panel(
         f"[bold]文档蒸馏[/bold]\n文件: {fpath.name}\nLLM: {provider}",
-        title="Distill-Anyone",
+        title="Distill-Everything",
     ))
 
     llm_client = create_llm_client(provider, config)
@@ -997,7 +997,7 @@ def meeting(file_path, llm_provider, meeting_title, no_pdf):
 
     console.print(Panel(
         f"[bold]会议纪要[/bold]\n文件: {fpath.name}\nLLM: {provider}",
-        title="Distill-Anyone",
+        title="Distill-Everything",
     ))
 
     # 1. 读取输入：音频走 ASR+说话人分离，txt 走飞书文字记录解析
@@ -1053,7 +1053,7 @@ def feishu_meeting(minute_url, llm_provider, meeting_title, no_pdf):
 
     console.print(Panel(
         f"[bold]飞书妙记纪要[/bold]\nminute_token: {minute_token}\nLLM: {provider}",
-        title="Distill-Anyone",
+        title="Distill-Everything",
     ))
 
     # 1. 从飞书下载妙记录音到本地（config.audio_dir 已由 ensure_dirs 建好）
@@ -1224,12 +1224,12 @@ def run(uid, max_videos, llm_provider, stages_str):
     selected = ", ".join(f"{s}-{stage_names[s]}" for s in stages)
 
     console.print(Panel(
-        f"[bold]Distill-Anyone 流水线[/bold]\n"
+        f"[bold]Distill-Everything 流水线[/bold]\n"
         f"UP主UID: {target_uid or '(无需)'}\n"
         f"最大视频数: {'不限' if max_videos == 0 else max_videos}\n"
         f"LLM: {provider}\n"
         f"执行阶段: {selected}",
-        title="Distill-Anyone",
+        title="Distill-Everything",
     ))
 
     ctx = click.Context(cli)

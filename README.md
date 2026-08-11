@@ -1,4 +1,4 @@
-# Distill-Anyone
+# Distill-Everything
 
 > Worker 编排运行时：每个作品由一个隔离的子进程执行完整流水线。浏览器只控制本地任务；不会收到 Cookie、命令行、PID、二维码载荷或原始 Worker 输出。保存目录仅能在当前本地会话保护的创建确认与任务交付详情中查看。发布架构见 `docs/superpowers/specs/2026-08-09-worker-orchestrated-distillation-design.md`。
 
@@ -20,7 +20,7 @@ Dashboard 始终是本地单用户工具：广泛订阅的任务列表、SSE 和
 
 > 将公开内容转化为可复用的结构化知识：逐作品 Markdown、聚合 Skill 与 RAG 知识块。
 
-Distill-Anyone 是一个本地优先的内容蒸馏工具。它可以从创作者主页枚举可见作品，完成下载、转写、清洗、知识提取与输出；也保留 PDF、DOCX、TXT 文档蒸馏和会议纪要能力。
+Distill-Everything 是一个本地优先的内容蒸馏工具。它可以从创作者主页枚举可见作品，完成下载、转写、清洗、知识提取与输出；也保留 PDF、DOCX、TXT 文档蒸馏和会议纪要能力。
 
 当前正式支持 Bilibili 与抖音。平台接入、内容处理和输出形式相互解耦：增加一个平台不需要复制蒸馏流水线，增加一种输出也不需要了解平台的私有 ID 或抓取细节。
 
@@ -76,8 +76,8 @@ CLI / Local Dashboard
 要求：Python 3.10+（CI 使用 3.11）、`ffmpeg`。抖音适配器还需要 Playwright Chromium。
 
 ```bash
-git clone https://github.com/AITCX08/Distill-Anyone.git
-cd Distill-Anyone
+git clone https://github.com/AITCX08/Distill-Everything.git
+cd Distill-Everything
 
 python -m venv .venv
 # Windows PowerShell
@@ -253,7 +253,7 @@ npm run e2e
 Python 测试必须使用无窗口包装器在项目根目录运行：
 
 ```powershell
-$env:DISTILL_ANYONE_PYTHON = 'C:\Coding\Anaconda\envs\Distill-Anyone\python.exe'
+$env:DISTILL_EVERYTHING_PYTHON = 'C:\Coding\Anaconda\envs\Distill-Anyone\python.exe'
 cmd /d /c start "" /b scripts\run-pytest-background.cmd tests\dashboard\test_output_directory.py
 ```
 
@@ -263,6 +263,7 @@ cmd /d /c start "" /b scripts\run-pytest-background.cmd tests\dashboard\test_out
 
 - [DEVELOPMENT.md](./DEVELOPMENT.md)：长期维护文档、模块职责、数据格式与扩展点。
 - [CLAUDE.md](./CLAUDE.md)：AI 编程协作约定与仓库反模式。
+- [迁移到 Distill-Everything](./docs/迁移到-Distill-Everything.md)：旧名称、目录、GitHub 地址与本机启动方式的映射。
 - [多平台设计](./docs/superpowers/specs/2026-07-21-multi-platform-distillation-design.md)：Source Adapter 与双输出设计。
 - [Dashboard 设计](./docs/superpowers/specs/2026-07-21-local-dashboard-design.md)：本地 Dashboard 的接口、安全与交互设计。
 - [创作者工作台设计](./docs/superpowers/specs/2026-08-10-dashboard-creator-workbench-design.md)：创建、执行与交付闭环。

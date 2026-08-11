@@ -1,4 +1,4 @@
-[← 返回 Distill-Anyone](../../CLAUDE.md) > **src/generate**
+[← 返回 Distill-Everything](../../CLAUDE.md) > **src/generate**
 
 # src/generate -- 阶段 5：SKILL.md 渲染
 

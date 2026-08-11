@@ -70,3 +70,45 @@ def test_dashboard_server_does_not_require_console_streams() -> None:
 
     assert dashboard_server.config.log_config is None
     assert dashboard_server.config.access_log is False
+
+
+def test_worker_interpreter_uses_console_peer_of_pythonw(monkeypatch, tmp_path):
+    pythonw = tmp_path / "pythonw.exe"
+    python = tmp_path / "python.exe"
+    pythonw.write_text("", encoding="utf-8")
+    python.write_text("", encoding="utf-8")
+    monkeypatch.setattr(server.sys, "executable", str(pythonw))
+
+    assert server._worker_python_executable() == str(python)
+
+
+def test_series_worker_environment_requires_local_login(tmp_path):
+    try:
+        server._series_worker_environment(tmp_path)
+    except RuntimeError as error:
+        assert "登录凭据不可用" in str(error)
+    else:
+        raise AssertionError("expected missing credentials to reject worker launch")
+
+
+def test_series_worker_environment_keeps_credentials_out_of_process_arguments(tmp_path, monkeypatch):
+    (tmp_path / ".credentials.json").write_text(
+        '{"sessdata":"secret-session","bili_jct":"secret-token","buvid3":"browser-id"}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("UNCHANGED", "value")
+
+    environment = server._series_worker_environment(tmp_path)
+
+    assert environment["BILIBILI_SESSDATA"] == "secret-session"
+    assert environment["BILIBILI_BILI_JCT"] == "secret-token"
+    assert environment["BILIBILI_BUVID3"] == "browser-id"
+    assert environment["UNCHANGED"] == "value"
+
+
+def test_series_worker_creation_flags_detach_the_windowless_child(monkeypatch):
+    monkeypatch.setattr(server.subprocess, "CREATE_NO_WINDOW", 1, raising=False)
+    monkeypatch.setattr(server.subprocess, "CREATE_NEW_PROCESS_GROUP", 2, raising=False)
+    monkeypatch.setattr(server.subprocess, "DETACHED_PROCESS", 4, raising=False)
+
+    assert server._series_worker_creation_flags() == 7

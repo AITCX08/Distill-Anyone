@@ -1,4 +1,4 @@
-[← 返回 Distill-Anyone](../../CLAUDE.md) > **src/asr**
+[← 返回 Distill-Everything](../../CLAUDE.md) > **src/asr**
 
 # src/asr -- 阶段 2：语音识别
 

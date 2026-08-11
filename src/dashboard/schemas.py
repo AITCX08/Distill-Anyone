@@ -115,9 +115,12 @@ class JobDetailsResponse(BaseModel):
 
 class ItemResponse(BaseModel):
     source_id: str
+    display_title: str
+    part_number: int | None = Field(default=None, ge=1)
     processing_status: str
     retryable: bool
     stage_progress: float
     overall_progress: float
     last_error: str | None
+    completed_at: str | None
     updated_at: str

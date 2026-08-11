@@ -1,4 +1,4 @@
-[← 返回 Distill-Anyone](../../CLAUDE.md) > **src/reader**
+[← 返回 Distill-Everything](../../CLAUDE.md) > **src/reader**
 
 # src/reader -- 文档蒸馏入口（替代阶段 1-3）
 

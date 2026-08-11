@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from pathlib import Path
-from threading import Event, Thread
+from threading import Event, Lock, Thread
+from datetime import datetime, timezone
 from typing import Any
 
 from src.application.events import EventHub
@@ -77,6 +79,17 @@ def _job_status(raw: dict[str, Any], items: dict[str, ItemState], runtime: dict[
     return "running"
 
 
+def _delivery_directory(raw: dict[str, Any]) -> str | None:
+    for key in ("output_directory", "destination"):
+        value = raw.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    output = raw.get("output")
+    if isinstance(output, str) and output.strip():
+        return str(Path(output).parent)
+    return None
+
+
 class SeriesTaskBridge:
     """Mirror `data/series/*/state.json` into standard, read-only job states."""
 
@@ -92,9 +105,16 @@ class SeriesTaskBridge:
         self.orchestration_store = orchestration_store
         self._seen_fingerprints: dict[Path, str] = {}
         self._seen_trace_entries: dict[str, tuple[str, ...]] = {}
+        self._sync_lock = Lock()
 
     def sync(self) -> int:
         """Synchronize changed external series states and return their count."""
+
+        with self._sync_lock:
+            return self._sync_unlocked()
+
+    def _sync_unlocked(self) -> int:
+        """Synchronize once while holding the single-writer bridge lock."""
 
         root = self.data_dir / "series"
         if not root.is_dir():
@@ -105,7 +125,7 @@ class SeriesTaskBridge:
             if raw is None:
                 continue
             bvid = str(raw.get("bvid") or "").strip()
-            if bvid and self._is_migrated(bvid):
+            if bvid and self._is_migrated(bvid) and not self._has_legacy_projection(bvid):
                 self._seen_fingerprints[state_path] = "migrated"
                 continue
             runtime = _read_json(self.data_dir / "series" / bvid / "runtime.json") if bvid else None
@@ -123,6 +143,18 @@ class SeriesTaskBridge:
         prefix = f"bilibili_{bvid}_p"
         return any(task.source_id.startswith(prefix) for task in self.orchestration_store.list_tasks())
 
+    def _has_legacy_projection(self, bvid: str) -> bool:
+        """Keep an established externally controlled series on its durable state source.
+
+        Older Dashboard versions sometimes created orchestration records as a
+        presentation mirror while the real series runner remained external.
+        Once that legacy projection exists, its `data/series` checkpoint is
+        authoritative; otherwise a newly migrated worker job remains isolated
+        from this bridge.
+        """
+
+        return (self.data_dir / "jobs" / "imported-series" / bvid / "job_state.json").is_file()
+
     def _project(self, raw: dict[str, Any], runtime: dict[str, Any]) -> bool:
         bvid = str(raw.get("bvid") or "").strip()
         if not bvid:
@@ -137,6 +169,9 @@ class SeriesTaskBridge:
         transfer = runtime.get("transfer") if isinstance(runtime.get("transfer"), dict) else {}
         items: dict[str, ItemState] = {}
         titles: dict[str, str] = {}
+        catalog: dict[str, dict[str, Any]] = {}
+        runtime_status = str(runtime.get("status") or "").lower()
+        runtime_error = str(runtime.get("last_error") or "").strip()
         for part in range(1, count + 1):
             value = parts.get(str(part), {})
             value = value if isinstance(value, dict) else {}
@@ -145,31 +180,41 @@ class SeriesTaskBridge:
             if part == active_part and runtime_stage:
                 stage = runtime_stage
             status, progress = _STAGES.get(stage, (ProcessingStatus.ENUMERATED, 0.0))
+            last_error = str(value.get("error")) if value.get("error") else None
+            if part == active_part and runtime_status == "paused" and runtime_error:
+                status = ProcessingStatus.FAILED
+                progress = 0.0
+                last_error = runtime_error
+            display_title = str(value.get("title") or f"第 {part:02d} 集（待处理）")
             items[source_id] = ItemState(
                 source_id=source_id,
                 processing_status=status,
                 stage_progress=1.0 if status is ProcessingStatus.COMPLETED else 0.0,
                 overall_progress=progress,
-                last_error=str(value.get("error")) if value.get("error") else None,
+                last_error=last_error,
                 started_at=raw.get("started_at"),
                 completed_at=value.get("completed_at"),
                 updated_at=str(raw.get("updated_at") or utc_now_iso()),
             )
-            titles[source_id] = str(value.get("title") or f"第 {part:02d} 集（待处理）")
+            titles[source_id] = display_title
+            catalog[source_id] = {"title": display_title, "part_number": part}
 
         job_id = f"imported-series-{bvid}"
         store = JobStateStore(self.data_dir / "jobs" / "imported-series" / bvid / "job_state.json")
         existing = store.load() if store.path.exists() else None
+        job_request = {
+            "target": source_url,
+            "platform": "bilibili",
+            "outputs": ("skill",),
+            "controlled_series": True,
+            "external_state": str((self.data_dir / "series" / bvid / "state.json")),
+        }
+        if destination := _delivery_directory(raw):
+            job_request["output_directory"] = destination
         state = JobState(
             job_id=job_id,
             status=_job_status(raw, items, runtime),
-            request={
-                "target": source_url,
-                "platform": "bilibili",
-                "outputs": ("skill",),
-                "controlled_series": True,
-                "external_state": str((self.data_dir / "series" / bvid / "state.json")),
-            },
+            request=job_request,
             creator={
                 "platform": "imported-series",
                 "creator_id": bvid,
@@ -177,6 +222,7 @@ class SeriesTaskBridge:
                 "owner_name": owner,
                 "canonical_url": source_url,
             },
+            catalog=catalog,
             items=items,
             metrics={"external": True, "controlled_series": True, "part_count": count, "runtime": runtime},
             created_at=str(raw.get("started_at") or utc_now_iso()),
@@ -263,20 +309,41 @@ class SeriesTaskBridge:
 class SeriesTaskMonitor:
     """Poll an external series runner without coupling it to the Dashboard process."""
 
-    def __init__(self, bridge: SeriesTaskBridge, *, interval_seconds: float = 1.0) -> None:
+    def __init__(
+        self,
+        bridge: SeriesTaskBridge,
+        *,
+        reconcile: Callable[[], int] | None = None,
+        interval_seconds: float = 1.0,
+    ) -> None:
         self.bridge = bridge
+        self.reconcile = reconcile
         self.interval_seconds = interval_seconds
         self._stop = Event()
         self._thread: Thread | None = None
 
     def start(self) -> None:
+        if self.reconcile is not None:
+            self.reconcile()
         self.bridge.sync()
         self._thread = Thread(target=self._run, daemon=True, name="distill-series-dashboard-monitor")
         self._thread.start()
 
     def _run(self) -> None:
         while not self._stop.wait(self.interval_seconds):
-            self.bridge.sync()
+            try:
+                if self.reconcile is not None:
+                    self.reconcile()
+                self.bridge.sync()
+            except Exception as error:  # keep monitoring after a transient state-write race
+                self._record_monitor_error(error)
+
+    def _record_monitor_error(self, error: Exception) -> None:
+        log_path = self.bridge.data_dir / "series" / "dashboard-monitor.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now(timezone.utc).isoformat()
+        with log_path.open("a", encoding="utf-8") as log_file:
+            log_file.write(f"{timestamp} {type(error).__name__}: {error}\n")
 
     def stop(self) -> None:
         self._stop.set()

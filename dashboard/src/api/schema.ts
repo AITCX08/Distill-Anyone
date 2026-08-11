@@ -10,7 +10,7 @@ export interface MissionJob {
   artifact_count?: number;
   completed_at?: string;
 }
-export interface JobItem { source_id: string; processing_status: string; retryable: boolean; stage_progress: number; overall_progress: number; last_error: string | null; updated_at: string; }
+export interface JobItem { source_id: string; display_title: string; part_number: number | null; processing_status: string; retryable: boolean; stage_progress: number; overall_progress: number; last_error: string | null; completed_at: string | null; updated_at: string; }
 export interface WorkerTransfer { completed_bytes: number; total_bytes: number; bytes_per_second: number; }
 export interface WorkerTask {
   task_id: string;
@@ -25,6 +25,7 @@ export interface WorkerTask {
   attempt: number;
   checkpoint_revision: number;
   updated_at: string;
+  completed_at?: string;
   transfer?: WorkerTransfer;
   error?: string;
 }

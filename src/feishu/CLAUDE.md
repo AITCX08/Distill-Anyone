@@ -1,4 +1,4 @@
-[← 返回 Distill-Anyone](../../CLAUDE.md) > **src/feishu**
+[← 返回 Distill-Everything](../../CLAUDE.md) > **src/feishu**
 
 # src/feishu — 飞书开放平台集成
 

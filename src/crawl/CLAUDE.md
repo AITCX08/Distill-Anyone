@@ -1,4 +1,4 @@
-[← 返回 Distill-Anyone](../../CLAUDE.md) > **src/crawl**
+[← 返回 Distill-Everything](../../CLAUDE.md) > **src/crawl**
 
 # src/crawl -- 阶段 1：数据采集
 

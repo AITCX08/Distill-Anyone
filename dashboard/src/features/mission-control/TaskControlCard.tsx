@@ -27,6 +27,23 @@ function headingFor(task: WorkerTask): string {
   return task.part_number ? `第 ${task.part_number} 集 · ${task.display_title}` : task.display_title;
 }
 
+function sourceBvid(sourceId: string): string | null {
+  return /^bilibili_(BV[0-9A-Za-z]+)_p\d+$/i.exec(sourceId)?.[1] ?? null;
+}
+
+function compactDateTime(value: string): string {
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(value);
+  return match ? `${match[1]} ${match[2]}` : value;
+}
+
+function taskMeta(task: WorkerTask): string {
+  const source = sourceBvid(task.source_id) ?? `来源编号 ${task.source_id}`;
+  const timestamp = compactDateTime(task.completed_at ?? task.updated_at);
+  return task.status === "completed"
+    ? `${source} · 完成于 ${timestamp}`
+    : `${source} · 最后更新 ${timestamp}`;
+}
+
 export function TaskControlCard({ task, onTaskUpdated }: { task: WorkerTask; onTaskUpdated?: (task: WorkerTask) => void }) {
   const [busy, setBusy] = useState<Action | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -56,10 +73,9 @@ export function TaskControlCard({ task, onTaskUpdated }: { task: WorkerTask; onT
   }
 
   return <Card className="execution-row" aria-label={`${headingFor(task)} · ${stageLabel(task.stage)}`}>
-    <div className="execution-row__identity"><div><Text as="h3">{headingFor(task)}</Text><Text className="execution-row__stage">{stageLabel(task.stage)}</Text></div><Text className="metric">{task.delivery_state === "available" ? "产物可用" : task.delivery_state === "unavailable" ? "交付不可用" : "处理中"}</Text></div>
-    {downloading && transfer ? <><Text>{formatBytes(transfer.completed_bytes)} / {formatBytes(transfer.total_bytes)}</Text><ProgressBar value={transfer.total_bytes > 0 ? transfer.completed_bytes / transfer.total_bytes : undefined} /><Text className="metric">{formatBytes(transfer.bytes_per_second)}/秒</Text></> : <Text>{task.status === "completed" ? "该作品已完成交付。" : `正在${stageLabel(task.stage).replace("中", "")}，暂不显示下载速度`}</Text>}
-    <Text className="metric">检查点 #{task.checkpoint_revision} · 已尝试 {task.attempt} 次</Text>
-    <details className="execution-row__technical"><summary>技术信息</summary><Text className="metric">{task.source_id}</Text></details>
+    <div className="execution-row__identity"><Text as="h3">{headingFor(task)}</Text><Text className="metric">{task.delivery_state === "available" ? "产物可用" : task.delivery_state === "unavailable" ? "交付不可用" : "处理中"}</Text></div>
+    <Text className="metric execution-row__meta">{taskMeta(task)}</Text>
+    {downloading && transfer ? <><Text>{formatBytes(transfer.completed_bytes)} / {formatBytes(transfer.total_bytes)}</Text><ProgressBar value={transfer.total_bytes > 0 ? transfer.completed_bytes / transfer.total_bytes : undefined} /><Text className="metric">{formatBytes(transfer.bytes_per_second)}/秒</Text></> : task.status !== "completed" && <Text>正在{stageLabel(task.stage).replace("中", "")}，暂不显示下载速度</Text>}
     {task.error && <Text role="status">失败原因：{task.error}</Text>}
     <div>{canPause && <Button onClick={() => void command("pause")} disabled={busy !== null}>暂停任务</Button>}{canResume && <Button onClick={() => void command("resume")} disabled={busy !== null}>继续任务</Button>}{canCancel && <Button onClick={() => void command("cancel")} disabled={busy !== null}>取消任务</Button>}{canRetry && <Button onClick={() => void command("retry")} disabled={busy !== null}>重试任务</Button>}</div>
     {message && <Text role="status">{message}</Text>}

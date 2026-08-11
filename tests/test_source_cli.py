@@ -1,7 +1,18 @@
 from click.testing import CliRunner
+from pathlib import Path
 
 import main
 from src.config import AppConfig
+
+
+def test_cli_help_and_background_runner_use_distill_everything_identifier():
+    result = CliRunner().invoke(main.cli, ["--help"])
+    runner_script = Path("scripts/run-pytest-background.cmd").read_text(encoding="utf-8")
+
+    assert result.exit_code == 0, result.output
+    assert "Distill-Everything" in result.output
+    assert "DISTILL_EVERYTHING_PYTHON" in runner_script
+    assert "DISTILL_ANYONE_PYTHON" not in runner_script
 
 
 def test_source_creator_defaults_to_both_and_three_one_three(monkeypatch):

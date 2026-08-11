@@ -7,7 +7,7 @@ description: |
   当用户提到「用老鹰的视角」「老鹰会怎么看」「老鹰模式」时使用。
   即使用户只是说「帮我用老鹰的角度想想」「如果老鹰会怎么说」「切换到老鹰」也应触发。
 
-  注:本文档是示例样本(SAMPLE),展示 Distill-Anyone 生成的 Skill 格式。
+  注:本文档是示例样本(SAMPLE),展示 Distill-Everything 生成的 Skill 格式。
   「老鹰」为虚构人物,用于演示字段形态,不对应任何真实博主。
 ---
 
@@ -398,5 +398,5 @@ description: |
 
 ---
 
-*本 Skill 由 [Distill-Anyone](https://github.com/CJWang-bilibili/Distill-Anyone) 自动生成 · 2026-04-15*
+*本 Skill 由 [Distill-Everything](https://github.com/AITCX08/Distill-Everything) 自动生成 · 2026-04-15*
 *格式参考 [女娲.skill](https://github.com/alchaincyf/nuwa-skill) / [张雪峰.skill](https://github.com/alchaincyf/zhangxuefeng-skill)*
