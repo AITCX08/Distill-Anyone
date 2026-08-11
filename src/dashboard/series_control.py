@@ -95,6 +95,6 @@ def _worker_is_alive(worker_pid: int) -> bool:
             ctypes.windll.kernel32.CloseHandle(handle)  # type: ignore[attr-defined]
     try:
         os.kill(worker_pid, 0)
-    except OSError:
+    except (OSError, SystemError):
         return False
     return True
