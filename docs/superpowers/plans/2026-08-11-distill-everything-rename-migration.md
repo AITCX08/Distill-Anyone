@@ -109,7 +109,7 @@
 - [x] 将 `DISTILL_ANYONE_PYTHON` 改为 `DISTILL_EVERYTHING_PYTHON`，并更新示例与后台测试运行器的读取逻辑。
 - [x] 保持所有 Python 导入 `src.*` 不变；未重命名 `src` 目录。
 - [x] 新增短回归断言，证明 `main.py --help` 输出新项目名称、脚本读取新变量。
-- [ ] 小提交：`refactor: rename product identifiers to distill-everything`
+- [x] 小提交：`refactor: rename product identifiers to distill-everything`（`a972751`）。
 
 ### 任务 5：更新 Dashboard 品牌与发布静态资源
 
