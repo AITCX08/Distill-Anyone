@@ -33,6 +33,14 @@ Distill-Everything 是一个本地优先的内容蒸馏工具。它可以从创�
 
 公开 issue、截图和日志中不得包含 Cookie、二维码、浏览器 profile、API Key、媒体原文件、真实任务标题或本地绝对路径。
 
+## 三分钟上手
+
+1. 按下方对应系统的安装步骤创建环境并安装依赖。
+2. 复制 `config.example.env` 为 `.env`，填写你选择的 LLM 提供商配置。
+3. 运行 `python main.py source platforms` 检查可用平台；需要图形界面时启动本地 Dashboard。
+
+遇到平台、浏览器、端口或 macOS 问题，请先阅读[平台支持与故障排查](./docs/平台支持与故障排查.md)。
+
 当前正式支持 Bilibili 与抖音。平台接入、内容处理和输出形式相互解耦：增加一个平台不需要复制蒸馏流水线，增加一种输出也不需要了解平台的私有 ID 或抓取细节。
 
 ## 核心能力
@@ -187,6 +195,10 @@ python main.py source creator "<创作者主页>" \
 ## 本地 Dashboard
 
 Dashboard 是单用户、本地作战台，使用 FastAPI + SSE + React。它和 CLI 复用同一个 `DistillationService`、任务状态和事件流。
+
+![脱敏的 Dashboard 公开演示界面](./docs/images/dashboard-workbench.png)
+
+*公开演示界面，仅展示模板状态；不包含真实任务、平台标识、保存位置或登录信息。*
 
 | 平台 | 启动方式 |
 | --- | --- |

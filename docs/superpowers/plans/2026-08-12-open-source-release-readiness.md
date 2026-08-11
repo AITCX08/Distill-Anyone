@@ -91,13 +91,13 @@
 - 输入：MIT `LICENSE`、现有 CI 工作流、Dashboard 静态页面
 - 输出：贡献者能复现环境、报告问题、不泄露敏感信息；README 能展示脱敏的产品界面。
 
-- [ ] 新建中文 `CONTRIBUTING.md`：包含分支/PR 流程、Windows 后台 pytest 规则、Node 24 前端检查、不得提交的敏感文件、平台适配器与输出层的边界。
-- [ ] 新建中文 `SECURITY.md`：说明项目仅监听 `127.0.0.1`、凭据不进入 Dashboard/SSE、如何私下报告漏洞、报告中禁止附带 Cookie/API Key/二维码/完整日志；不承诺不具备的 SLA。
-- [ ] 新建中文 `CHANGELOG.md`，采用 Keep a Changelog 风格，登记 `0.4.0-beta` 的多平台适配、受控 Worker、Dashboard、macOS 文档支持和已知限制。
-- [ ] 创建两个 GitHub YAML Issue 表单：Bug 表单收集版本、系统、复现步骤和脱敏日志；Feature 表单收集使用场景、平台、期望输出。两者都提示不得上传凭据、二维码或媒体原文件。
-- [ ] 创建 PR 模板，要求影响范围、测试证据、文档变更、隐私检查和 UI 截图（若涉及界面）。
-- [ ] 使用脱敏的本地 Dashboard 状态启动页面并生成 `docs/images/dashboard-workbench.png`；图片只显示 UI 模板或公开示例，不能显示任务真实标题、BV 号、绝对保存位置、二维码、Cookie 或日志。README 添加图片和“三分钟上手”链接。
-- [ ] 用 `git grep -nE '(SESSDATA|bili_jct|sk-[A-Za-z0-9_-]{8,}|ANTHROPIC_API_KEY=.{8,}|OPENAI_API_KEY=.{8,})'` 检查新增文件；只允许测试中的显式脱敏占位符，其他命中必须在提交前移除。
+- [x] 新建中文 `CONTRIBUTING.md`：包含分支/PR 流程、Windows 后台 pytest 规则、Node 24 前端检查、不得提交的敏感文件、平台适配器与输出层的边界。
+- [x] 新建中文 `SECURITY.md`：说明项目仅监听 `127.0.0.1`、凭据不进入 Dashboard/SSE、如何私下报告漏洞、报告中禁止附带 Cookie/API Key/二维码/完整日志；不承诺不具备的 SLA。
+- [x] 新建中文 `CHANGELOG.md`，采用 Keep a Changelog 风格，登记 `0.4.0-beta` 的多平台适配、受控 Worker、Dashboard、macOS 文档支持和已知限制。
+- [x] 创建两个 GitHub YAML Issue 表单：Bug 表单收集版本、系统、复现步骤和脱敏日志；Feature 表单收集使用场景、平台、期望输出。两者都提示不得上传凭据、二维码或媒体原文件。
+- [x] 创建 PR 模板，要求影响范围、测试证据、文档变更、隐私检查和 UI 截图（若涉及界面）。
+- [x] 使用脱敏的本地 Dashboard 状态启动页面并生成 `docs/images/dashboard-workbench.png`；图片只显示 UI 模板或公开示例，不能显示任务真实标题、BV 号、绝对保存位置、二维码、Cookie 或日志。README 添加图片和“三分钟上手”链接。
+- [x] 用 `git grep -nE '(SESSDATA|bili_jct|sk-[A-Za-z0-9_-]{8,}|ANTHROPIC_API_KEY=.{8,}|OPENAI_API_KEY=.{8,})'` 检查新增文件；只允许测试中的显式脱敏占位符，其他命中必须在提交前移除。
 - [ ] 小提交：`docs: add contributor release materials`。
 
 ### 任务 5：清理遗留品牌并进行发布验收
