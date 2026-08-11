@@ -47,17 +47,17 @@
 
 ### 任务 1：迁移前盘点与保护点
 
-- [ ] **任务 1 完成：** 已保存迁移前盘点并确认可安全进入远端迁移。
+- [x] **任务 1 完成：** 已保存迁移前盘点并确认可安全进入远端迁移。
 
 **文件：**
 - 创建：`docs/superpowers/migrations/2026-08-11-distill-everything-preflight.md`
 - 修改：无
 
-- [ ] 记录当前 Git 分支、远端、主工作树与 Dashboard 工作树绝对路径。
-- [ ] 记录 `data`、`output`、`.local-artifacts/start_dashboard_8765.pyw` 是否存在，并统计已完成任务状态文件与交付产物数量。
-- [ ] 使用 `Get-NetTCPConnection -LocalPort 8765 -State Listen` 确认当前 Dashboard 监听进程；只停止该进程。
-- [ ] 若任何目标新路径已经存在，停止迁移并报告冲突，不覆盖目录。
-- [ ] 小提交：`docs: record distill-everything migration preflight`
+- [x] 记录当前 Git 分支、远端、主工作树与 Dashboard 工作树绝对路径。
+- [x] 记录 `data`、`output`、`.local-artifacts/start_dashboard_8765.pyw` 是否存在，并统计已完成任务状态文件与交付产物数量。
+- [x] 使用 `Get-NetTCPConnection -LocalPort 8765 -State Listen` 确认当前 Dashboard 监听进程；只停止该进程。
+- [x] 若任何目标新路径已经存在，停止迁移并报告冲突，不覆盖目录。
+- [x] 小提交：`docs: record distill-everything migration preflight`
 
 ### 任务 2：GitHub 仓库与 Git 远端迁移
 
