@@ -30,12 +30,12 @@
 - 输入：主工作树 `main`、`origin/main`、既有 `stash@{0}: preserve-local-pre-distill-everything-sync`
 - 输出：主工作树包含最新 `origin/main`；保护分支和 stash 可追溯，不删除用户本地内容。
 
-- [ ] 记录 `git -C <主目录> status --branch --short`、`git log --left-right --oneline origin/main...main`、`git stash list` 与 `git worktree list --porcelain`；不得打印 stash 内容。
-- [ ] 创建保护分支 `backup/pre-release-main-20260812`，指向当前主工作树 `HEAD`；确认分支存在后才继续。
-- [ ] 不执行 `reset --hard`、`clean` 或 `stash drop`。先用 `git merge-tree` 或等价只读方式定位主工作树独有提交与 `origin/main` 的冲突文件。
-- [ ] 若所有冲突均为可明确合并的文本，执行 `git merge --no-ff origin/main -m "merge: synchronize release main"`，逐个解决并运行 `git diff --check`；若任一冲突包含用户业务逻辑且无法判断，保留主工作树在保护分支，不覆盖，改以新的干净工作树作为官方主目录并在记录中说明。
-- [ ] 写入 `docs/本地工作树收敛记录.md`：记录保护分支名、stash 名、采用的收敛方式、最终 `HEAD` 与 `origin/main` 关系；禁止写入绝对用户路径或 stash 内容。
-- [ ] 验证主工作树与运行工作树都可执行 `git status --short`；运行工作树不出现未提交发布代码。
+- [x] 记录 `git -C <主目录> status --branch --short`、`git log --left-right --oneline origin/main...main`、`git stash list` 与 `git worktree list --porcelain`；不得打印 stash 内容。
+- [x] 创建保护分支 `backup/pre-release-main-20260812`，指向当前主工作树 `HEAD`；确认分支存在后才继续。
+- [x] 不执行 `reset --hard`、`clean` 或 `stash drop`。先用 `git merge-tree` 或等价只读方式定位主工作树独有提交与 `origin/main` 的冲突文件。
+- [x] 若所有冲突均为可明确合并的文本，执行 `git merge --no-ff origin/main -m "merge: synchronize release main"`，逐个解决并运行 `git diff --check`；若任一冲突包含用户业务逻辑且无法判断，保留主工作树在保护分支，不覆盖，改以新的干净工作树作为官方主目录并在记录中说明。
+- [x] 写入 `docs/本地工作树收敛记录.md`：记录保护分支名、stash 名、采用的收敛方式、最终 `HEAD` 与 `origin/main` 关系；禁止写入绝对用户路径或 stash 内容。
+- [x] 验证主工作树与运行工作树都可执行 `git status --short`；运行工作树不出现未提交发布代码。
 - [ ] 小提交：`docs: record primary worktree convergence`。
 
 ### 任务 2：建立跨平台 CI 门禁
