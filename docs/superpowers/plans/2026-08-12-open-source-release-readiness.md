@@ -67,12 +67,12 @@
 - 输入：`main.py dashboard --help`、`scripts/README.md`、`src/dashboard/api/artifacts.py`
 - 输出：Windows/macOS 的安装、启动、测试、限制与故障排查命令准确且可复制。
 
-- [ ] 在 README 增加“支持矩阵”，精确区分 Windows 正式支持、macOS 正式文档支持、B 站/抖音扫码与 Apple Silicon ASR 的设备验收状态。
-- [ ] 将 README 安装流程分为 Windows PowerShell 与 macOS zsh 两个代码块；macOS 使用 `python3 -m venv .venv`、`source .venv/bin/activate`、`brew install ffmpeg`、`cp config.example.env .env`、`python -m playwright install chromium`。
-- [ ] 在 README 增加 Dashboard 启动表：Windows 指向隐藏启动器；macOS 指向 `python main.py dashboard --port 8765 --no-open` 并说明通过浏览器访问 `http://127.0.0.1:8765/`。
-- [ ] 创建 `docs/平台支持与故障排查.md`，包含：依赖检查、Node/ffmpeg/Playwright 问题、端口 8765 占用、Finder/Explorer 打开产物行为、macOS 真实扫码与 MPS 未验收边界、如何提供脱敏 issue 信息。
-- [ ] 修改迁移说明，链接支持矩阵与故障排查文档，并把 Windows 专用后台 pytest 规则明确为 Codex Desktop Windows 的稳定性约束，而非 macOS 用户的通用命令。
-- [ ] 使用 `rg` 检查 macOS 文档段落不含 `pythonw.exe`、`.cmd`、`Start-Process` 或 Windows Conda 绝对路径；检查所有新增文档为 UTF-8 中文。
+- [x] 在 README 增加“支持矩阵”，精确区分 Windows 正式支持、macOS 正式文档支持、B 站/抖音扫码与 Apple Silicon ASR 的设备验收状态。
+- [x] 将 README 安装流程分为 Windows PowerShell 与 macOS zsh 两个代码块；macOS 使用 `python3 -m venv .venv`、`source .venv/bin/activate`、`brew install ffmpeg`、`cp config.example.env .env`、`python -m playwright install chromium`。
+- [x] 在 README 增加 Dashboard 启动表：Windows 指向隐藏启动器；macOS 指向 `python main.py dashboard --port 8765 --no-open` 并说明通过浏览器访问 `http://127.0.0.1:8765/`。
+- [x] 创建 `docs/平台支持与故障排查.md`，包含：依赖检查、Node/ffmpeg/Playwright 问题、端口 8765 占用、Finder/Explorer 打开产物行为、macOS 真实扫码与 MPS 未验收边界、如何提供脱敏 issue 信息。
+- [x] 修改迁移说明，链接支持矩阵与故障排查文档，并把 Windows 专用后台 pytest 规则明确为 Codex Desktop Windows 的稳定性约束，而非 macOS 用户的通用命令。
+- [x] 使用 `rg` 检查 macOS 文档段落不含 `pythonw.exe`、`.cmd`、`Start-Process` 或 Windows Conda 绝对路径；检查所有新增文档为 UTF-8 中文。
 - [ ] 小提交：`docs: document macos support boundaries`。
 
 ### 任务 4：补齐开源协作、安全与发布材料
