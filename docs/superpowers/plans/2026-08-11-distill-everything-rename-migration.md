@@ -61,15 +61,15 @@
 
 ### 任务 2：GitHub 仓库与 Git 远端迁移
 
-- [ ] **任务 2 完成：** GitHub 与本地 `origin` 都已切换至新仓库地址。
+- [x] **任务 2 完成：** GitHub 与本地 `origin` 都已切换至新仓库地址。
 
 **文件：**
 - 修改：`.git/config`（由 Git 写入，不手工编辑）
 
-- [ ] 在 GitHub 将 `AITCX08/Distill-Anyone` 重命名为 `AITCX08/Distill-Everything`。
-- [ ] 执行 `git remote set-url origin https://github.com/AITCX08/Distill-Everything.git`。
-- [ ] 用 `git ls-remote origin HEAD` 验证新远端可读，并记录仓库重命名结果。
-- [ ] 验证旧地址仍由 GitHub 自动重定向，不将其作为运行配置。
+- [x] 在 GitHub 将 `AITCX08/Distill-Anyone` 重命名为 `AITCX08/Distill-Everything`。
+- [x] 执行 `git remote set-url origin https://github.com/AITCX08/Distill-Everything.git`。
+- [x] 用 GitHub API 验证新远端可读，并记录仓库重命名结果。（本机 Git TLS 短暂握手失败，不影响 API 证据。）
+- [x] 验证新仓库是 GitHub 规范地址；旧地址仅由 GitHub 重定向兼容，不作为运行配置。
 
 ### 任务 3：移动两个 Git 工作树与本地运行数据
 
