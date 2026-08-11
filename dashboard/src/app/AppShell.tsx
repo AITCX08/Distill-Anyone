@@ -13,7 +13,7 @@ const navigation: ReadonlyArray<{ id: WorkspaceId; label: string }> = [
 export function AppShell({ children, activeWorkspace = "mission" }: PropsWithChildren<{ activeWorkspace?: WorkspaceId }>) {
   return <div className="cyber-shell">
     <aside className="cyber-nav">
-      <div className="cyber-brand">DISTILL // ANYONE</div>
+      <div className="cyber-brand">DISTILL // EVERYTHING</div>
       <nav aria-label="主导航">
         {navigation.map((item) => <a key={item.id} href={`#${item.id}`} aria-current={item.id === activeWorkspace ? "page" : undefined}>
           {item.label}

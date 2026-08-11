@@ -28,13 +28,22 @@ const snapshot = {
 afterEach(cleanup);
 
 describe("TaskControlCard", () => {
-  it("uses the work title before its stable source id", () => {
+  it("shows the episode title, BVID, and completion time without technical details", () => {
     render(<TaskControlCard task={{
-      ...task, display_title: "开场与概念", part_number: 1, status: "completed", stage: "completed",
+      ...task,
+      source_id: "bilibili_BV18bLkztE7R_p01",
+      display_title: "开场与概念",
+      part_number: 1,
+      status: "completed",
+      stage: "completed",
+      updated_at: "2026-08-10T00:41:59Z",
+      completed_at: "2026-08-10T16:44:12Z",
     }} />);
 
     expect(screen.getByRole("heading", { name: "第 1 集 · 开场与概念" })).toBeVisible();
-    expect(screen.getByText(task.source_id).closest("details")).toHaveTextContent("技术信息");
+    expect(screen.getByText("BV18bLkztE7R · 完成于 2026-08-10 16:44")).toBeVisible();
+    expect(screen.queryByText("技术信息")).not.toBeInTheDocument();
+    expect(screen.queryByText(/检查点/)).not.toBeInTheDocument();
   });
 
   it("shows independent controls for two active tasks", () => {

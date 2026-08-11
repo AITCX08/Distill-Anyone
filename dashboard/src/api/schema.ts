@@ -25,6 +25,7 @@ export interface WorkerTask {
   attempt: number;
   checkpoint_revision: number;
   updated_at: string;
+  completed_at?: string;
   transfer?: WorkerTransfer;
   error?: string;
 }

@@ -113,7 +113,7 @@
 
 ### 任务 5：更新 Dashboard 品牌与发布静态资源
 
-- [ ] **任务 5 完成：** Dashboard 源码和发布静态资源均显示新品牌并通过构建。
+- [x] **任务 5 完成：** Dashboard 源码和发布静态资源均显示新品牌并通过构建。
 
 **文件：**
 - 修改：`dashboard/src/**` 中产品名称字符串
@@ -123,11 +123,11 @@
 - 更新：`src/dashboard/static/assets/*`
 - 测试：`dashboard/src/app/App.test.tsx` 或新增品牌断言测试
 
-- [ ] 写前端断言，要求页面标题/品牌区域显示 `DISTILL // EVERYTHING` 或 `Distill-Everything 作战台`。
-- [ ] 先用 Vitest 运行该断言，确认当前旧名称导致失败。
-- [ ] 最小化替换 Dashboard 品牌、浏览器标题、静态 HTML 与 npm 包名。
-- [ ] 使用 `C:\Coding\node\node.exe node_modules\typescript\bin\tsc -b` 与 `vitest.mjs run <目标测试>` 验证前端。
-- [ ] 使用 `scripts/build_dashboard.py --from-dist` 发布静态资源，再用 `--check` 校验 manifest 自洽。
+- [x] 写前端断言，要求页面标题/品牌区域显示 `DISTILL // EVERYTHING` 或 `Distill-Everything 作战台`。
+- [x] 先用 Vitest 运行该断言，确认当前旧名称导致失败。
+- [x] 最小化替换 Dashboard 品牌、浏览器标题、静态 HTML 与 npm 包名。
+- [x] 使用 `C:\Coding\node\node.exe node_modules\typescript\bin\tsc -b` 与 `vitest.mjs run <目标测试>` 验证前端。
+- [x] 使用 `scripts/build_dashboard.py --from-dist` 发布静态资源，再用 `--check` 校验 manifest 自洽。
 - [ ] 小提交：`feat(dashboard): brand workspace as distill-everything`
 
 ### 任务 6：迁移并重建隐藏 Dashboard 启动器
