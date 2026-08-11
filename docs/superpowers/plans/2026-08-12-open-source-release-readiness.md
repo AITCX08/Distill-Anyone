@@ -49,11 +49,11 @@
 - 输入：`requirements.txt`、`dashboard/package-lock.json`、`scripts/build_dashboard.py`
 - 输出：Python CI 与 Dashboard CI 都对 push、PR 触发；macOS 基础 Python 测试不依赖真实登录或外部模型。
 
-- [ ] 为现有 Python 工作流添加清晰的 job 名称：`python-linux` 保持 Ubuntu + Python 3.11 全量测试；`python-macos` 使用 macOS + Python 3.11 仅运行 `tests/dashboard/test_series_control.py tests/dashboard/test_artifact_api.py tests/outputs/test_episodes.py -q`。
-- [ ] macOS job 安装方式固定为：升级 pip、安装 CPU PyTorch、`pip install -r requirements.txt pytest`；不执行 Playwright 浏览器下载、真实扫码、外部 LLM、媒体下载。
-- [ ] 新建 Dashboard 工作流，使用 `actions/setup-node@v4` 与 `node-version: 24`；在 `dashboard/` 依次执行 `npm ci`、`node node_modules/vitest/vitest.mjs run src/app/AppShell.test.tsx src/features/mission-control/TaskControlCard.test.tsx`、`node node_modules/typescript/bin/tsc -b`、`node node_modules/vite/bin/vite.js build`。
-- [ ] 在仓库根目录使用 Python 调用 `scripts/build_dashboard.py --from-dist` 与 `--check`，确保提交的静态资源 manifest 与前端源一致。
-- [ ] 在 Windows 本地通过后台测试运行器运行 `tests/dashboard/test_series_control.py tests/dashboard/test_artifact_api.py -q`，轮询退出码为 0；通过固定 Node 24 执行同一组前端目标测试和构建。
+- [x] 为现有 Python 工作流添加清晰的 job 名称：`python-linux` 保持 Ubuntu + Python 3.11 全量测试；`python-macos` 使用 macOS + Python 3.11 仅运行 `tests/dashboard/test_series_control.py tests/dashboard/test_artifact_api.py tests/outputs/test_episodes.py -q`。
+- [x] macOS job 安装方式固定为：升级 pip、安装 CPU PyTorch、`pip install -r requirements.txt pytest`；不执行 Playwright 浏览器下载、真实扫码、外部 LLM、媒体下载。
+- [x] 新建 Dashboard 工作流，使用 `actions/setup-node@v4` 与 `node-version: 24`；在 `dashboard/` 依次执行 `npm ci`、`node node_modules/vitest/vitest.mjs run src/app/AppShell.test.tsx src/features/mission-control/TaskControlCard.test.tsx`、`node node_modules/typescript/bin/tsc -b`、`node node_modules/vite/bin/vite.js build`。
+- [x] 在仓库根目录使用 Python 调用 `scripts/build_dashboard.py --from-dist` 与 `--check`，确保提交的静态资源 manifest 与前端源一致。
+- [x] 在 Windows 本地通过后台测试运行器运行 `tests/dashboard/test_series_control.py tests/dashboard/test_artifact_api.py -q`，轮询退出码为 0；通过固定 Node 24 执行同一组前端目标测试和构建。
 - [ ] 小提交：`ci: verify dashboard and macos basics`。
 
 ### 任务 3：补齐 macOS 正式文档支持与发布指引

@@ -1,0 +1,41 @@
+name: Dashboard
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  dashboard:
+    name: Dashboard（Node 24）
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - name: Install dashboard dependencies
+        working-directory: dashboard
+        run: npm ci
+      - name: Run focused dashboard tests
+        working-directory: dashboard
+        run: >-
+          node node_modules/vitest/vitest.mjs run
+          src/app/AppShell.test.tsx
+          src/features/mission-control/TaskControlCard.test.tsx
+      - name: Type-check dashboard
+        working-directory: dashboard
+        run: node node_modules/typescript/bin/tsc -b
+      - name: Build dashboard
+        working-directory: dashboard
+        run: node node_modules/vite/bin/vite.js build
+      - name: Verify committed static bundle
+        run: |
+          python scripts/build_dashboard.py --from-dist
+          python scripts/build_dashboard.py --check
+          git diff --exit-code -- src/dashboard/static

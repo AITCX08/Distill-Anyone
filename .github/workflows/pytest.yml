@@ -8,7 +8,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  python-linux:
+    name: Python（Linux）
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -24,3 +25,26 @@ jobs:
           python -m pip install -r requirements.txt pytest
       - name: Run test suite
         run: python -m pytest -q
+
+  python-macos:
+    name: Python（macOS 基础）
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install CPU dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r requirements.txt pytest
+      - name: Run offline macOS smoke tests
+        run: >-
+          python -m pytest
+          tests/dashboard/test_series_control.py
+          tests/dashboard/test_artifact_api.py
+          tests/outputs/test_episodes.py
+          -q
