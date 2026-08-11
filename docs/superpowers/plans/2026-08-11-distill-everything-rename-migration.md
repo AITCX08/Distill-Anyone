@@ -132,17 +132,17 @@
 
 ### 任务 6：迁移并重建隐藏 Dashboard 启动器
 
-- [ ] **任务 6 完成：** 隐藏启动器从新路径运行且 Dashboard 可读取已有任务。
+- [x] **任务 6 完成：** 隐藏启动器从新路径运行且 Dashboard 可读取已有任务。
 
 **文件：**
 - 修改：`<新运行工作树>/.local-artifacts/start_dashboard_8765.pyw`（本机运行配置，不提交）
 - 修改：`<新运行工作树>/.local-artifacts/dashboard-launcher.log`（仅在异常时产生，不提交）
 
-- [ ] 将 `ROOT`、`DATA_DIR`、`OUTPUT_DIR` 更新为新项目路径。
-- [ ] 保持解释器为 `C:\Coding\Anaconda\envs\Distill-Anyone\pythonw.exe`。
-- [ ] 使用 `Start-Process -WindowStyle Hidden` 启动启动器；不得调用 `.cmd` 或创建可见终端。
-- [ ] 请求 `http://127.0.0.1:8765/api/v1/health`，预期 `status=ok` 与 `static_compatible=true`。
-- [ ] 校验 SSE 快照与 `/api/v1/jobs/imported-series-BV18bLkztE7R/items`：已有 8 集的标题、BV 号、完成时间和交付目录仍存在。
+- [x] 将 `ROOT`、`DATA_DIR`、`OUTPUT_DIR` 更新为新项目路径。
+- [x] 保持解释器为 `C:\Coding\Anaconda\envs\Distill-Anyone\pythonw.exe`。
+- [x] 使用 `Start-Process -WindowStyle Hidden` 启动启动器；未调用 `.cmd`，未创建可见终端。
+- [x] 请求 `http://127.0.0.1:8765/api/v1/health`，得到 `status=ok` 与 `static_compatible=true`。
+- [x] 校验 SSE 快照与 `/api/v1/jobs/imported-series-BV18bLkztE7R/items`：已有 8 集的标题、BV 号、完成时间和交付目录仍存在。
 
 ### 任务 7：全量回归、发布与迁移记录
 
@@ -153,9 +153,9 @@
 - 修改：`README.md`
 - 修改：`.local-artifacts/start_dashboard_8765.pyw`（若发现运行路径偏差，仅本机）
 
-- [ ] 执行前端目标测试与 TypeScript 构建；使用后台测试运行器执行 Python Dashboard/CLI 的短测试集，并轮询退出码和日志。
-- [ ] 检查 `git diff --check`、`git status --short`、静态资源 manifest 与 Git 远端。
-- [ ] 在迁移文档列出旧/新名称映射、Conda 环境保留说明、旧链接重定向说明和启动命令。
+- [x] 执行前端目标测试与 TypeScript 构建；使用后台测试运行器执行 Python Dashboard/CLI 的短测试集，并轮询退出码和日志。（Vitest 5 项、后台 pytest 19 项均通过。）
+- [x] 检查 `git diff --check`、`git status --short`、静态资源 manifest 与 Git 远端。（manifest 自洽；`git ls-remote` 已确认新远端可读。）
+- [x] 在迁移文档列出旧/新名称映射、Conda 环境保留说明、旧链接重定向说明和启动命令。
 - [ ] 将本次与此前未提交的 Dashboard 修复按逻辑拆分为小提交，推送到重命名后的远端，并创建或更新对应 PR；通过检查后合并到 `main`。
-- [ ] 最终验证新仓库默认分支、新本地路径、Dashboard 健康端点和已交付任务内容。
+- [x] 最终验证新仓库默认分支、新本地路径、Dashboard 健康端点和已交付任务内容。（新路径、8765 健康端点、8 集任务及原交付目录均已确认。）
 - [ ] 在最终输出中按任务卡汇报证据、提交、PR/合并结果和剩余风险。

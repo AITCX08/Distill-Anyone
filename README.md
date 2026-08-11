@@ -263,6 +263,7 @@ cmd /d /c start "" /b scripts\run-pytest-background.cmd tests\dashboard\test_out
 
 - [DEVELOPMENT.md](./DEVELOPMENT.md)：长期维护文档、模块职责、数据格式与扩展点。
 - [CLAUDE.md](./CLAUDE.md)：AI 编程协作约定与仓库反模式。
+- [迁移到 Distill-Everything](./docs/迁移到-Distill-Everything.md)：旧名称、目录、GitHub 地址与本机启动方式的映射。
 - [多平台设计](./docs/superpowers/specs/2026-07-21-multi-platform-distillation-design.md)：Source Adapter 与双输出设计。
 - [Dashboard 设计](./docs/superpowers/specs/2026-07-21-local-dashboard-design.md)：本地 Dashboard 的接口、安全与交互设计。
 - [创作者工作台设计](./docs/superpowers/specs/2026-08-10-dashboard-creator-workbench-design.md)：创建、执行与交付闭环。
