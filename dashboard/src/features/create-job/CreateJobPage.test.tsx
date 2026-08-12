@@ -14,6 +14,18 @@ afterEach(() => {
 });
 
 describe("CreateJobPage", () => {
+  it("groups source, delivery, and saving choices into clear creation sections", async () => {
+    getJson.mockResolvedValueOnce({ directory: "D:/default" });
+
+    render(<CreateJobPage />);
+
+    expect(screen.getByRole("heading", { name: "来源与平台" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "交付内容" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "保存位置" })).toBeVisible();
+    expect(screen.getByText("预检完成后会显示可处理内容，并允许创建任务。"))
+      .toBeVisible();
+  });
+
   it("explains every deliverable and opens its representative template", async () => {
     getJson.mockResolvedValueOnce({ directory: "D:/default" });
 
