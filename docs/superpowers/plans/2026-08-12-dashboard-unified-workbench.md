@@ -167,11 +167,11 @@ export function PageHeader({ title, description, actions }: { title: string; des
 - 修改：`README.md`（仅在现有 Dashboard 说明与最终界面不一致时，更新中文截图/入口描述）
 - 修改：`docs/superpowers/plans/2026-08-12-dashboard-unified-workbench.md`
 
-- [ ] 1. 检查所有新可见中文文案；搜索 `rg -n 'Distill-Anyone|TODO|TBD' dashboard/src`，修复本轮引入的不一致或占位文案。
-- [ ] 2. 使用固定 Node 24 运行全部前端测试：`C:\Coding\node\node.exe dashboard/node_modules/vitest/vitest.mjs run`；记录通过数和退出码。
-- [ ] 3. 使用固定 Node 24 运行 `C:\Coding\node\node.exe dashboard/node_modules/typescript/bin/tsc -b`，随后运行 `C:\Coding\node\node.exe dashboard/node_modules/vite/bin/vite.js build`。
-- [ ] 4. 运行 `C:\Coding\Anaconda\envs\Distill-Anyone\python.exe scripts/build_dashboard.py --from-dist` 和 `C:\Coding\Anaconda\envs\Distill-Anyone\python.exe scripts/build_dashboard.py --check`；不得执行 pytest。
-- [ ] 5. 访问已运行的 `http://127.0.0.1:8765/api/v1/health`，确认返回 `status: ok` 与 `static_compatible: true`；若服务未运行，仅报告现状，不以可见 CMD 启动。
+- [x] 1. 检查所有新可见中文文案；搜索 `rg -n 'Distill-Anyone|TODO|TBD' dashboard/src`，修复本轮引入的不一致或占位文案。
+- [x] 2. 使用固定 Node 24 运行全部前端测试：`C:\Coding\node\node.exe dashboard/node_modules/vitest/vitest.mjs run`；记录通过数和退出码。
+- [x] 3. 使用固定 Node 24 运行 `C:\Coding\node\node.exe dashboard/node_modules/typescript/bin/tsc -b`，随后运行 `C:\Coding\node\node.exe dashboard/node_modules/vite/bin/vite.js build`。
+- [x] 4. 运行 `C:\Coding\Anaconda\envs\Distill-Anyone\python.exe scripts/build_dashboard.py --from-dist` 和 `C:\Coding\Anaconda\envs\Distill-Anyone\python.exe scripts/build_dashboard.py --check`；不得执行 pytest。
+- [x] 5. 访问已运行的 `http://127.0.0.1:8765/api/v1/health`，确认返回 `status: ok` 与 `static_compatible: true`；若服务未运行，仅报告现状，不以可见 CMD 启动。
 - [ ] 6. 使用浏览器手动核查 `#mission`、`#create`、`#platforms`、`#history`、`#artifacts` 的桌面和窄屏布局，重点确认键盘焦点、状态文字、二维码成功自动关闭和无水平溢出；不展示或截取真实二维码、Cookie、路径或任务数据。
 - [ ] 7. 运行 `git diff --check`、`git status --short`，确认没有 `data/`、`output/`、`.local-artifacts/` 或凭据进入暂存；更新 README（如需要）和本计划复选框。
 - [ ] 8. 仅暂存验收产生的文档/测试修改并提交：`docs: verify unified dashboard workbench`；勾选本任务卡。
