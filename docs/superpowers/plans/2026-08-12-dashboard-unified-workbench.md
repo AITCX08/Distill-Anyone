@@ -52,10 +52,10 @@
 - `PageHeader` 输入：`title: string`、`description?: string`、`actions?: ReactNode`；输出：语义化页面标题区。
 - `AppShell` 继续输入 `activeWorkspace?: WorkspaceId` 和 `children`；输出：保持五个既有链接的可访问导航框架。
 
-- [ ] 1. 阅读规格、上述文件和 `dashboard/src/app/useWorkspace.ts`；确认工作树干净或仅含本计划允许的变更。
-- [ ] 2. 先在 `PageHeader.test.tsx` 写红灯测试：渲染 `title="创建任务"`、`description="预检来源后创建任务"` 和按钮时，断言 `h1`、描述和按钮可见。
-- [ ] 3. 使用 `C:\Coding\node\node.exe dashboard/node_modules/vitest/vitest.mjs run dashboard/src/components/PageHeader.test.tsx` 验证红灯，预期因模块不存在失败。
-- [ ] 4. 新建最小实现：
+- [x] 1. 阅读规格、上述文件和 `dashboard/src/app/useWorkspace.ts`；确认工作树干净或仅含本计划允许的变更。
+- [x] 2. 先在 `PageHeader.test.tsx` 写红灯测试：渲染 `title="创建任务"`、`description="预检来源后创建任务"` 和按钮时，断言 `h1`、描述和按钮可见。
+- [x] 3. 使用 `C:\Coding\node\node.exe dashboard/node_modules/vitest/vitest.mjs run dashboard/src/components/PageHeader.test.tsx` 验证红灯，预期因模块不存在失败。
+- [x] 4. 新建最小实现：
 
 ```tsx
 import type { ReactNode } from "react";
@@ -66,11 +66,11 @@ export function PageHeader({ title, description, actions }: { title: string; des
 }
 ```
 
-- [ ] 5. 更新 `AppShell`：使用 Fluent 图标为五个导航项提供 `aria-hidden` 图标；增加品牌顶部栏、侧栏“运行状态”信息和安全的公开页脚链接；不得添加没有实际目的地的主题/设置按钮。
-- [ ] 6. 在 `global.css` 新建深色青蓝令牌与 `.dashboard-frame`、`.dashboard-sidebar`、`.dashboard-topbar`、`.page-header`、`.status-panel`、`.dashboard-footer`、窄屏横向导航和焦点样式；不移除 `prefers-reduced-motion`。
-- [ ] 7. 扩展 `AppShell.test.tsx`：断言导航名称仍为“主导航”、工作台链接存在、页脚含“本地优先”和当前页 `aria-current="page"`。
-- [ ] 8. 运行任务 1 的两个 Vitest 文件，预期全部通过；运行 `git diff --check`。
-- [ ] 9. 仅暂存本卡文件并提交：`feat(dashboard): add unified workbench frame`；勾选本任务卡。
+- [x] 5. 更新 `AppShell`：使用 Fluent 图标为五个导航项提供 `aria-hidden` 图标；增加品牌顶部栏、侧栏“运行状态”信息和安全的公开页脚链接；不得添加没有实际目的地的主题/设置按钮。
+- [x] 6. 在 `global.css` 新建深色青蓝令牌与 `.dashboard-frame`、`.dashboard-sidebar`、`.dashboard-topbar`、`.page-header`、`.status-panel`、`.dashboard-footer`、窄屏横向导航和焦点样式；不移除 `prefers-reduced-motion`。
+- [x] 7. 扩展 `AppShell.test.tsx`：断言导航名称仍为“主导航”、工作台链接存在、页脚含“本地优先”和当前页 `aria-current="page"`。
+- [x] 8. 运行任务 1 的两个 Vitest 文件，预期全部通过；运行 `git diff --check`。
+- [x] 9. 仅暂存本卡文件并提交：`feat(dashboard): add unified workbench frame`；勾选本任务卡。
 
 ### 任务 2：提取状态、进度和队列展示组件
 
