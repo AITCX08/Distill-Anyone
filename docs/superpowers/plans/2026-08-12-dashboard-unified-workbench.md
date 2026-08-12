@@ -111,13 +111,13 @@ export function PageHeader({ title, description, actions }: { title: string; des
 - 继续消费既有 `ProgressSnapshot`、`MissionJob`、`WorkerTask` 和现有控制回调。
 - 通过 `ProgressSummary` 展示总体进度；通过 `QueueTable<WorkerTask>` 展示标题、BV 号、时间、状态、进度、阶段与动作。
 
-- [ ] 1. 在任务作战台测试先写红灯：活动任务展示作品标题、BV 号/来源编号、阶段、下载进度；完成任务展示完成时间；“技术信息”不在默认行内。
-- [ ] 2. 运行三个 mission 测试文件验证红灯。
-- [ ] 3. 把 `MissionOverview` 的指标改为组合 `ProgressSummary`；保留已完成的产物与打开保存位置操作。
-- [ ] 4. 将 `TaskControlCard` 的格式化标题、次级元信息、下载进度与动作作为 `QueueTable` 行渲染数据；保留暂停、恢复、取消、重试的原 API 路径和 `expected_revision`、`command_id` 请求体。
-- [ ] 5. 更新 `MissionControlPage` 的结构：标题区、总览、右侧“创建任务”链接、作品队列和实时日志；当没有任务时显示中文空状态与“新建任务”链接。
-- [ ] 6. 运行 mission 测试和 `dashboard/src/app/App.test.tsx`；确认暂停/恢复和 SSE 测试仍通过；运行 `git diff --check`。
-- [ ] 7. 仅暂存本卡文件并提交：`feat(dashboard): redesign mission workbench`；勾选本任务卡。
+- [x] 1. 在任务作战台测试先写红灯：活动任务展示作品标题、BV 号/来源编号、阶段、下载进度；完成任务展示完成时间；“技术信息”不在默认行内。
+- [x] 2. 运行三个 mission 测试文件验证红灯。
+- [x] 3. 把 `MissionOverview` 的指标改为组合 `ProgressSummary`；保留已完成的产物与打开保存位置操作。
+- [x] 4. 将 `TaskControlCard` 的格式化标题、次级元信息、下载进度与动作作为 `QueueTable` 行渲染数据；保留暂停、恢复、取消、重试的原 API 路径和 `expected_revision`、`command_id` 请求体。
+- [x] 5. 更新 `MissionControlPage` 的结构：标题区、总览、右侧“创建任务”链接、作品队列和实时日志；当没有任务时显示中文空状态与“新建任务”链接。
+- [x] 6. 运行 mission 测试和 `dashboard/src/app/App.test.tsx`；确认暂停/恢复和 SSE 测试仍通过；运行 `git diff --check`。
+- [x] 7. 仅暂存本卡文件并提交：`feat(dashboard): redesign mission workbench`；勾选本任务卡。
 
 ### 任务 4：重构创建任务与平台登录页面
 

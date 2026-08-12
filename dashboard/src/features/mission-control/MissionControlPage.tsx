@@ -1,12 +1,16 @@
 import { Text } from "@fluentui/react-components";
 import { useState } from "react";
+import { PageHeader } from "../../components/PageHeader";
+import { QueueTable } from "../../components/QueueTable";
+import { StatusPill, type StatusTone } from "../../components/StatusPill";
+import { stageLabel } from "../../i18n/zh";
 import { ActiveItemRow, type ActiveItem } from "./ActiveItemRow";
 import { LiveTrace } from "./LiveTrace";
 import { MissionControls, type MissionJob } from "./MissionControls";
 import { MissionOverview } from "./MissionOverview";
 import { SeriesRail } from "./SeriesRail";
 import { TaskDetailDrawer } from "./TaskDetailDrawer";
-import { TaskControlCard, type WorkerTask } from "./TaskControlCard";
+import { TaskControlActions, taskHeading, taskMeta, type WorkerTask } from "./TaskControlCard";
 
 export type ProgressSnapshot = {
   job_id: string;
@@ -33,6 +37,28 @@ function formatDuration(value: number | null): string {
   if (value === null) return "--:--";
   const seconds = Math.round(value);
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function taskTone(task: WorkerTask): StatusTone {
+  if (task.status === "completed") return "success";
+  if (task.status === "failed" || task.status === "cancelled") return "danger";
+  if (task.status === "paused" || task.status === "interrupted") return "warning";
+  if (task.status === "queued") return "waiting";
+  return "active";
+}
+
+function taskStatusLabel(task: WorkerTask): string {
+  if (task.status === "completed") return "已完成";
+  if (task.status === "failed") return "失败";
+  if (task.status === "paused") return "已暂停";
+  if (task.status === "queued") return "等待中";
+  return "进行中";
+}
+
+function taskProgress(task: WorkerTask): string {
+  if (task.status === "completed") return "100%";
+  if (!task.transfer || task.transfer.total_bytes <= 0) return "处理中";
+  return `${Math.round(task.transfer.completed_bytes / task.transfer.total_bytes * 100)}%`;
 }
 
 export function MissionControlPage({
@@ -63,6 +89,7 @@ export function MissionControlPage({
 
   return (
     <section id="mission" className="mission-control" aria-label="任务执行台">
+      <PageHeader title="工作台" description="在本地查看任务进度、控制执行，并交付结构化内容。" actions={<a className="mission-create-link" href="#create">创建任务</a>} />
       <MissionOverview snapshot={displayedSnapshot} job={job} jobStatus={job?.status} onViewArtifacts={onViewArtifacts} />
       {job && (job.read_only || job.job_id.startsWith("imported-series-")) && <SeriesRail
         total={displayedSnapshot.counts.total}
@@ -86,9 +113,18 @@ export function MissionControlPage({
       </section>
       <section className="execution-queue" aria-label="作品执行队列">
         <div className="execution-queue__heading"><Text as="h2" size={500}>作品执行队列</Text><Text className="metric">活动 {displayedSnapshot.counts.active}</Text></div>
-        {tasks.map((task) => (
-          <TaskControlCard key={task.task_id} task={task} onTaskUpdated={onTaskUpdated} />
-        ))}
+        {tasks.length > 0 && <QueueTable
+          ariaLabel="作品执行队列"
+          items={tasks}
+          getKey={(task) => task.task_id}
+          renderTitle={taskHeading}
+          renderMeta={taskMeta}
+          renderStatus={(task) => <StatusPill tone={taskTone(task)} label={taskStatusLabel(task)} />}
+          renderProgress={taskProgress}
+          renderStage={(task) => stageLabel(task.stage)}
+          renderUpdated={(task) => task.completed_at ? "已完成" : "处理中"}
+          renderActions={(task) => <TaskControlActions task={task} onTaskUpdated={onTaskUpdated} />}
+        />}
         {tasks.length === 0 && displayedSnapshot.active_items.map((item) => (
           <ActiveItemRow key={item.source_id} item={item} onInspect={setDetailItem} />
         ))}

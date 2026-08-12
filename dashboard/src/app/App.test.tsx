@@ -87,11 +87,13 @@ describe("App", () => {
         progress_snapshots: [],
         tasks: [{
           task_id: "task-7", job_id: "bilibili-BV18bLkztE7R", source_id: "bilibili_BV18bLkztE7R_p07",
+          display_title: "演示作品 07", part_number: 7, delivery_state: "pending",
           status: "running", stage: "downloading", revision: 3, attempt: 1, checkpoint_revision: 2,
           updated_at: "2026-08-09T12:00:00+00:00",
           transfer: { completed_bytes: 2048, total_bytes: 4096, bytes_per_second: 1024 },
         }, {
           task_id: "task-8", job_id: "bilibili-BV18bLkztE7R", source_id: "bilibili_BV18bLkztE7R_p08",
+          display_title: "演示作品 08", part_number: 8, delivery_state: "pending",
           status: "running", stage: "transcribing", revision: 1, attempt: 1, checkpoint_revision: 3,
           updated_at: "2026-08-09T12:00:00+00:00",
         }],
@@ -99,8 +101,9 @@ describe("App", () => {
       },
     }));
 
-    expect(screen.getByText("作品 bilibili_BV18bLkztE7R_p07")).toBeVisible();
-    expect(screen.getByText("2.0 KB / 4.0 KB")).toBeVisible();
+    expect(screen.getByText("第 7 集 · 演示作品 07")).toBeVisible();
+    expect(screen.getAllByText("BV18bLkztE7R · 最后更新 2026-08-09 12:00")).not.toHaveLength(0);
+    expect(screen.getByText("50%")).toBeVisible();
     expect(screen.getAllByRole("button", { name: "暂停任务" })).toHaveLength(2);
   });
 

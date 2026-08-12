@@ -1,5 +1,6 @@
-import { Button, ProgressBar, Text } from "@fluentui/react-components";
+import { Button, Text } from "@fluentui/react-components";
 
+import { ProgressSummary } from "../../components/ProgressSummary";
 import { stageLabel } from "../../i18n/zh";
 import type { MissionJob } from "./MissionControls";
 import type { ProgressSnapshot } from "./MissionControlPage";
@@ -39,7 +40,6 @@ export function MissionOverview({
   onRevealOutput?: (jobId: string) => void;
 }) {
   const active = snapshot.active_items[0] ?? null;
-  const percent = Math.round(snapshot.overall_progress * 100);
   const status = job?.status ?? jobStatus;
   const paused = status === "paused" || status === "pause_requested";
   const completed = status === "completed";
@@ -70,10 +70,8 @@ export function MissionOverview({
       <div><Text as="h2" size={600}>{headingFor(job)}</Text><Text>当前任务概览</Text></div>
       <Text className="metric">已完成 {snapshot.counts.completed}/{snapshot.counts.total}</Text>
     </div>
-    <ProgressBar value={snapshot.overall_progress} aria-label="总体进度" />
-    <div className="mission-metrics">
-      <div><Text>总体进度</Text><strong>{percent}%</strong></div>
-      <div><Text>当前阶段</Text><strong>{stage}</strong></div>
+    <ProgressSummary progress={snapshot.overall_progress} stage={stage} counts={{ completed: snapshot.counts.completed, active: snapshot.counts.active, queued: snapshot.counts.queued, total: snapshot.counts.total }} />
+    <div className="mission-metrics mission-metrics--telemetry">
       <div><Text>实时下载速度</Text><strong className="metric">{throughput}</strong></div>
       <div><Text>预计总剩余时间</Text><strong className="metric">{paused ? "恢复后估算" : formatDuration(snapshot.eta_total_seconds)}</strong></div>
     </div>
