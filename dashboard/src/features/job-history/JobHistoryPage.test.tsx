@@ -12,6 +12,13 @@ describe("JobHistoryPage", () => {
   beforeEach(() => { getJson.mockReset(); postJson.mockReset(); });
   afterEach(cleanup);
 
+  it("uses a task-management heading while retaining the filter controls", async () => {
+    getJson.mockResolvedValueOnce([]);
+    render(<JobHistoryPage />);
+    expect(screen.getByRole("heading", { name: "任务管理" })).toBeVisible();
+    expect(screen.getByLabelText("状态筛选")).toBeVisible();
+  });
+
   it("filters server job history by status without inventing rows", async () => {
     getJson.mockResolvedValueOnce([
       {

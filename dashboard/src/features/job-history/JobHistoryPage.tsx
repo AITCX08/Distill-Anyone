@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button, Card, Select, Text } from "@fluentui/react-components";
 
 import { DashboardRequestError, getJson, postJson } from "../../api/client";
+import { PageHeader } from "../../components/PageHeader";
 import type { JobItem, JobStatus, JobSummary } from "../../api/schema";
 import { jobStatusLabel, platformLabel, stageLabel } from "../../i18n/zh";
 
@@ -164,9 +165,10 @@ export function JobHistoryPage() {
   );
 
   return (
-    <section id="history" aria-label="任务历史">
+    <section id="history" className="workspace-page history-page" aria-label="任务历史">
+      <PageHeader title="任务管理" description="查看任务进度、交付详情和各作品处理状态。" />
       <Card>
-        <Text as="h2" size={600}>任务历史</Text>
+        <Text as="h2" size={500}>任务历史</Text>
         <Select aria-label="状态筛选" value={filter} onChange={(_, data) => setFilter(data.value as FilterStatus)}>
           <option value="all">全部状态</option>
           {statuses.map((status) => <option key={status} value={status}>{jobStatusLabel(status)}</option>)}
