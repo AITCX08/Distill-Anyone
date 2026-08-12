@@ -93,6 +93,7 @@ export function OutputDirectoryField({ onChange }: Props) {
     <section className="output-directory-field" aria-label="保存位置">
       <Text as="h3" size={400}>保存位置</Text>
       {defaultDirectory ? <Text>默认保存位置：{defaultDirectory}</Text> : <Text>默认保存位置由本地引擎管理。</Text>}
+      <Text className="output-directory-field__hint">不勾选时沿用默认位置；覆盖位置只影响本次任务。</Text>
       <Checkbox
         label="本次使用其他保存位置"
         checked={useOverride}

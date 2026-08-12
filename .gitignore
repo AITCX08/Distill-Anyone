@@ -63,6 +63,7 @@ input/
 .local-artifacts/
 
 # Dashboard development dependencies are reproducible from package-lock.json.
+node_modules/
 dashboard/node_modules/
 dashboard/*.tsbuildinfo
 dashboard/test-results/

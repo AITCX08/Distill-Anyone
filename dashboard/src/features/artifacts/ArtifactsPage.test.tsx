@@ -17,6 +17,13 @@ describe("ArtifactsPage", () => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
   });
 
+  it("uses the knowledge-library heading", async () => {
+    getJson.mockResolvedValueOnce([]);
+    render(<ArtifactsPage />);
+    expect(screen.getByRole("heading", { name: "知识库" })).toBeVisible();
+    expect(await screen.findByRole("status")).toHaveTextContent("没有可浏览产物的任务。");
+  });
+
   it("previews, copies, and reveals only a server-listed text artifact", async () => {
     getJson.mockImplementation((path: string) => {
       if (path === "/api/v1/jobs") return Promise.resolve([{

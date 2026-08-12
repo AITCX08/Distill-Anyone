@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button, Card, Select, Text } from "@fluentui/react-components";
 
 import { getJson, postJson } from "../../api/client";
+import { PageHeader } from "../../components/PageHeader";
 import type { JobSummary } from "../../api/schema";
 
 type ArtifactSummary = {
@@ -181,9 +182,10 @@ export function ArtifactsPage() {
   }
 
   return (
-    <section id="artifacts" aria-label="产物库">
+    <section id="artifacts" className="workspace-page artifacts-page" aria-label="产物库">
+      <PageHeader title="知识库" description="浏览已交付的本地内容；文本预览始终只读。" />
       <Card>
-        <Text as="h2" size={600}>产物库</Text>
+        <Text as="h2" size={500}>产物库</Text>
         <Text>文本预览为只读；保存位置只在当前本地会话的任务详情中显示。</Text>
         {jobs?.length === 0 && <Text role="status">没有可浏览产物的任务。<a href="#mission">返回任务作战台</a>或<a href="#create">新建任务</a>。</Text>}
         {jobs && jobs.length > 0 && <Select aria-label="产物所属任务" value={selectedJob ?? ""} onChange={(_, data) => setSelectedJob(data.value)}>

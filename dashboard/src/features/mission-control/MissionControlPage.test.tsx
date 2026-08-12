@@ -104,4 +104,18 @@ describe("MissionControlPage", () => {
     expect(screen.getByText("恢复后估算")).toBeVisible();
     expect(screen.queryByText("未知")).not.toBeInTheDocument();
   });
+
+  it("uses a workbench header and a human-readable queue table for controlled tasks", () => {
+    render(<MissionControlPage snapshot={snapshot} tasks={[{
+      task_id: "task-1", job_id: "job-1", source_id: "bilibili_BV18bLkztE7R_p01",
+      display_title: "开场与概念", part_number: 1, delivery_state: "pending", status: "running",
+      stage: "downloading", revision: 1, attempt: 0, checkpoint_revision: 0,
+      updated_at: "2026-08-12T10:15:00Z", transfer: { completed_bytes: 25, total_bytes: 100, bytes_per_second: 25 },
+    }]} />);
+
+    expect(screen.getByRole("heading", { level: 1, name: "工作台" })).toBeVisible();
+    expect(screen.getByRole("table", { name: "作品执行队列" })).toBeVisible();
+    expect(screen.getByText("第 1 集 · 开场与概念")).toBeVisible();
+    expect(screen.getByText("BV18bLkztE7R · 最后更新 2026-08-12 10:15")).toBeVisible();
+  });
 });

@@ -28,6 +28,14 @@ afterEach(() => {
 });
 
 describe("PlatformsPage", () => {
+  it("presents each platform as a named login status card", async () => {
+    getJson.mockResolvedValueOnce([bilibili]);
+
+    render(<PlatformsPage />);
+
+    expect(await screen.findByRole("region", { name: "哔哩哔哩 登录状态" })).toHaveTextContent("未登录");
+  });
+
   it("shows Bilibili's QR code inside a dialog and polls its local login session", async () => {
     getJson.mockResolvedValueOnce([bilibili]).mockResolvedValue({
       operation_id: "bili-op",

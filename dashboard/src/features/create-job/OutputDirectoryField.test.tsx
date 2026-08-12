@@ -19,6 +19,8 @@ describe("OutputDirectoryField", () => {
     render(<OutputDirectoryField onChange={onChange} />);
 
     await screen.findByText("默认保存位置：D:/default");
+    expect(screen.getByText("不勾选时沿用默认位置；覆盖位置只影响本次任务。"))
+      .toBeVisible();
     fireEvent.click(screen.getByRole("checkbox", { name: "本次使用其他保存位置" }));
     fireEvent.change(screen.getByLabelText("本次保存位置"), { target: { value: "D:/notes" } });
     fireEvent.click(screen.getByRole("button", { name: "校验位置" }));

@@ -13,6 +13,8 @@ import {
 } from "@fluentui/react-components";
 
 import { DashboardRequestError, getJson, postJson } from "../../api/client";
+import { PageHeader } from "../../components/PageHeader";
+import { StatusPill, type StatusTone } from "../../components/StatusPill";
 import { authMessageLabel, authStatusLabel, itemTypeLabel, platformLabel } from "../../i18n/zh";
 
 type Platform = {
@@ -70,6 +72,14 @@ function displayAuthMessage(platform: Platform): string {
     return "抖音需要在外部持久浏览器中完成扫码登录。";
   }
   return authMessageLabel(platform.auth_message);
+}
+
+function authTone(status: string): StatusTone {
+  if (status === "configured" || status === "authenticated") return "success";
+  if (status === "expired" || status === "failed") return "danger";
+  if (status === "missing" || status === "unauthenticated") return "warning";
+  if (status === "checking" || status === "pending") return "active";
+  return "waiting";
 }
 
 export function PlatformsPage() {
@@ -154,19 +164,25 @@ export function PlatformsPage() {
   }
 
   return (
-    <section id="platforms" aria-label="平台与登录">
-      <Card>
-        <Text as="h2" size={600}>平台与登录</Text>
-        <Text>登录状态由本地引擎管理；凭据始终仅保存在本机，不会显示在页面上。</Text>
-        <Button appearance="secondary" onClick={() => void refresh()} disabled={loading}>
+    <section id="platforms" className="workspace-page platforms-page" aria-label="平台与登录">
+      <PageHeader
+        title="平台与登录"
+        description="登录凭据仅由本地引擎保存和使用，页面不会显示或存储凭据内容。"
+        actions={<Button appearance="secondary" onClick={() => void refresh()} disabled={loading}>
           {loading ? "正在刷新…" : "刷新状态"}
-        </Button>
+        </Button>}
+      />
+      <Card>
         {error && <Text role="alert">{error}</Text>}
         {platforms?.length === 0 && <Text role="status">尚未配置可用的平台适配器。</Text>}
-        {platforms?.map((platform) => (
-          <Card key={platform.name}>
-            <Text as="h3" size={500}>{platformLabel(platform.name)}</Text>
-            <Text className="metric">{authStatusLabel(platform.auth_status)} · {platform.item_types.map(itemTypeLabel).join("、") || "未声明类型"}</Text>
+        <div className="platform-status-grid">
+          {platforms?.map((platform) => (
+          <section className="platform-status-card" key={platform.name} aria-label={`${platformLabel(platform.name)} 登录状态`}>
+            <div className="platform-status-card__heading">
+              <Text as="h2" size={500}>{platformLabel(platform.name)}</Text>
+              <StatusPill label={authStatusLabel(platform.auth_status)} tone={authTone(platform.auth_status)} />
+            </div>
+            <Text className="metric">支持 {platform.item_types.map(itemTypeLabel).join("、") || "未声明类型"}</Text>
             <Text>{displayAuthMessage(platform)}</Text>
             {platform.requires_auth && platform.requires_browser && <Button
               appearance="primary"
@@ -176,8 +192,9 @@ export function PlatformsPage() {
               {loginPending === platform.name ? "正在启动登录…" : `登录 ${platformLabel(platform.name)}`}
             </Button>}
             {openingPlatform === platform.name && <Text role="status">登录窗口已在外部浏览器打开。完成扫码或确认后，请刷新平台状态。</Text>}
-          </Card>
-        ))}
+          </section>
+          ))}
+        </div>
       </Card>
 
       <Dialog open={bilibiliLogin !== null} onOpenChange={(_, data) => { if (!data.open) setBilibiliLogin(null); }}>

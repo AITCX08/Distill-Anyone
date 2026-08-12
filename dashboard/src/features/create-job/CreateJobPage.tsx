@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button, Card, Field, Input, Select, Text } from "@fluentui/react-components";
 
 import { DashboardRequestError, postJson } from "../../api/client";
+import { PageHeader } from "../../components/PageHeader";
 import { OutputDirectoryField, type OutputDirectorySelection } from "./OutputDirectoryField";
 import { OutputSelectionCard } from "./OutputSelectionCard";
 import { OutputTemplateDialog } from "./OutputTemplateDialog";
@@ -114,22 +115,29 @@ export function CreateJobPage() {
     || (directory.destinationMode === "override" && !directory.destinationToken);
 
   return (
-    <section id="create" aria-label="新建任务">
+    <section id="create" className="workspace-page create-page" aria-label="新建任务">
+      <PageHeader
+        title="创建任务"
+        description="预检来源、选择交付内容并确认保存位置；创建后可在工作台跟踪完整流水线。"
+      />
       <Card className="create-job-card">
-        <Text as="h2" size={600}>新建任务</Text>
-        <Text>先预检来源，再选择要交付的内容和保存位置。创建后可在任务作战台跟踪全流程。</Text>
-        <Field label="创作者链接" required>
-          <Input aria-label="创作者链接" value={target} onChange={(_, data) => { invalidatePreview(); setTarget(data.value); }} placeholder="https://space.bilibili.com/..." />
-        </Field>
-        <Field label="平台">
-          <Select value={platform} onChange={(_, data) => { invalidatePreview(); setPlatform(data.value); }}>
-            <option value="auto">自动识别</option>
-            <option value="bilibili">哔哩哔哩</option>
-            <option value="douyin">抖音</option>
-          </Select>
-        </Field>
-        <section className="output-selection" aria-label="选择交付内容">
-          <Text as="h3" size={400}>选择交付内容</Text>
+        <section className="create-job-card__section" aria-labelledby="create-source-heading">
+          <Text as="h2" size={500} id="create-source-heading">来源与平台</Text>
+          <Text>粘贴创作者主页链接，平台可自动识别，也可手动指定。</Text>
+          <Field label="创作者链接" required>
+            <Input aria-label="创作者链接" value={target} onChange={(_, data) => { invalidatePreview(); setTarget(data.value); }} placeholder="https://space.bilibili.com/..." />
+          </Field>
+          <Field label="平台">
+            <Select value={platform} onChange={(_, data) => { invalidatePreview(); setPlatform(data.value); }}>
+              <option value="auto">自动识别</option>
+              <option value="bilibili">哔哩哔哩</option>
+              <option value="douyin">抖音</option>
+            </Select>
+          </Field>
+        </section>
+        <section className="output-selection create-job-card__section" aria-label="交付内容">
+          <Text as="h2" size={500}>交付内容</Text>
+          <Text>选择需要交付的内容；可随时查看对应模板示例。</Text>
           <div className="output-selection__grid">
             <OutputSelectionCard output="episodes" checked={outputs.includes("episodes")} onCheckedChange={(checked) => updateOutput("episodes", checked)} onShowTemplate={() => setTemplateOutput("episodes")} />
             <OutputSelectionCard output="skill" checked={outputs.includes("skill")} onCheckedChange={(checked) => updateOutput("skill", checked)} onShowTemplate={() => setTemplateOutput("skill")} />
@@ -142,6 +150,7 @@ export function CreateJobPage() {
           <Button appearance="primary" onClick={() => void createMission()} disabled={cannotCreate}>{pending === "create" ? "正在创建…" : "创建任务"}</Button>
         </div>
         {preview && <Text role="status" className="metric">{preview.creator_name} · 可处理 {preview.processable_items} / 共 {preview.total_items} 条 · 登录状态：{preview.auth_status}</Text>}
+        {!preview && !error && <Text className="create-job-card__hint">预检完成后会显示可处理内容，并允许创建任务。</Text>}
         {created && <Text role="status">任务已创建，可前往<a href="#mission">任务作战台</a>查看执行进度，或在<a href="#artifacts">产物库</a>查看交付内容。</Text>}
         {error && <Text role="alert">{error}</Text>}
       </Card>
