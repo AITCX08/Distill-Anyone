@@ -2,14 +2,14 @@
 
 ## 目标
 
-将项目从 **Distill-Anyone** 统一迁移为 **Distill-Everything**：GitHub 仓库、本地代码根目录、数据目录、产物目录、Dashboard、CLI、脚本、环境变量与活跃文档均使用新名称，同时保留现有 Conda 环境 `C:\Coding\Anaconda\envs\Distill-Anyone` 不变。
+将项目从 **Distill-Anyone** 统一迁移为 **Distill-Everything**：GitHub 仓库、本地代码根目录、数据目录、产物目录、Dashboard、CLI、脚本、环境变量与活跃文档均使用新名称，同时保留现有 Conda 环境 `<existing-conda-env>` 不变。
 
 ## 范围与非目标
 
 ### 纳入范围
 
 - GitHub 仓库从 `AITCX08/Distill-Anyone` 改名为 `AITCX08/Distill-Everything`，本地 `origin` 同步更新。
-- 主工作树改为 `C:\Users\Administrator\Desktop\Vibe\Distill-Everything`；Dashboard 运行工作树改为 `C:\Users\Administrator\Desktop\Vibe\Distill-Everything-dashboard-runtime`。
+- 主工作树改为 `<workspace>/Distill-Everything`；Dashboard 运行工作树改为 `<workspace>/Distill-Everything-dashboard-runtime`。
 - 将 `data` 与 `output` 移至新的主工作树，保留其全部任务、登录凭据、缓存状态和已交付产物。
 - 所有运行时产品标识改为 `Distill-Everything`，机器可读标识改为 `distill-everything` 或 `DISTILL_EVERYTHING_*`。
 - Dashboard 静态资源、隐藏启动器和文档同步更新。
@@ -17,7 +17,7 @@
 ### 不纳入范围
 
 - 不重命名 Python 顶层包 `src`；它是内部模块根，不是产品公开名称，重命名会制造无收益的导入兼容风险。
-- 不移动或重建 Conda 环境；继续使用 `C:\Coding\Anaconda\envs\Distill-Anyone`。
+- 不移动或重建 Conda 环境；继续使用 `<existing-conda-env>`。
 - 不编辑历史设计/计划中描述旧版本事实的内容；仅在本迁移文档中建立旧名映射，避免篡改历史记录。
 
 ## 命名约定

@@ -4,17 +4,17 @@
 
 ## Git 与工作树
 
-- 主工作树：`C:\Users\Administrator\Desktop\Vibe\Distill-Anyone`，分支 `main`。
-- Dashboard 运行工作树：`C:\Users\Administrator\Desktop\Vibe\Distill-Anyone-dashboard-runtime`，分支 `agent/bilibili-dialog-autoclose`。
+- 主工作树：`<workspace>/Distill-Anyone`，分支 `main`。
+- Dashboard 运行工作树：`<workspace>/Distill-Anyone-dashboard-runtime`，分支 `agent/bilibili-dialog-autoclose`。
 - 当前远端：`https://github.com/AITCX08/Distill-Anyone.git`。
-- 目标主目录：`C:\Users\Administrator\Desktop\Vibe\Distill-Everything`，盘点时不存在。
-- 目标运行工作树：`C:\Users\Administrator\Desktop\Vibe\Distill-Everything-dashboard-runtime`，盘点时不存在。
+- 目标主目录：`<workspace>/Distill-Everything`，盘点时不存在。
+- 目标运行工作树：`<workspace>/Distill-Everything-dashboard-runtime`，盘点时不存在。
 - 主工作树已有未跟踪的 `.local-artifacts/`、`dashboard/`、`docs/superpowers/plans/2026-07-27-remaining-dashboard-release.md`、`src/series/`、`tools/`；迁移时必须原样保留。
 
 ## 本地数据与交付物
 
-- 数据目录：`C:\Users\Administrator\Desktop\Vibe\Distill-Anyone\data`，存在。
-- 产物目录：`C:\Users\Administrator\Desktop\Vibe\Distill-Anyone\output`，存在。
+- 数据目录：`<workspace>/Distill-Anyone\data`，存在。
+- 产物目录：`<workspace>/Distill-Anyone\output`，存在。
 - 已发现 `job_state.json`：1 个。
 - 已发现系列 `state.json`：1 个。
 - 已发现产物文件：23 个。

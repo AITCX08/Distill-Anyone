@@ -11,11 +11,11 @@
 ## 全局约束
 
 - 所有新建或大幅修改的公开文档默认使用中文；命令、文件名、环境变量保留原文。
-- 禁止移动或重命名 `C:\Coding\Anaconda\envs\Distill-Anyone`；新变量使用 `DISTILL_EVERYTHING_PYTHON`。
+- 禁止移动或重命名 `<existing-conda-env>`；新变量使用 `DISTILL_EVERYTHING_PYTHON`。
 - 禁止直接执行 `pytest` 或 `python -m pytest`。Windows 本地 Python 测试仅可通过 `scripts/run-pytest-background.cmd`，以 `cmd /d /c start "" /b` 后台启动并轮询 `.local-artifacts/test-runs/latest.exitcode` 与日志。
 - Dashboard 仅可通过 `pythonw.exe` + `Start-Process -WindowStyle Hidden` 在 Windows 启动；不得创建可见 CMD 或使用任务计划程序。
 - 不读取、不提交或打印 `.env`、`data/`、`output/`、浏览器 profile、Cookie、二维码、API Key、原始 Worker 日志或用户绝对路径。
-- 当前运行工作树：`C:\Users\Administrator\Desktop\Vibe\Distill-Everything-dashboard-runtime`；主工作树：`C:\Users\Administrator\Desktop\Vibe\Distill-Everything`。
+- 当前运行工作树：`<workspace>/Distill-Everything-dashboard-runtime`；主工作树：`<workspace>/Distill-Everything`。
 - GitHub 推送、创建 PR、合并 `main` 已获授权。出现普通构建/测试失败、端口占用或静态资源过期时自行修复；仅在无法无损处理的主工作树语义冲突、凭据/数据不可读或 GitHub 权限拒绝时停止。
 
 ---
@@ -23,7 +23,7 @@
 ### 任务 1：恢复并保护主工作树
 
 **文件：**
-- 修改：`C:\Users\Administrator\Desktop\Vibe\Distill-Everything` 的 Git 引用与工作树元数据（由 Git 写入）
+- 修改：`<workspace>/Distill-Everything` 的 Git 引用与工作树元数据（由 Git 写入）
 - 创建：`docs/本地工作树收敛记录.md`
 
 **接口：**

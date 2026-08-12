@@ -11,10 +11,10 @@
 ## 全局约束
 
 - 全部新增或更新的用户文档使用中文。
-- 不移动 `C:\Coding\Anaconda\envs\Distill-Anyone`。
+- 不移动 `<existing-conda-env>`。
 - 不删除 `data`、`output`、Git 历史或用户未提交改动。
 - Dashboard 必须使用 `pythonw.exe` 隐藏启动；不得通过可见 CMD、任务计划程序或直接 `pytest` 验证。
-- Python 测试仅使用项目的后台测试运行器或直接调用短小、无 pytest 依赖的回归测试函数；前端测试直接以 `C:\Coding\node\node.exe` 启动 Vitest。
+- Python 测试仅使用项目的后台测试运行器或直接调用短小、无 pytest 依赖的回归测试函数；前端测试直接以 `<node-24-executable>` 启动 Vitest。
 
 ## Goal 自主执行协议
 
@@ -77,8 +77,8 @@
 
 **文件：**
 - 修改：Git worktree 元数据（由 `git worktree move` 写入）
-- 移动：`C:\Users\Administrator\Desktop\Vibe\Distill-Anyone` → `C:\Users\Administrator\Desktop\Vibe\Distill-Everything`
-- 移动：`C:\Users\Administrator\Desktop\Vibe\Distill-Anyone-dashboard-runtime` → `C:\Users\Administrator\Desktop\Vibe\Distill-Everything-dashboard-runtime`
+- 移动：`<workspace>/Distill-Anyone` → `<workspace>/Distill-Everything`
+- 移动：`<workspace>/Distill-Anyone-dashboard-runtime` → `<workspace>/Distill-Everything-dashboard-runtime`
 - 移动：新主目录中的 `data` 与 `output` 保持其相对位置
 
 - [x] 先执行 `git worktree list --porcelain` 确认两个工作树受 Git 管理且路径与盘点一致。
@@ -126,7 +126,7 @@
 - [x] 写前端断言，要求页面标题/品牌区域显示 `DISTILL // EVERYTHING` 或 `Distill-Everything 作战台`。
 - [x] 先用 Vitest 运行该断言，确认当前旧名称导致失败。
 - [x] 最小化替换 Dashboard 品牌、浏览器标题、静态 HTML 与 npm 包名。
-- [x] 使用 `C:\Coding\node\node.exe node_modules\typescript\bin\tsc -b` 与 `vitest.mjs run <目标测试>` 验证前端。
+- [x] 使用 `<node-24-executable> node_modules\typescript\bin\tsc -b` 与 `vitest.mjs run <目标测试>` 验证前端。
 - [x] 使用 `scripts/build_dashboard.py --from-dist` 发布静态资源，再用 `--check` 校验 manifest 自洽。
 - [x] 小提交：`feat(dashboard): brand workspace as distill-everything`（`5e500a0`，同时包含作品标题与完成时间展示修复）。
 
@@ -139,7 +139,7 @@
 - 修改：`<新运行工作树>/.local-artifacts/dashboard-launcher.log`（仅在异常时产生，不提交）
 
 - [x] 将 `ROOT`、`DATA_DIR`、`OUTPUT_DIR` 更新为新项目路径。
-- [x] 保持解释器为 `C:\Coding\Anaconda\envs\Distill-Anyone\pythonw.exe`。
+- [x] 保持解释器为 `<existing-conda-env>\pythonw.exe`。
 - [x] 使用 `Start-Process -WindowStyle Hidden` 启动启动器；未调用 `.cmd`，未创建可见终端。
 - [x] 请求 `http://127.0.0.1:8765/api/v1/health`，得到 `status=ok` 与 `static_compatible=true`。
 - [x] 校验 SSE 快照与 `/api/v1/jobs/imported-series-BV18bLkztE7R/items`：已有 8 集的标题、BV 号、完成时间和交付目录仍存在。
