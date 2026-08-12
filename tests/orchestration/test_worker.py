@@ -170,3 +170,30 @@ def test_resource_controlled_worker_runs_all_stages_after_manager_grants(tmp_pat
     assert result == [0]
     assert (pipeline.download_calls, pipeline.extract_calls, pipeline.transcribe_calls) == (1, 1, 1)
     assert (pipeline.clean_calls, pipeline.summary_calls, pipeline.write_calls) == (1, 1, 1)
+
+
+def test_manager_marks_completed_worker_stage_as_completed(tmp_path):
+    """A terminal completion must not retain the previous `writing` stage in the UI."""
+
+    store = OrchestrationStore(tmp_path / "orchestration.sqlite3")
+    job = store.create_job(platform="bilibili", target="https://example.invalid")
+    (task,) = store.create_tasks(job.job_id, ["p01"])
+    task = store.transition_task(
+        task.task_id,
+        task.revision,
+        status="running",
+        stage="writing",
+    )
+    worker_root = tmp_path / "workers"
+    task_dir = worker_root / task.task_id
+    task_dir.mkdir(parents=True)
+    (task_dir / "events.jsonl").write_text(
+        json.dumps({"v": 1, "type": "terminal", "task_id": task.task_id, "status": "completed"}) + "\n",
+        "utf-8",
+    )
+
+    TaskManager(store=store, worker_root=worker_root)._read_worker_events(task.task_id)
+
+    updated = store.get_task(task.task_id)
+    assert updated.status == "completed"
+    assert updated.stage == "completed"

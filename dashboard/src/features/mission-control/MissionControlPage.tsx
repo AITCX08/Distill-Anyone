@@ -61,6 +61,13 @@ function taskProgress(task: WorkerTask): string {
   return `${Math.round(task.transfer.completed_bytes / task.transfer.total_bytes * 100)}%`;
 }
 
+function taskStageLabel(task: WorkerTask): string {
+  // Completion is terminal and supersedes a legacy last operational stage
+  // such as `writing`. This keeps older persisted worker records truthful
+  // while the task manager normalises all new terminal events at the source.
+  return stageLabel(task.status === "completed" ? "completed" : task.stage);
+}
+
 export function MissionControlPage({
   snapshot,
   job = null,
@@ -121,7 +128,7 @@ export function MissionControlPage({
           renderMeta={taskMeta}
           renderStatus={(task) => <StatusPill tone={taskTone(task)} label={taskStatusLabel(task)} />}
           renderProgress={taskProgress}
-          renderStage={(task) => stageLabel(task.stage)}
+          renderStage={taskStageLabel}
           renderUpdated={(task) => task.completed_at ? "已完成" : "处理中"}
           renderActions={(task) => <TaskControlActions task={task} onTaskUpdated={onTaskUpdated} />}
         />}
