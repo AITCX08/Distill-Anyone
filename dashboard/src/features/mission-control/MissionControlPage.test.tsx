@@ -118,4 +118,19 @@ describe("MissionControlPage", () => {
     expect(screen.getByText("第 1 集 · 开场与概念")).toBeVisible();
     expect(screen.getByText("BV18bLkztE7R · 最后更新 2026-08-12 10:15")).toBeVisible();
   });
+
+  it("shows a terminal completed stage for legacy completed tasks", () => {
+    render(<MissionControlPage snapshot={snapshot} tasks={[{
+      task_id: "task-finished", job_id: "job-1", source_id: "bilibili_BV18bLkztE7R_p08",
+      display_title: "收尾", part_number: 8, delivery_state: "available", status: "completed",
+      // Older task records can retain the last operational stage after their
+      // terminal event. The completed status is the authoritative UI state.
+      stage: "writing", revision: 2, attempt: 1, checkpoint_revision: 6,
+      updated_at: "2026-08-12T10:16:00Z", completed_at: "2026-08-12T10:16:00Z",
+    }]} />);
+
+    const row = screen.getByRole("row", { name: /第 8 集 · 收尾/ });
+    expect(within(row).getByText("已完成", { selector: "span" })).toBeVisible();
+    expect(within(row).queryByText("写入产物中")).not.toBeInTheDocument();
+  });
 });

@@ -222,10 +222,17 @@ class TaskManager:
                 "pause_requested",
                 "cancel_requested",
             }:
+                terminal_status = str(event.payload["status"])
                 self.store.transition_task(
                     task_id,
                     task.revision,
-                    status=str(event.payload["status"]),
+                    status=terminal_status,
+                    # The worker's terminal event is authoritative.  Without
+                    # normalising the terminal completion stage, a task that
+                    # finished after `writing` remains persisted as
+                    # `completed + writing`, which makes the Dashboard claim
+                    # it is still writing artifacts.
+                    stage="completed" if terminal_status == "completed" else None,
                 )
         self._event_lines_read[task_id] = len(lines)
         self.store.set_worker_event_cursor(task_id, len(lines))
