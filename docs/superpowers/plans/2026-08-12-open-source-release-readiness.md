@@ -115,5 +115,13 @@
 - [x] 对每个剩余 `Distill-Anyone` 命中标注理由：仅允许 Conda 环境兼容路径、旧仓库重定向、迁移设计/历史记录；其他运行标识必须替换。
 - [x] 使用 Windows 后台测试运行器运行短 Python 回归集，固定 Node 24 执行 Vitest、TypeScript、Vite 构建和静态资源 `--check`；请求 Dashboard 健康端点验证 `status=ok`、`static_compatible=true`。
 - [x] 对主工作树、运行工作树分别运行 `git diff --check` 与 `git status --short`；确认 `data`、`output` 未被纳入暂存区，Dashboard 的现有任务/产物接口仍可读取。
-- [ ] 推送当前分支，创建 PR，等待 GitHub Python、macOS、Dashboard 检查均成功后合并 `main`；不得因未完成 CI 提前宣布发布成功。
-- [ ] 将本计划所有完成项改为 `- [x]`，记录 PR 链接、关键测试结果与主工作树保护点；小提交：`docs: record beta release readiness`。
+- [x] 推送当前分支，创建 PR，等待 GitHub Python、macOS、Dashboard 检查均成功后合并 `main`；不得因未完成 CI 提前宣布发布成功。
+- [x] 将本计划所有完成项改为 `- [x]`，记录 PR 链接、关键测试结果与主工作树保护点；小提交：`docs: record beta release readiness`。
+
+## 发布验收记录
+
+- PR：[ #18 发布：完善开源 Beta 与 macOS 文档支持](https://github.com/AITCX08/Distill-Everything/pull/18)。
+- GitHub Actions：PR 触发的 `Dashboard（Node 24）`、`Python（Linux）` 与 `Python（macOS 基础）` 均已成功；push 触发的同组检查亦已成功。
+- 本机：后台 Python 回归 `413 passed, 2 skipped`；Node 24 的目标 Vitest、TypeScript、Vite 构建和静态资源检查均成功；Dashboard 健康端点返回 `status=ok` 与 `static_compatible=true`。
+- 主工作树保护：`backup/pre-release-main-20260812` 与 `stash@{0}: preserve-local-pre-distill-everything-sync` 均保留。由于合并预演涉及业务逻辑冲突，发布版本使用干净工作树分支收敛，未覆盖旧本地内容。
+- 隐私：`data/` 与 `output/` 未进入暂存区；公开文档、截图和新增发布材料已完成敏感模式与真实目录扫描。
