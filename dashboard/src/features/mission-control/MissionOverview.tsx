@@ -43,8 +43,9 @@ export function MissionOverview({
   const status = job?.status ?? jobStatus;
   const paused = status === "paused" || status === "pause_requested";
   const completed = status === "completed";
+  const empty = !job && snapshot.counts.total === 0;
   const downloading = active?.stage === "downloading";
-  const stage = paused ? "已暂停" : active ? stageLabel(active.stage) : "暂无活动任务";
+  const stage = paused ? "已暂停" : active ? stageLabel(active.stage) : empty ? "等待创建任务" : "暂无活动任务";
   const throughput = paused ? "已暂停" : downloading && active.bytes_per_second > 0 ? `${formatBytes(active.bytes_per_second)}/秒` : "仅下载时显示";
 
   if (completed) {
@@ -65,9 +66,12 @@ export function MissionOverview({
     </section>;
   }
 
-  return <section className="mission-overview" aria-label="任务概览">
+  return <section className="mission-overview" aria-label="任务总览卡片">
     <div className="mission-overview__title">
-      <div><Text as="h2" size={600}>{headingFor(job)}</Text><Text>当前任务概览</Text></div>
+      <div>
+        <Text as="h2" size={600}>{empty ? "当前没有正在追踪的蒸馏任务" : headingFor(job)}</Text>
+        <Text>{empty ? "创建任务后，这里会持续显示总体进度、执行阶段与任务数量。" : "当前任务概览"}</Text>
+      </div>
       <Text className="metric">已完成 {snapshot.counts.completed}/{snapshot.counts.total}</Text>
     </div>
     <ProgressSummary progress={snapshot.overall_progress} stage={stage} counts={{ completed: snapshot.counts.completed, active: snapshot.counts.active, queued: snapshot.counts.queued, total: snapshot.counts.total }} />

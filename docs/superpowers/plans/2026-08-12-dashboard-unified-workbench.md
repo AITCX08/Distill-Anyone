@@ -11,7 +11,7 @@
 ## 全局约束
 
 - 以 [设计规格](../specs/2026-08-12-dashboard-unified-workbench-design.md) 为唯一视觉与范围依据；所有新增 Markdown 文档使用简体中文。
-- 只修改 `C:\Users\Administrator\Desktop\Vibe\Distill-Everything-dashboard-runtime`，不修改 `C:\Users\Administrator\Desktop\Vibe\Distill-Everything` 主工作树或 Conda 环境。
+- 只在唯一保留的项目目录 `C:\Users\Administrator\Desktop\Vibe\Distill-Everything` 中修改；不得访问或重建已删除的旧运行目录、旧主目录或额外工作树，也不得改动 Conda 环境。
 - 不改变 `#mission`、`#create`、`#platforms`、`#history`、`#artifacts`，不改变 API 路径、请求体、登录轮询、任务暂停/恢复/取消/重试和打开本地目录行为。
 - 保留 Fluent UI React v9 和现有 `@fluentui/react-icons`；不增加第二套 UI 框架、不使用伪造文件上传或无效按钮。
 - 新增可见文案全部中文；作品标题优先，BV 号/来源编号、保存位置与完成时间作为次级信息。禁止将真实 Cookie、二维码内容、令牌、真实用户目录或真实任务内容写入代码、测试或截图。
@@ -115,7 +115,7 @@ export function PageHeader({ title, description, actions }: { title: string; des
 - [x] 2. 运行三个 mission 测试文件验证红灯。
 - [x] 3. 把 `MissionOverview` 的指标改为组合 `ProgressSummary`；保留已完成的产物与打开保存位置操作。
 - [x] 4. 将 `TaskControlCard` 的格式化标题、次级元信息、下载进度与动作作为 `QueueTable` 行渲染数据；保留暂停、恢复、取消、重试的原 API 路径和 `expected_revision`、`command_id` 请求体。
-- [x] 5. 更新 `MissionControlPage` 的结构：标题区、总览、右侧“创建任务”链接、作品队列和实时日志；当没有任务时显示中文空状态与“新建任务”链接。
+- [x] 5. 更新 `MissionControlPage` 的结构：标题区、总览、作品队列、实时日志和右侧上下文栏；没有活动任务时仍保留 0% 总览、空队列、创建任务卡与隐私/本地优先卡，不再用单张空状态卡替代首页。
 - [x] 6. 运行 mission 测试和 `dashboard/src/app/App.test.tsx`；确认暂停/恢复和 SSE 测试仍通过；运行 `git diff --check`。
 - [x] 7. 仅暂存本卡文件并提交：`feat(dashboard): redesign mission workbench`；勾选本任务卡。
 
@@ -172,7 +172,7 @@ export function PageHeader({ title, description, actions }: { title: string; des
 - [x] 3. 使用固定 Node 24 运行 `C:\Coding\node\node.exe dashboard/node_modules/typescript/bin/tsc -b`，随后运行 `C:\Coding\node\node.exe dashboard/node_modules/vite/bin/vite.js build`。
 - [x] 4. 运行 `C:\Coding\Anaconda\envs\Distill-Anyone\python.exe scripts/build_dashboard.py --from-dist` 和 `C:\Coding\Anaconda\envs\Distill-Anyone\python.exe scripts/build_dashboard.py --check`；不得执行 pytest。
 - [x] 5. 访问已运行的 `http://127.0.0.1:8765/api/v1/health`，确认返回 `status: ok` 与 `static_compatible: true`；若服务未运行，仅报告现状，不以可见 CMD 启动。
-- [ ] 6. 使用浏览器手动核查 `#mission`、`#create`、`#platforms`、`#history`、`#artifacts` 的桌面和窄屏布局，重点确认键盘焦点、状态文字、二维码成功自动关闭和无水平溢出；不展示或截取真实二维码、Cookie、路径或任务数据。
-- [ ] 7. 运行 `git diff --check`、`git status --short`，确认没有 `data/`、`output/`、`.local-artifacts/` 或凭据进入暂存；更新 README（如需要）和本计划复选框。
-- [ ] 8. 仅暂存验收产生的文档/测试修改并提交：`docs: verify unified dashboard workbench`；勾选本任务卡。
-- [ ] 9. 推送当前分支，创建或更新 PR；待 CI 的 Dashboard、Linux Python 和 macOS 基础工作流全部成功后合并至 `main`。保留运行工作树，不执行 `git reset --hard`、`git clean`、`git stash drop` 或删除工作树。
+- [x] 6. 使用浏览器手动核查 `#mission`、`#create`、`#platforms`、`#history`、`#artifacts` 的桌面和窄屏布局，重点确认键盘焦点、状态文字、二维码成功自动关闭和无水平溢出；不展示或截取真实二维码、Cookie、路径或任务数据。
+- [x] 7. 运行 `git diff --check`、`git status --short`，确认没有 `data/`、`output/`、`.local-artifacts/` 或凭据进入暂存；更新 README（如需要）和本计划复选框。
+- [x] 8. 仅暂存验收产生的文档/测试修改并提交：`docs: verify unified dashboard workbench`；勾选本任务卡。
+- [x] 9. 推送当前分支，创建或更新 PR；待 CI 的 Dashboard、Linux Python 和 macOS 基础工作流全部成功后合并至 `main`。保留运行工作树，不执行 `git reset --hard`、`git clean`、`git stash drop` 或删除工作树。
