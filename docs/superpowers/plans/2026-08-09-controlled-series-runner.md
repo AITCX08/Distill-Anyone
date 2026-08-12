@@ -213,7 +213,7 @@ Render `暂停任务` while running, disabled `暂停中` after acknowledgement,
 
 Run: `npm test -- MissionControls.test.tsx MissionOverview.test.tsx; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }`
 
-Then run: `& C:\Coding\Anaconda\envs\Distill-Anyone\python.exe scripts\build_dashboard.py --from-dist; & C:\Coding\Anaconda\envs\Distill-Anyone\python.exe scripts\build_dashboard.py --check`
+Then run: `& <existing-conda-env>\python.exe scripts\build_dashboard.py --from-dist; & <existing-conda-env>\python.exe scripts\build_dashboard.py --check`
 
 Commit: `git add dashboard/src src/dashboard/static; git commit -m "feat(dashboard): control and visualize series runs"`.
 
@@ -222,7 +222,7 @@ Commit: `git add dashboard/src src/dashboard/static; git commit -m "feat(dashboa
 **Files:**
 - Modify: `.local-artifacts/bilibili-series/resume_with_dashboard_credential.py`
 
-- [ ] **Step 1: Restart Dashboard with `DATA_DIR=C:\Users\Administrator\Desktop\Vibe\Distill-Anyone\data`**
+- [ ] **Step 1: Restart Dashboard with `DATA_DIR=<workspace>/Distill-Anyone\data`**
 
 - [ ] **Step 2: Confirm `GET /api/v1/jobs` returns `imported-series-BV18bLkztE7R` with six completed parts**
 

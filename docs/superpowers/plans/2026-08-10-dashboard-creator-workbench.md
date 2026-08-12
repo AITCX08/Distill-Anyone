@@ -24,7 +24,7 @@
 每个 Python 测试任务使用以下固定流程，目标文件按任务替换：
 
 ```powershell
-$env:DISTILL_ANYONE_PYTHON = 'C:\Coding\Anaconda\envs\Distill-Anyone\python.exe'
+$env:DISTILL_ANYONE_PYTHON = '<existing-conda-env>\python.exe'
 $previousExitWrite = if (Test-Path '.local-artifacts\test-runs\latest.exitcode') {
   (Get-Item '.local-artifacts\test-runs\latest.exitcode').LastWriteTimeUtc
 } else { [datetime]::MinValue }
@@ -632,8 +632,8 @@ tests/orchestration/test_bilibili_pipeline.py
 ```powershell
 npm run test -- --run src/features/create-job src/features/mission-control src/features/artifacts src/app/AppShell.test.tsx
 npm run build
-& 'C:\Coding\Anaconda\envs\Distill-Anyone\python.exe' scripts\build_dashboard.py --from-dist
-& 'C:\Coding\Anaconda\envs\Distill-Anyone\python.exe' scripts\build_dashboard.py --check
+& '<existing-conda-env>\python.exe' scripts\build_dashboard.py --from-dist
+& '<existing-conda-env>\python.exe' scripts\build_dashboard.py --check
 ```
 
 最后无窗口启动 Dashboard，确认健康接口为 200；使用本地浏览器验证：默认目录创建、覆盖目录创建、模板 Dialog、可读标题、运行态指标、完成交付摘要、打开产物目录。模拟一条无效目录，确认创建前拒绝；模拟一条不可用已保存目录，确认写入阶段暂停而非回退。

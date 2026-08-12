@@ -1,0 +1,45 @@
+name: 缺陷报告
+description: 报告可复现的问题；请勿提交凭据、二维码、媒体或真实任务数据。
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先移除 Cookie、API Key、二维码、浏览器 profile、绝对路径、媒体文件和完整日志。安全问题请按 SECURITY.md 私下报告。
+  - type: input
+    id: version
+    attributes:
+      label: 项目版本或提交号
+      placeholder: 例如 0.4.0-beta 或短提交号
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 最短复现步骤
+      placeholder: 使用公开示例或占位标识描述步骤。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为与实际行为
+    validations:
+      required: true
+  - type: textarea
+    id: sanitized_log
+    attributes:
+      label: 脱敏错误摘要（可选）
+      description: 不要粘贴完整日志、路径、凭据或用户内容。

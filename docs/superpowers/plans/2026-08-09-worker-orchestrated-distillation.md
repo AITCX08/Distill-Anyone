@@ -435,7 +435,7 @@ for server confirmation before changing its label.
 
 Run: `npm test -- --run src/features/mission-control; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }`
 
-Then run: `& C:\Coding\Anaconda\envs\Distill-Anyone\python.exe scripts\build_dashboard.py --from-dist; & C:\Coding\Anaconda\envs\Distill-Anyone\python.exe scripts\build_dashboard.py --check`
+Then run: `& <existing-conda-env>\python.exe scripts\build_dashboard.py --from-dist; & <existing-conda-env>\python.exe scripts\build_dashboard.py --check`
 
 Commit: `git add dashboard/src src/dashboard/static; git commit -m "feat(dashboard): manage individual pipeline workers"`
 

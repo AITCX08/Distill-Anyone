@@ -302,8 +302,8 @@ Expected: FAIL until the new landmark and workspace navigation are present.
 
 ```powershell
 npm run build
-& 'C:\Coding\Anaconda\envs\Distill-Anyone\python.exe' scripts\build_dashboard.py --from-dist
-& 'C:\Coding\Anaconda\envs\Distill-Anyone\python.exe' scripts\build_dashboard.py --check
+& '<existing-conda-env>\python.exe' scripts\build_dashboard.py --from-dist
+& '<existing-conda-env>\python.exe' scripts\build_dashboard.py --check
 ```
 
 Restart only the Dashboard process, then verify `GET /` and `GET /api/v1/health` both return HTTP 200. Verify the served HTML points to the current hashed JavaScript asset.

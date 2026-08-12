@@ -22,6 +22,25 @@ Dashboard 始终是本地单用户工具：广泛订阅的任务列表、SSE 和
 
 Distill-Everything 是一个本地优先的内容蒸馏工具。它可以从创作者主页枚举可见作品，完成下载、转写、清洗、知识提取与输出；也保留 PDF、DOCX、TXT 文档蒸馏和会议纪要能力。
 
+## 支持矩阵
+
+| 范围 | 状态 | 边界 |
+| --- | --- | --- |
+| Windows CLI、Dashboard 与本地工作流 | 正式支持 | Dashboard 仅监听 `127.0.0.1`。 |
+| macOS 安装、CLI、Dashboard 与基础 CI | 正式文档支持 | 使用前台 Dashboard 命令；详细限制见[平台支持与故障排查](./docs/平台支持与故障排查.md)。 |
+| Bilibili / 抖音扫码、Playwright 浏览器 | 需要设备验收 | 不承诺未经真实设备验证的平台登录稳定性。 |
+| Apple Silicon FunASR MPS | 需要设备验收 | 不承诺与 CUDA 或 CPU 相同的性能和稳定性。 |
+
+公开 issue、截图和日志中不得包含 Cookie、二维码、浏览器 profile、API Key、媒体原文件、真实任务标题或本地绝对路径。
+
+## 三分钟上手
+
+1. 按下方对应系统的安装步骤创建环境并安装依赖。
+2. 复制 `config.example.env` 为 `.env`，填写你选择的 LLM 提供商配置。
+3. 运行 `python main.py source platforms` 检查可用平台；需要图形界面时启动本地 Dashboard。
+
+遇到平台、浏览器、端口或 macOS 问题，请先阅读[平台支持与故障排查](./docs/平台支持与故障排查.md)。
+
 当前正式支持 Bilibili 与抖音。平台接入、内容处理和输出形式相互解耦：增加一个平台不需要复制蒸馏流水线，增加一种输出也不需要了解平台的私有 ID 或抓取细节。
 
 ## 核心能力
@@ -78,15 +97,28 @@ CLI / Local Dashboard
 ```bash
 git clone https://github.com/AITCX08/Distill-Everything.git
 cd Distill-Everything
+```
 
+Windows PowerShell：
+
+```powershell
 python -m venv .venv
-# Windows PowerShell
 .\.venv\Scripts\Activate.ps1
-# macOS / Linux
-# source .venv/bin/activate
-
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 playwright install chromium
+winget install ffmpeg
+```
+
+macOS zsh：
+
+```zsh
+brew install ffmpeg
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+python -m playwright install chromium
 ```
 
 安装 `ffmpeg`：Windows 可使用 `winget install ffmpeg`；macOS 使用 `brew install ffmpeg`；Ubuntu/Debian 使用 `sudo apt install ffmpeg`。
@@ -95,9 +127,16 @@ playwright install chromium
 
 复制模板并填写一个可用的 LLM 提供商配置：
 
-```bash
-copy config.example.env .env        # Windows
-# cp config.example.env .env        # macOS / Linux
+Windows PowerShell：
+
+```powershell
+Copy-Item config.example.env .env
+```
+
+macOS zsh：
+
+```zsh
+cp config.example.env .env
 ```
 
 `.env` 中常用项目：
@@ -156,6 +195,32 @@ python main.py source creator "<创作者主页>" \
 ## 本地 Dashboard
 
 Dashboard 是单用户、本地作战台，使用 FastAPI + SSE + React。它和 CLI 复用同一个 `DistillationService`、任务状态和事件流。
+
+![脱敏的 Dashboard 公开演示界面](./docs/images/dashboard-workbench.png)
+
+*公开演示界面，仅展示模板状态；不包含真实任务、平台标识、保存位置或登录信息。*
+
+| 平台 | 启动方式 |
+| --- | --- |
+| Windows PowerShell | 使用隐藏启动：先将 `DISTILL_EVERYTHING_PYTHON` 设置为项目 `python.exe`，再用 `pythonw.exe` 与 `Start-Process -WindowStyle Hidden` 启动。 |
+| macOS zsh | 前台运行 `python main.py dashboard --port 8765 --no-open`，再访问 `http://127.0.0.1:8765/`。 |
+
+Windows PowerShell（不弹出 CMD 窗口）：
+
+```powershell
+$python = $env:DISTILL_EVERYTHING_PYTHON
+if (-not $python) { throw '请先设置 DISTILL_EVERYTHING_PYTHON 为项目 python.exe 路径。' }
+$pythonw = Join-Path (Split-Path $python -Parent) 'pythonw.exe'
+Start-Process -FilePath $pythonw -ArgumentList 'main.py dashboard --port 8765 --no-open' -WorkingDirectory $PWD -WindowStyle Hidden
+```
+
+macOS zsh：
+
+```zsh
+python main.py dashboard --port 8765 --no-open
+```
+
+通用 CLI 调试方式：
 
 ```bash
 # 默认启动后打开 http://127.0.0.1:8765
@@ -253,7 +318,7 @@ npm run e2e
 Python 测试必须使用无窗口包装器在项目根目录运行：
 
 ```powershell
-$env:DISTILL_EVERYTHING_PYTHON = 'C:\Coding\Anaconda\envs\Distill-Anyone\python.exe'
+$env:DISTILL_EVERYTHING_PYTHON = '<path-to-project-python.exe>'
 cmd /d /c start "" /b scripts\run-pytest-background.cmd tests\dashboard\test_output_directory.py
 ```
 
