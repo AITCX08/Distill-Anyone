@@ -175,4 +175,4 @@ export function PageHeader({ title, description, actions }: { title: string; des
 - [x] 6. 使用浏览器手动核查 `#mission`、`#create`、`#platforms`、`#history`、`#artifacts` 的桌面和窄屏布局，重点确认键盘焦点、状态文字、二维码成功自动关闭和无水平溢出；不展示或截取真实二维码、Cookie、路径或任务数据。
 - [x] 7. 运行 `git diff --check`、`git status --short`，确认没有 `data/`、`output/`、`.local-artifacts/` 或凭据进入暂存；更新 README（如需要）和本计划复选框。
 - [x] 8. 仅暂存验收产生的文档/测试修改并提交：`docs: verify unified dashboard workbench`；勾选本任务卡。
-- [ ] 9. 推送当前分支，创建或更新 PR；待 CI 的 Dashboard、Linux Python 和 macOS 基础工作流全部成功后合并至 `main`。保留运行工作树，不执行 `git reset --hard`、`git clean`、`git stash drop` 或删除工作树。
+- [x] 9. 推送当前分支，创建或更新 PR；待 CI 的 Dashboard、Linux Python 和 macOS 基础工作流全部成功后合并至 `main`。保留运行工作树，不执行 `git reset --hard`、`git clean`、`git stash drop` 或删除工作树。
