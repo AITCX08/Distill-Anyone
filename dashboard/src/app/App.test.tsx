@@ -36,6 +36,18 @@ afterEach(() => {
 });
 
 describe("App", () => {
+  it("keeps the complete workbench visible when there is no active mission", () => {
+    render(<App />);
+
+    expect(screen.getByRole("region", { name: "任务执行台" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "任务概览" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "作品执行队列" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "创建任务快捷入口" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "隐私与本地优先" })).toBeVisible();
+    expect(screen.getByText("当前没有正在追踪的蒸馏任务")).toBeVisible();
+    expect(screen.getByText("0%")).toBeVisible();
+  });
+
   it("renders only the workspace selected by the URL hash", () => {
     window.location.hash = "#create";
 
