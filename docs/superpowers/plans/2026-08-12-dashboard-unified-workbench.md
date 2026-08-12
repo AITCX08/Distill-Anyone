@@ -88,14 +88,14 @@ export function PageHeader({ title, description, actions }: { title: string; des
 - `ProgressSummary`：`progress: number`、`stage: string`、`counts: { completed: number; active: number; queued: number; total: number }`。
 - `QueueTable<T>`：`items: readonly T[]`、`getKey`、`renderTitle`、`renderMeta`、`renderStatus`、`renderProgress`、`renderStage`、`renderUpdated`、`renderActions`。
 
-- [ ] 1. 在三份测试中先写红灯用例：状态胶囊有可读文字；进度摘要把 `0.72` 显示为 `72%`；队列表格显示标题“公开视频：知识整理”、次行“BV1xx · 完成于 2026-08-12 10:15”和列标题“作品标题”。
-- [ ] 2. 运行三个测试文件，预期由于组件不存在失败。
-- [ ] 3. 最小实现 `StatusPill`，以 `data-tone` 提供视觉状态但始终渲染 `label`；不得仅以图标表达状态。
-- [ ] 4. 最小实现 `ProgressSummary`，将进度夹在 0–100，使用 Fluent `ProgressBar` 和四项中文计数，不读取接口。
-- [ ] 5. 最小实现 `QueueTable`：桌面使用带列标题的 `<table>`；CSS 小于 760px 时转为卡片布局，仍保留标题、次级信息、状态、进度与操作。
-- [ ] 6. 在 `operations.css` 写组件的成功/进行/等待/警告/失败色彩、表格行 hover、窄屏布局和 `:focus-visible`；颜色只作辅助，不覆盖文字状态。
-- [ ] 7. 再运行三个组件测试与 `git diff --check`，预期全部通过。
-- [ ] 8. 仅暂存本卡文件并提交：`feat(dashboard): add status and queue primitives`；勾选本任务卡。
+- [x] 1. 在三份测试中先写红灯用例：状态胶囊有可读文字；进度摘要把 `0.72` 显示为 `72%`；队列表格显示标题“公开视频：知识整理”、次行“BV1xx · 完成于 2026-08-12 10:15”和列标题“作品标题”。
+- [x] 2. 运行三个测试文件，预期由于组件不存在失败。
+- [x] 3. 最小实现 `StatusPill`，以 `data-tone` 提供视觉状态但始终渲染 `label`；不得仅以图标表达状态。
+- [x] 4. 最小实现 `ProgressSummary`，将进度夹在 0–100，使用 Fluent `ProgressBar` 和四项中文计数，不读取接口。
+- [x] 5. 最小实现 `QueueTable`：桌面使用带列标题的 `<table>`；CSS 小于 760px 时转为卡片布局，仍保留标题、次级信息、状态、进度与操作。
+- [x] 6. 在 `operations.css` 写组件的成功/进行/等待/警告/失败色彩、表格行 hover、窄屏布局和 `:focus-visible`；颜色只作辅助，不覆盖文字状态。
+- [x] 7. 再运行三个组件测试与 `git diff --check`，预期全部通过。
+- [x] 8. 仅暂存本卡文件并提交：`feat(dashboard): add status and queue primitives`；勾选本任务卡。
 
 ### 任务 3：重构任务作战台为总览和执行队列
 
