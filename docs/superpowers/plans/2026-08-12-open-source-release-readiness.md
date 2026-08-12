@@ -36,7 +36,7 @@
 - [x] 若所有冲突均为可明确合并的文本，执行 `git merge --no-ff origin/main -m "merge: synchronize release main"`，逐个解决并运行 `git diff --check`；若任一冲突包含用户业务逻辑且无法判断，保留主工作树在保护分支，不覆盖，改以新的干净工作树作为官方主目录并在记录中说明。
 - [x] 写入 `docs/本地工作树收敛记录.md`：记录保护分支名、stash 名、采用的收敛方式、最终 `HEAD` 与 `origin/main` 关系；禁止写入绝对用户路径或 stash 内容。
 - [x] 验证主工作树与运行工作树都可执行 `git status --short`；运行工作树不出现未提交发布代码。
-- [ ] 小提交：`docs: record primary worktree convergence`。
+- [x] 小提交：`docs: record primary worktree convergence`。
 
 ### 任务 2：建立跨平台 CI 门禁
 
@@ -54,7 +54,7 @@
 - [x] 新建 Dashboard 工作流，使用 `actions/setup-node@v4` 与 `node-version: 24`；在 `dashboard/` 依次执行 `npm ci`、`node node_modules/vitest/vitest.mjs run src/app/AppShell.test.tsx src/features/mission-control/TaskControlCard.test.tsx`、`node node_modules/typescript/bin/tsc -b`、`node node_modules/vite/bin/vite.js build`。
 - [x] 在仓库根目录使用 Python 调用 `scripts/build_dashboard.py --from-dist` 与 `--check`，确保提交的静态资源 manifest 与前端源一致。
 - [x] 在 Windows 本地通过后台测试运行器运行 `tests/dashboard/test_series_control.py tests/dashboard/test_artifact_api.py -q`，轮询退出码为 0；通过固定 Node 24 执行同一组前端目标测试和构建。
-- [ ] 小提交：`ci: verify dashboard and macos basics`。
+- [x] 小提交：`ci: verify dashboard and macos basics`。
 
 ### 任务 3：补齐 macOS 正式文档支持与发布指引
 
@@ -73,7 +73,7 @@
 - [x] 创建 `docs/平台支持与故障排查.md`，包含：依赖检查、Node/ffmpeg/Playwright 问题、端口 8765 占用、Finder/Explorer 打开产物行为、macOS 真实扫码与 MPS 未验收边界、如何提供脱敏 issue 信息。
 - [x] 修改迁移说明，链接支持矩阵与故障排查文档，并把 Windows 专用后台 pytest 规则明确为 Codex Desktop Windows 的稳定性约束，而非 macOS 用户的通用命令。
 - [x] 使用 `rg` 检查 macOS 文档段落不含 `pythonw.exe`、`.cmd`、`Start-Process` 或 Windows Conda 绝对路径；检查所有新增文档为 UTF-8 中文。
-- [ ] 小提交：`docs: document macos support boundaries`。
+- [x] 小提交：`docs: document macos support boundaries`。
 
 ### 任务 4：补齐开源协作、安全与发布材料
 
@@ -98,7 +98,7 @@
 - [x] 创建 PR 模板，要求影响范围、测试证据、文档变更、隐私检查和 UI 截图（若涉及界面）。
 - [x] 使用脱敏的本地 Dashboard 状态启动页面并生成 `docs/images/dashboard-workbench.png`；图片只显示 UI 模板或公开示例，不能显示任务真实标题、BV 号、绝对保存位置、二维码、Cookie 或日志。README 添加图片和“三分钟上手”链接。
 - [x] 用 `git grep -nE '(SESSDATA|bili_jct|sk-[A-Za-z0-9_-]{8,}|ANTHROPIC_API_KEY=.{8,}|OPENAI_API_KEY=.{8,})'` 检查新增文件；只允许测试中的显式脱敏占位符，其他命中必须在提交前移除。
-- [ ] 小提交：`docs: add contributor release materials`。
+- [x] 小提交：`docs: add contributor release materials`。
 
 ### 任务 5：清理遗留品牌并进行发布验收
 
@@ -111,9 +111,9 @@
 - 输入：活动代码、脚本、工作流、公开文档、GitHub PR 检查状态
 - 输出：唯一保留旧品牌的位置有明确兼容/历史理由；所有发布检查通过并已合并。
 
-- [ ] 使用受限 `rg` 扫描 `README.md`、`main.py`、`src/`、`scripts/`、`dashboard/`、`.github/`、公开根文档；将 `.gitignore` 的 `Distill-Anyone/` 规则改为 `Distill-Everything/` 或删除。
-- [ ] 对每个剩余 `Distill-Anyone` 命中标注理由：仅允许 Conda 环境兼容路径、旧仓库重定向、迁移设计/历史记录；其他运行标识必须替换。
-- [ ] 使用 Windows 后台测试运行器运行短 Python 回归集，固定 Node 24 执行 Vitest、TypeScript、Vite 构建和静态资源 `--check`；请求 Dashboard 健康端点验证 `status=ok`、`static_compatible=true`。
-- [ ] 对主工作树、运行工作树分别运行 `git diff --check` 与 `git status --short`；确认 `data`、`output` 未被纳入暂存区，Dashboard 的现有任务/产物接口仍可读取。
+- [x] 使用受限 `rg` 扫描 `README.md`、`main.py`、`src/`、`scripts/`、`dashboard/`、`.github/`、公开根文档；将 `.gitignore` 的 `Distill-Anyone/` 规则改为 `Distill-Everything/` 或删除。
+- [x] 对每个剩余 `Distill-Anyone` 命中标注理由：仅允许 Conda 环境兼容路径、旧仓库重定向、迁移设计/历史记录；其他运行标识必须替换。
+- [x] 使用 Windows 后台测试运行器运行短 Python 回归集，固定 Node 24 执行 Vitest、TypeScript、Vite 构建和静态资源 `--check`；请求 Dashboard 健康端点验证 `status=ok`、`static_compatible=true`。
+- [x] 对主工作树、运行工作树分别运行 `git diff --check` 与 `git status --short`；确认 `data`、`output` 未被纳入暂存区，Dashboard 的现有任务/产物接口仍可读取。
 - [ ] 推送当前分支，创建 PR，等待 GitHub Python、macOS、Dashboard 检查均成功后合并 `main`；不得因未完成 CI 提前宣布发布成功。
 - [ ] 将本计划所有完成项改为 `- [x]`，记录 PR 链接、关键测试结果与主工作树保护点；小提交：`docs: record beta release readiness`。
